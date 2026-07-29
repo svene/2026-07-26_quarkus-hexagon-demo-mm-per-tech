@@ -23,6 +23,7 @@
     <quarkus.platform.version>3.33.2.1</quarkus.platform.version>
 
     <wiremock.version>3.9.2</wiremock.version>
+    <assertj.version>3.26.3</assertj.version>
   </properties>
 
   <modules>
@@ -46,6 +47,13 @@
         <version>${quarkus.platform.version}</version>
         <type>pom</type>
         <scope>import</scope>
+      </dependency>
+
+      <dependency>
+        <groupId>org.assertj</groupId>
+        <artifactId>assertj-core</artifactId>
+        <version>${assertj.version}</version>
+        <scope>test</scope>
       </dependency>
 
       <!-- Inter-module dependencies: every adapter and app-server can depend on core -->
