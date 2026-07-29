@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.svenehrke.demo</groupId>
+    <artifactId>quarkus-hexagon-demo-mm-per-tech</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>adapter-outbound-postgres</artifactId>
+  <packaging>jar</packaging>
+
+  <name>adapter-outbound-postgres</name>
+  <description>Outbound adapter: implements a persistence port from core using
+    Hibernate ORM with Panache against PostgreSQL.
+    In dev/test mode, Quarkus Dev Services starts a real Postgres container
+    automatically - no manual setup or connection string required.</description>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.svenehrke.demo</groupId>
+      <artifactId>core</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-hibernate-orm-panache</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-jdbc-postgresql</artifactId>
+    </dependency>
+
+    <!-- Optional: enable if/when you want versioned schema migrations -->
+    <!--
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-flyway</artifactId>
+    </dependency>
+    -->
+  </dependencies>
+</project>

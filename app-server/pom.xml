@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.svenehrke.demo</groupId>
+    <artifactId>quarkus-hexagon-demo-mm-per-tech</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>app-server</artifactId>
+  <packaging>jar</packaging>
+
+  <name>app-server</name>
+  <description>The only runnable deployable in this demo. Contains no business logic
+    of its own - only depends on core and every adapter module, plus Quarkus
+    configuration (application.properties) that wires it all together.</description>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.svenehrke.demo</groupId>
+      <artifactId>core</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.svenehrke.demo</groupId>
+      <artifactId>adapter-inbound-rest</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.svenehrke.demo</groupId>
+      <artifactId>adapter-inbound-kafka</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.svenehrke.demo</groupId>
+      <artifactId>adapter-outbound-postgres</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.svenehrke.demo</groupId>
+      <artifactId>adapter-outbound-mongodb</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.svenehrke.demo</groupId>
+      <artifactId>adapter-outbound-kafka-producer</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.svenehrke.demo</groupId>
+      <artifactId>adapter-outbound-webservice</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.svenehrke.demo</groupId>
+      <artifactId>adapter-outbound-httpclient</artifactId>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <finalName>app-server</finalName>
+    <plugins>
+      <plugin>
+        <groupId>${quarkus.platform.group-id}</groupId>
+        <artifactId>quarkus-maven-plugin</artifactId>
+        <extensions>true</extensions>
+        <executions>
+          <execution>
+            <goals>
+              <goal>build</goal>
+              <goal>generate-code</goal>
+              <goal>generate-code-tests</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>
