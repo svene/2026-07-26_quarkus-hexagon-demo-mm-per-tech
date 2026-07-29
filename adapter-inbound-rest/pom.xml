@@ -36,51 +36,5 @@
       <artifactId>quarkus-rest-qute</artifactId>
     </dependency>
 
-    <!-- E2E test: all outbound adapters so Dev Services (Postgres, MongoDB, Kafka)
-         and WireMock start automatically, mirroring the app-server assembly. -->
-    <dependency>
-      <groupId>org.svenehrke.demo</groupId>
-      <artifactId>adapter-outbound-postgres</artifactId>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.svenehrke.demo</groupId>
-      <artifactId>adapter-outbound-mongodb</artifactId>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.svenehrke.demo</groupId>
-      <artifactId>adapter-outbound-kafka-producer</artifactId>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.svenehrke.demo</groupId>
-      <artifactId>adapter-outbound-webservice</artifactId>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.svenehrke.demo</groupId>
-      <artifactId>adapter-outbound-httpclient</artifactId>
-      <scope>test</scope>
-    </dependency>
-    <!-- quarkus-wiremock is 'provided' in adapter-outbound-webservice so Maven
-         does not propagate it; add it directly so the Dev Service starts. -->
-    <dependency>
-      <groupId>io.quarkiverse.wiremock</groupId>
-      <artifactId>quarkus-wiremock</artifactId>
-      <version>1.6.3</version>
-      <scope>test</scope>
-    </dependency>
-
-    <dependency>
-      <groupId>io.rest-assured</groupId>
-      <artifactId>rest-assured</artifactId>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.assertj</groupId>
-      <artifactId>assertj-core</artifactId>
-      <scope>test</scope>
-    </dependency>
   </dependencies>
 </project>

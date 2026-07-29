@@ -1,4 +1,4 @@
-package com.example.hexdemo.adapter.inbound.rest;
+package com.example.hexdemo.server;
 
 import com.example.hexdemo.core.domain.ProductType;
 import com.example.hexdemo.core.port.out.InventoryRepositorySPI;

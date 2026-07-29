@@ -1,4 +1,4 @@
-package com.example.hexdemo.adapter.inbound.rest;
+package com.example.hexdemo.server;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
