@@ -42,14 +42,13 @@ the underlying technology of the outbound adapter:
    Kafka delivery event. The Kafka receiver updates inventory. Refresh the page
    and the new stock appears.
 
-2. **Simulate a customer purchase** — fill in the exact product name and a
-   quantity and click *Purchase*. The amount is deducted immediately. If the
-   product does not exist yet the request is silently ignored.
+2. **Simulate a customer purchase** — fill in up to three product names with
+   quantities and click *Purchase*. The amounts are deducted immediately. If a
+   product does not exist the line is silently ignored.
 
 3. **Automatic purchases** — once inventory is non-empty, a Quarkus Scheduler
-   fires every 30 seconds (first fire 60 s after startup) and randomly purchases
-   1–3 units of a random product. Refresh the page to see the inventory shrink
-   over time.
+   fires every 2 seconds (30 s initial delay) and randomly purchases 2–4
+   products at once. Refresh the page to see the inventory shrink over time.
 
 ### JSON API
 
@@ -61,7 +60,8 @@ POST /api/products/order-{fruits|vegetables|dairy|beverages|meat|bakery|nonfood}
 POST /api/products/purchase
 ```
 
-POST bodies are JSON: `{"productName": "Mango", "quantity": 5}`.
+Order POST bodies are JSON: `{"productName": "Mango", "quantity": 5}`.
+Purchase POST body: `{"items":[{"productName":"Mango","quantity":5}]}`.
 
 ---
 
@@ -70,20 +70,19 @@ POST bodies are JSON: `{"productName": "Mango", "quantity": 5}`.
 ### Repository layout
 
 ```
-core/                           Domain model, use-case interfaces (API), SPI
-inbound-rest/           JAX-RS — HTML UI + JSON API
-inbound-kafka/          Kafka @Incoming — delivery events + purchase events
-inbound-scheduler/      Quarkus Scheduler — random purchase simulation
-outbound-postgres/      Hibernate ORM / Panache — inventory persistence
-outbound-mongodb/       MongoDB / Panache — audit log
-outbound-kafka-producer/Kafka @Channel Emitter — inventory change events
-outbound-httpclient/    MicroProfile REST Client — REST supplier orders
-outbound-webservice/    Apache CXF client — SOAP supplier orders
-outbound-kafka-supplier/Kafka @Channel Emitter — non-food supplier orders
-external-fruit-supplier-stub/  JAX-RS endpoints that echo delivery events onto Kafka
-external-beverage-supplier-stub/ CXF SOAP endpoints that echo delivery events onto Kafka
-external-nonfood-supplier-stub/  Kafka consumer/producer stub for non-food
-app-server/                     Deployable: wires everything, holds application.properties
+core/                       Domain model, use-case interfaces (API), SPI
+inbound-rest/               JAX-RS — HTML UI + JSON API
+inbound-kafka/              Kafka @Incoming — delivery events + purchase events
+outbound-postgres/          Hibernate ORM / Panache — inventory persistence
+outbound-mongodb/           MongoDB / Panache — audit log
+outbound-httpclient/        MicroProfile REST Client — REST supplier orders
+outbound-webservice/        Apache CXF client — SOAP supplier orders
+outbound-kafka/             Kafka @Channel Emitter — non-food supplier orders
+external-outbound-rest/     JAX-RS endpoints that echo delivery events onto Kafka
+external-outbound-soap/     CXF SOAP endpoints that echo delivery events onto Kafka
+external-outbound-kafka/    Kafka consumer/producer stub for non-food
+external-inbound-kafka/     Quarkus Scheduler + Kafka producer — cashpoint stub
+app-server/                 Deployable: wires everything, holds application.properties
 ```
 
 **Dependency rules:** `core` depends on nothing in this tree. Every adapter
@@ -98,16 +97,15 @@ stubs.
 | `core` | Domain + application (use cases + ports) | plain Java + CDI |
 | `inbound-rest` | Inbound adapter | JAX-RS + Qute templates |
 | `inbound-kafka` | Inbound adapter | SmallRye Reactive Messaging |
-| `inbound-scheduler` | Inbound adapter | Quarkus Scheduler |
 | `outbound-postgres` | Outbound adapter | Hibernate ORM / Panache |
 | `outbound-mongodb` | Outbound adapter | MongoDB / Panache |
-| `outbound-kafka-producer` | Outbound adapter | SmallRye Reactive Messaging |
 | `outbound-httpclient` | Outbound adapter | MicroProfile REST Client |
 | `outbound-webservice` | Outbound adapter | Apache CXF (SOAP client) |
-| `outbound-kafka-supplier` | Outbound adapter | SmallRye Reactive Messaging |
-| `external-fruit-supplier-stub` | External system stub | JAX-RS + Kafka producer |
-| `external-beverage-supplier-stub` | External system stub | CXF SOAP server + Kafka producer |
-| `external-nonfood-supplier-stub` | External system stub | Kafka consumer + producer |
+| `outbound-kafka` | Outbound adapter | SmallRye Reactive Messaging |
+| `external-outbound-rest` | External system stub | JAX-RS + Kafka producer |
+| `external-outbound-soap` | External system stub | CXF SOAP server + Kafka producer |
+| `external-outbound-kafka` | External system stub | Kafka consumer + producer |
+| `external-inbound-kafka` | External system stub | Quarkus Scheduler + Kafka producer |
 | `app-server` | Deployable | Quarkus runner, no business logic |
 
 ### Running tests

@@ -165,8 +165,8 @@ CashpointStub (scheduler) → cashpoint-purchases (Kafka) → CashpointReceiver 
 
 `CashpointStub` lives in `external-inbound-kafka`. Like the supplier stubs it is not part of
 the hexagonal architecture — it simulates a point-of-sale system that emits a Kafka message when a
-customer pays at checkout. It subscribes to `inventory-events` to maintain a local list of in-stock
-products and picks one at random each time the scheduler fires.
+customer pays at checkout. It calls `GET /api/products` via a MicroProfile REST Client each time the
+scheduler fires to discover which products are in stock, then picks 2–4 of them at random.
 
 `CashpointReceiver` in `inbound-kafka` is the actual inbound adapter: it receives the Kafka
 message and calls `PurchaseAPI`, exactly as a Kafka delivery receiver calls `InventoryAPI`.
