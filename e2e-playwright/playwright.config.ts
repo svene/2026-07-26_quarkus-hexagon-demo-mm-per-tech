@@ -22,6 +22,9 @@ export default defineConfig({
     stderr: 'pipe',
   },
 
+  // One retry absorbs the brief hot-reload window after global-setup rebuilds the JARs.
+  retries: 1,
+
   use: {
     baseURL: 'http://localhost:8080',
     screenshot: 'only-on-failure',
