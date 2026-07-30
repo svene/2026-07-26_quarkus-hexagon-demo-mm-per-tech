@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.svenehrke.demo</groupId>
+    <artifactId>quarkus-hexagon-demo-mm-per-tech</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>outbound-kafka-supplier</artifactId>
+  <packaging>jar</packaging>
+
+  <name>adapter-outbound-kafka-supplier</name>
+  <description>Outbound adapter: implements NonFoodSupplierSPI by publishing order requests
+    to a Kafka topic. The non-food supplier stub (adapter-external-nonfood-supplier-stub)
+    consumes those requests and publishes a delivery notification back via a separate topic.</description>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.svenehrke.demo</groupId>
+      <artifactId>core</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-messaging-kafka</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-jackson</artifactId>
+    </dependency>
+  </dependencies>
+</project>

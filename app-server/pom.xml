@@ -25,41 +25,54 @@
     </dependency>
     <dependency>
       <groupId>org.svenehrke.demo</groupId>
-      <artifactId>adapter-inbound-rest</artifactId>
+      <artifactId>inbound-rest</artifactId>
     </dependency>
     <dependency>
       <groupId>org.svenehrke.demo</groupId>
-      <artifactId>adapter-inbound-kafka</artifactId>
+      <artifactId>inbound-kafka</artifactId>
     </dependency>
     <dependency>
       <groupId>org.svenehrke.demo</groupId>
-      <artifactId>adapter-outbound-postgres</artifactId>
+      <artifactId>outbound-postgres</artifactId>
     </dependency>
     <dependency>
       <groupId>org.svenehrke.demo</groupId>
-      <artifactId>adapter-outbound-mongodb</artifactId>
+      <artifactId>outbound-mongodb</artifactId>
     </dependency>
     <dependency>
       <groupId>org.svenehrke.demo</groupId>
-      <artifactId>adapter-outbound-kafka-producer</artifactId>
+      <artifactId>outbound-kafka-producer</artifactId>
     </dependency>
     <dependency>
       <groupId>org.svenehrke.demo</groupId>
-      <artifactId>adapter-outbound-webservice</artifactId>
+      <artifactId>outbound-webservice</artifactId>
     </dependency>
     <dependency>
       <groupId>org.svenehrke.demo</groupId>
-      <artifactId>adapter-outbound-httpclient</artifactId>
+      <artifactId>outbound-httpclient</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.svenehrke.demo</groupId>
+      <artifactId>inbound-scheduler</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.svenehrke.demo</groupId>
+      <artifactId>outbound-kafka-supplier</artifactId>
     </dependency>
 
     <!-- Stubs that simulate external systems in dev/test -->
     <dependency>
       <groupId>org.svenehrke.demo</groupId>
-      <artifactId>adapter-external-fruit-supplier-stub</artifactId>
+      <artifactId>external-fruit-supplier-stub</artifactId>
     </dependency>
     <dependency>
       <groupId>org.svenehrke.demo</groupId>
-      <artifactId>adapter-external-beverage-supplier-stub</artifactId>
+      <artifactId>external-beverage-supplier-stub</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.svenehrke.demo</groupId>
+      <artifactId>external-nonfood-supplier-stub</artifactId>
     </dependency>
     <dependency>
       <groupId>io.rest-assured</groupId>

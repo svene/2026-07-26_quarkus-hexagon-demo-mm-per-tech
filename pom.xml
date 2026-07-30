@@ -27,15 +27,18 @@
 
   <modules>
     <module>core</module>
-    <module>adapter-inbound-rest</module>
-    <module>adapter-inbound-kafka</module>
-    <module>adapter-outbound-postgres</module>
-    <module>adapter-outbound-mongodb</module>
-    <module>adapter-outbound-kafka-producer</module>
-    <module>adapter-outbound-webservice</module>
-    <module>adapter-outbound-httpclient</module>
-    <module>adapter-external-fruit-supplier-stub</module>
-    <module>adapter-external-beverage-supplier-stub</module>
+    <module>inbound-rest</module>
+    <module>inbound-kafka</module>
+    <module>outbound-postgres</module>
+    <module>outbound-mongodb</module>
+    <module>outbound-kafka-producer</module>
+    <module>outbound-webservice</module>
+    <module>outbound-httpclient</module>
+    <module>external-fruit-supplier-stub</module>
+    <module>external-beverage-supplier-stub</module>
+    <module>external-nonfood-supplier-stub</module>
+    <module>inbound-scheduler</module>
+    <module>outbound-kafka-supplier</module>
     <module>app-server</module>
   </modules>
 
@@ -65,47 +68,62 @@
       </dependency>
       <dependency>
         <groupId>org.svenehrke.demo</groupId>
-        <artifactId>adapter-inbound-rest</artifactId>
+        <artifactId>inbound-rest</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>org.svenehrke.demo</groupId>
-        <artifactId>adapter-inbound-kafka</artifactId>
+        <artifactId>inbound-kafka</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>org.svenehrke.demo</groupId>
-        <artifactId>adapter-outbound-postgres</artifactId>
+        <artifactId>outbound-postgres</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>org.svenehrke.demo</groupId>
-        <artifactId>adapter-outbound-mongodb</artifactId>
+        <artifactId>outbound-mongodb</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>org.svenehrke.demo</groupId>
-        <artifactId>adapter-outbound-kafka-producer</artifactId>
+        <artifactId>outbound-kafka-producer</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>org.svenehrke.demo</groupId>
-        <artifactId>adapter-outbound-webservice</artifactId>
+        <artifactId>outbound-webservice</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>org.svenehrke.demo</groupId>
-        <artifactId>adapter-outbound-httpclient</artifactId>
+        <artifactId>outbound-httpclient</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>org.svenehrke.demo</groupId>
-        <artifactId>adapter-external-fruit-supplier-stub</artifactId>
+        <artifactId>external-fruit-supplier-stub</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>org.svenehrke.demo</groupId>
-        <artifactId>adapter-external-beverage-supplier-stub</artifactId>
+        <artifactId>external-beverage-supplier-stub</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.svenehrke.demo</groupId>
+        <artifactId>external-nonfood-supplier-stub</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.svenehrke.demo</groupId>
+        <artifactId>inbound-scheduler</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.svenehrke.demo</groupId>
+        <artifactId>outbound-kafka-supplier</artifactId>
         <version>${project.version}</version>
       </dependency>
     </dependencies>
