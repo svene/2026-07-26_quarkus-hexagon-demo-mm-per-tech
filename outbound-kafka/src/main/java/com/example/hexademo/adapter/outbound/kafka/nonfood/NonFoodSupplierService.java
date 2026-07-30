@@ -1,4 +1,4 @@
-package com.example.hexademo.adapter.outbound.kafkasupplier.nonfood;
+package com.example.hexademo.adapter.outbound.kafka.nonfood;
 
 import com.example.hexademo.core.port.out.NonFoodSupplierSPI;
 import jakarta.enterprise.context.ApplicationScoped;

@@ -41,10 +41,6 @@
     </dependency>
     <dependency>
       <groupId>org.svenehrke.demo</groupId>
-      <artifactId>outbound-kafka-producer</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.svenehrke.demo</groupId>
       <artifactId>outbound-webservice</artifactId>
     </dependency>
     <dependency>
@@ -54,7 +50,7 @@
 
     <dependency>
       <groupId>org.svenehrke.demo</groupId>
-      <artifactId>outbound-kafka-supplier</artifactId>
+      <artifactId>outbound-kafka</artifactId>
     </dependency>
 
     <!-- Stubs that simulate external systems in dev/test -->

@@ -4,7 +4,6 @@ import com.example.hexademo.core.domain.Product;
 import com.example.hexademo.core.domain.ProductType;
 import com.example.hexademo.core.port.in.InventoryAPI;
 import com.example.hexademo.core.port.out.AuditLogSPI;
-import com.example.hexademo.core.port.out.InventoryEventPublisherSPI;
 import com.example.hexademo.core.port.out.InventoryRepositorySPI;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -13,7 +12,6 @@ import jakarta.inject.Inject;
 public class InventoryHandler implements InventoryAPI {
 
     @Inject InventoryRepositorySPI inventoryRepository;
-    @Inject InventoryEventPublisherSPI eventPublisher;
     @Inject AuditLogSPI auditLog;
 
     @Override
@@ -54,7 +52,6 @@ public class InventoryHandler implements InventoryAPI {
     private void update(String productName, ProductType type, int quantity, String typeLabel) {
         auditLog.log("InventoryHandler: " + typeLabel + "_DELIVERY_RECEIVED", productName + " qty=" + quantity);
         Product updated = inventoryRepository.addAmount(productName, type, quantity);
-        eventPublisher.publishInventoryChanged(updated);
         auditLog.log("InventoryHandler: " + typeLabel + "_INVENTORY_UPDATED", productName + " +" + quantity + " total=" + updated.availableAmount());
     }
 }

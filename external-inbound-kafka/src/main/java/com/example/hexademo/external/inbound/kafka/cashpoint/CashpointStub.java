@@ -5,35 +5,25 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.reactive.messaging.Channel;
 import org.eclipse.microprofile.reactive.messaging.Emitter;
-import org.eclipse.microprofile.reactive.messaging.Incoming;
 
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
 @ApplicationScoped
 public class CashpointStub {
 
-    private final CopyOnWriteArrayList<String> inStockProducts = new CopyOnWriteArrayList<>();
+    private static final List<String> PRODUCTS = List.of(
+        "Apple", "Banana", "Cola", "Milk", "Bread", "Steak", "Shampoo"
+    );
 
     @Inject
     @Channel("cashpoint-purchases-out")
     Emitter<PurchaseRequest> emitter;
 
-    @Incoming("inventory-events-consumer")
-    public void onInventoryChanged(InventoryEvent event) {
-        if (event.availableAmount() > 0) {
-            inStockProducts.addIfAbsent(event.productName());
-        } else {
-            inStockProducts.remove(event.productName());
-        }
-    }
-
     @Scheduled(every = "2s", delayed = "30s")
     void simulatePurchase() {
-        if (inStockProducts.isEmpty()) return;
         var rnd = ThreadLocalRandom.current();
-        var productName = inStockProducts.get(rnd.nextInt(inStockProducts.size()));
-        int qty = rnd.nextInt(1, 4);
-        emitter.send(new PurchaseRequest(productName, qty));
+        var productName = PRODUCTS.get(rnd.nextInt(PRODUCTS.size()));
+        emitter.send(new PurchaseRequest(productName, rnd.nextInt(1, 4)));
     }
 }

@@ -10,12 +10,12 @@
     <version>1.0.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>outbound-kafka-supplier</artifactId>
+  <artifactId>outbound-kafka</artifactId>
   <packaging>jar</packaging>
 
-  <name>outbound-kafka-supplier</name>
+  <name>outbound-kafka</name>
   <description>Outbound adapter: implements NonFoodSupplierSPI by publishing order requests
-    to a Kafka topic. The non-food supplier stub (external-nonfood-supplier-stub)
+    to a Kafka topic. The non-food supplier stub (external-outbound-kafka)
     consumes those requests and publishes a delivery notification back via a separate topic.</description>
 
   <dependencies>

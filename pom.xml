@@ -31,14 +31,13 @@
     <module>inbound-kafka</module>
     <module>outbound-postgres</module>
     <module>outbound-mongodb</module>
-    <module>outbound-kafka-producer</module>
     <module>outbound-webservice</module>
     <module>outbound-httpclient</module>
     <module>external-outbound-rest</module>
     <module>external-outbound-soap</module>
     <module>external-outbound-kafka</module>
     <module>external-inbound-kafka</module>
-    <module>outbound-kafka-supplier</module>
+    <module>outbound-kafka</module>
     <module>app-server</module>
   </modules>
 
@@ -88,11 +87,6 @@
       </dependency>
       <dependency>
         <groupId>org.svenehrke.demo</groupId>
-        <artifactId>outbound-kafka-producer</artifactId>
-        <version>${project.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>org.svenehrke.demo</groupId>
         <artifactId>outbound-webservice</artifactId>
         <version>${project.version}</version>
       </dependency>
@@ -123,7 +117,7 @@
       </dependency>
       <dependency>
         <groupId>org.svenehrke.demo</groupId>
-        <artifactId>outbound-kafka-supplier</artifactId>
+        <artifactId>outbound-kafka</artifactId>
         <version>${project.version}</version>
       </dependency>
     </dependencies>
