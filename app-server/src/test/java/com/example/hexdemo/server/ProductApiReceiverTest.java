@@ -9,7 +9,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import static io.restassured.RestAssured.given;
-import static org.hamcrest.Matchers.is;
+import static org.assertj.core.api.Assertions.assertThat;
 
 @QuarkusTest
 class ProductApiReceiverTest {
@@ -24,27 +24,22 @@ class ProductApiReceiverTest {
 
     @Test
     void list_empty_inventory_returns_empty_json_array() {
-        given()
-            .when().get("/api/products")
-            .then()
-            .statusCode(200)
-            .contentType(ContentType.JSON)
-            .body("size()", is(0));
+        var response = given().get("/api/products");
+
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(response.contentType()).contains("application/json");
+        assertThat(response.asString()).isEqualTo("[]");
     }
 
     @Test
     void list_returns_product_as_json() {
         inventory.addAmount("Apple", ProductType.FRUIT, 10);
 
-        given()
-            .when().get("/api/products")
-            .then()
-            .statusCode(200)
-            .contentType(ContentType.JSON)
-            .body("size()", is(1))
-            .body("[0].name", is("Apple"))
-            .body("[0].type", is("FRUIT"))
-            .body("[0].availableAmount", is(10));
+        var response = given().get("/api/products");
+
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(response.asString()).isEqualTo("""
+            [{"name":"Apple","type":"FRUIT","availableAmount":10}]""");
     }
 
     @Test
@@ -53,30 +48,39 @@ class ProductApiReceiverTest {
         inventory.addAmount("Banana", ProductType.FRUIT, 7);
         inventory.addAmount("Cola", ProductType.BEVERAGE, 20);
 
-        given()
-            .when().get("/api/products")
-            .then()
-            .statusCode(200)
-            .body("size()", is(3));
+        var response = given().get("/api/products");
+
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(response.jsonPath().<Object>getList("$")).hasSize(3);
     }
 
     @Test
     void order_fruits_calls_supplier_and_returns_204() {
-        given()
+        var response = given()
             .contentType(ContentType.JSON)
-            .body("{\"productName\":\"Mango\",\"quantity\":5}")
-            .when().post("/api/products/order-fruits")
-            .then()
-            .statusCode(204);
+            .body("""
+                {
+                  "productName": "Mango",
+                  "quantity": 5
+                }
+                """)
+            .post("/api/products/order-fruits");
+
+        assertThat(response.statusCode()).isEqualTo(204);
     }
 
     @Test
     void order_beverages_calls_supplier_and_returns_204() {
-        given()
+        var response = given()
             .contentType(ContentType.JSON)
-            .body("{\"productName\":\"Coffee\",\"quantity\":3}")
-            .when().post("/api/products/order-beverages")
-            .then()
-            .statusCode(204);
+            .body("""
+                {
+                  "productName": "Coffee",
+                  "quantity": 3
+                }
+                """)
+            .post("/api/products/order-beverages");
+
+        assertThat(response.statusCode()).isEqualTo(204);
     }
 }
