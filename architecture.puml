@@ -1,0 +1,272 @@
+@startuml architecture
+left to right direction
+skinparam packageStyle rectangle
+skinparam defaultTextAlignment center
+skinparam componentStyle rectangle
+skinparam ArrowColor #555555
+
+' =============================================================================
+' FAR LEFT — external systems that DRIVE the application (inbound)
+' =============================================================================
+
+actor "Browser /\nREST client" as Browser
+
+package "external-inbound-kafka" {
+  component "CashpointStub\n@Scheduled\nevery=2s  delay=30s\nGET /api/products (REST Client)" as CashpointStub
+}
+
+' Kafka topics consumed by inbound-kafka adapters
+queue "cashpoint-purchases" as T_CASHPOINT
+queue "fruit-deliveries" as T_FRUIT
+queue "vegetables-deliveries" as T_VEG
+queue "dairy-deliveries" as T_DAIRY
+queue "beverages-deliveries" as T_BEV
+queue "meat-deliveries" as T_MEAT
+queue "bakery-deliveries" as T_BAKERY
+queue "nonfood-deliveries" as T_NONFOOD_DEL
+
+' =============================================================================
+' INBOUND ADAPTERS (left side of the hexagon)
+' =============================================================================
+
+package "inbound-rest\n[JAX-RS + Qute templates]" as INBOUND_REST {
+  component "ProductReceiver\nGET  /products\nPOST /products/order-{fruit|vegetable|dairy|\n      beverage|meat|bakery|nonfood}\nPOST /products/purchase\n(HTML form — 3-row purchase form)" as ProductReceiver
+  component "ProductApiReceiver\nGET  /api/products\nPOST /api/products/order-{fruit|vegetable|dairy|\n      beverage|meat|bakery|nonfood}\nPOST /api/products/purchase\n(JSON body)" as ProductApiReceiver
+}
+
+package "inbound-kafka\n[SmallRye Reactive Messaging @Incoming]" as INBOUND_KAFKA {
+  component "FruitDeliveryReceiver" as FruitRcv
+  component "VegetablesDeliveryReceiver" as VegRcv
+  component "DairyDeliveryReceiver" as DairyRcv
+  component "BeveragesDeliveryReceiver" as BevRcv
+  component "MeatDeliveryReceiver" as MeatRcv
+  component "BakeryDeliveryReceiver" as BakeryRcv
+  component "NonFoodDeliveryReceiver" as NonFoodRcv
+  component "CashpointReceiver" as CashpointRcv
+}
+
+' =============================================================================
+' CORE  (the hexagon)
+' =============================================================================
+
+package "core\n[plain Java + CDI, no framework deps]" as CORE {
+
+  package "API — inbound ports" as API {
+    interface "ProductsAPI\nlistAll()" as ProductsAPI
+    interface "InventoryAPI\nupdateFruitAmount(name,qty)\nupdateVegetableAmount(name,qty)\nupdateDairyAmount(name,qty)\nupdateBeverageAmount(name,qty)\nupdateMeatAmount(name,qty)\nupdateBakeryAmount(name,qty)\nupdateNonFoodAmount(name,qty)" as InventoryAPI
+    interface "FruitsAPI\norder(name,qty)" as FruitsAPI
+    interface "VegetablesAPI\norder(name,qty)" as VegetablesAPI
+    interface "DairyAPI\norder(name,qty)" as DairyAPI
+    interface "BeveragesAPI\norder(name,qty)" as BeveragesAPI
+    interface "MeatAPI\norder(name,qty)" as MeatAPI
+    interface "BakeryAPI\norder(name,qty)" as BakeryAPI
+    interface "NonFoodAPI\norder(name,qty)" as NonFoodAPI
+    interface "PurchaseAPI\npurchase(List<PurchaseItem>)" as PurchaseAPI
+  }
+
+  package "Handlers (use-case implementations)" as HANDLERS {
+    component "ProductsHandler\n→ InventoryRepositorySPI.findAll()" as ProductsHandler
+    component "InventoryHandler\n→ InventoryRepositorySPI.addAmount()\n→ AuditLogSPI.log()" as InventoryHandler
+    component "FruitsHandler\n→ FruitSupplierSPI.placeOrder()\n→ InventoryRepositorySPI.addAmount()\n→ AuditLogSPI.log()" as FruitsHandler
+    component "VegetablesHandler\n→ VegetablesSupplierSPI.placeOrder()\n→ InventoryRepositorySPI.addAmount()\n→ AuditLogSPI.log()" as VegetablesHandler
+    component "DairyHandler\n→ DairySupplierSPI.placeOrder()\n→ InventoryRepositorySPI.addAmount()\n→ AuditLogSPI.log()" as DairyHandler
+    component "BeveragesHandler\n→ BeverageSupplierSPI.placeOrder()\n→ InventoryRepositorySPI.addAmount()\n→ AuditLogSPI.log()" as BeveragesHandler
+    component "MeatHandler\n→ MeatSupplierSPI.placeOrder()\n→ InventoryRepositorySPI.addAmount()\n→ AuditLogSPI.log()" as MeatHandler
+    component "BakeryHandler\n→ BakerySupplierSPI.placeOrder()\n→ InventoryRepositorySPI.addAmount()\n→ AuditLogSPI.log()" as BakeryHandler
+    component "NonFoodHandler\n→ NonFoodSupplierSPI.placeOrder()\n→ InventoryRepositorySPI.addAmount()\n→ AuditLogSPI.log()" as NonFoodHandler
+    component "PurchaseHandler\n→ InventoryRepositorySPI.deductAmount()\n→ AuditLogSPI.log()" as PurchaseHandler
+  }
+
+  package "SPI — outbound ports" as SPI {
+    interface "InventoryRepositorySPI\naddAmount(name,type,delta)\ndeductAmount(name,delta)\nfindAll()" as InventoryRepoSPI
+    interface "AuditLogSPI\nlog(event,details)" as AuditLogSPI
+    interface "FruitSupplierSPI\nplaceOrder(name,qty)" as FruitSPI
+    interface "VegetablesSupplierSPI\nplaceOrder(name,qty)" as VegSPI
+    interface "DairySupplierSPI\nplaceOrder(name,qty)" as DairySPI
+    interface "BeverageSupplierSPI\nplaceOrder(name,qty)" as BevSPI
+    interface "MeatSupplierSPI\nplaceOrder(name,qty)" as MeatSPI
+    interface "BakerySupplierSPI\nplaceOrder(name,qty)" as BakerySPI
+    interface "NonFoodSupplierSPI\nplaceOrder(name,qty)" as NonFoodSPI
+  }
+}
+
+' =============================================================================
+' OUTBOUND ADAPTERS (right side of the hexagon)
+' =============================================================================
+
+package "outbound-postgres\n[Hibernate ORM / Panache]" as OUTBOUND_PG {
+  component "InventoryService\nimpl InventoryRepositorySPI" as InvService
+}
+
+package "outbound-mongodb\n[MongoDB Panache]" as OUTBOUND_MONGO {
+  component "AuditLogService\nimpl AuditLogSPI" as AuditService
+}
+
+package "outbound-httpclient\n[MicroProfile REST Client]" as OUTBOUND_HTTP {
+  component "FruitSupplierService\nimpl FruitSupplierSPI\nPOST /orders" as FruitSvc
+  component "VegetablesSupplierService\nimpl VegetablesSupplierSPI\nPOST /vegetable-orders" as VegSvc
+  component "DairySupplierService\nimpl DairySupplierSPI\nPOST /dairy-orders" as DairySvc
+}
+
+package "outbound-webservice\n[Apache CXF — SOAP client]" as OUTBOUND_SOAP {
+  component "BeverageSupplierService\nimpl BeverageSupplierSPI\n/soap/beverage-supplier" as BevSvc
+  component "MeatSupplierService\nimpl MeatSupplierSPI\n/soap/meat-supplier" as MeatSvc
+  component "BakerySupplierService\nimpl BakerySupplierSPI\n/soap/bakery-supplier" as BakerySvc
+}
+
+package "outbound-kafka\n[SmallRye Reactive Messaging @Channel Emitter]" as OUTBOUND_KAFKA {
+  component "NonFoodSupplierService\nimpl NonFoodSupplierSPI\nchannel: nonfood-orders-out" as NonFoodSvc
+}
+
+' =============================================================================
+' FAR RIGHT — external systems the application calls (outbound)
+' =============================================================================
+
+database "PostgreSQL\n(Quarkus Dev Services)" as Postgres
+database "MongoDB\ndatabase: hexdemo\n(Quarkus Dev Services)" as MongoDB
+
+queue "nonfood-orders" as T_NONFOOD_ORDERS
+
+package "external-outbound-rest\n[JAX-RS endpoints + Kafka producer]" as EXT_REST {
+  component "FruitSupplierStub\nPOST /orders" as FruitStub
+  component "VegetablesSupplierStub\nPOST /vegetable-orders" as VegStub
+  component "DairySupplierStub\nPOST /dairy-orders" as DairyStub
+}
+
+package "external-outbound-soap\n[CXF SOAP server + Kafka producer]" as EXT_SOAP {
+  component "BeverageSupplierStub\n/soap/beverage-supplier" as BevStub
+  component "MeatSupplierStub\n/soap/meat-supplier" as MeatStub
+  component "BakerySupplierStub\n/soap/bakery-supplier" as BakeryStub
+}
+
+package "external-outbound-kafka\n[Kafka consumer + producer]" as EXT_KAFKA {
+  component "NonFoodSupplierStub" as NonFoodStub
+}
+
+' =============================================================================
+' CONNECTIONS
+' =============================================================================
+
+' --- External drivers → inbound ---
+Browser --> ProductReceiver : HTTP (form)
+Browser --> ProductApiReceiver : HTTP (JSON)
+CashpointStub --> T_CASHPOINT : produce
+CashpointStub ..> ProductApiReceiver : GET /api/products\n(MicroProfile REST Client)
+
+' --- Kafka topics → inbound-kafka receivers ---
+T_CASHPOINT --> CashpointRcv : consume
+T_FRUIT --> FruitRcv : consume
+T_VEG --> VegRcv : consume
+T_DAIRY --> DairyRcv : consume
+T_BEV --> BevRcv : consume
+T_MEAT --> MeatRcv : consume
+T_BAKERY --> BakeryRcv : consume
+T_NONFOOD_DEL --> NonFoodRcv : consume
+
+' --- Inbound REST → Core APIs ---
+ProductReceiver --> ProductsAPI
+ProductReceiver --> FruitsAPI
+ProductReceiver --> VegetablesAPI
+ProductReceiver --> DairyAPI
+ProductReceiver --> BeveragesAPI
+ProductReceiver --> MeatAPI
+ProductReceiver --> BakeryAPI
+ProductReceiver --> NonFoodAPI
+ProductReceiver --> PurchaseAPI
+ProductApiReceiver --> ProductsAPI
+ProductApiReceiver --> FruitsAPI
+ProductApiReceiver --> VegetablesAPI
+ProductApiReceiver --> DairyAPI
+ProductApiReceiver --> BeveragesAPI
+ProductApiReceiver --> MeatAPI
+ProductApiReceiver --> BakeryAPI
+ProductApiReceiver --> NonFoodAPI
+ProductApiReceiver --> PurchaseAPI
+
+' --- Inbound Kafka receivers → Core APIs ---
+FruitRcv --> InventoryAPI
+VegRcv --> InventoryAPI
+DairyRcv --> InventoryAPI
+BevRcv --> InventoryAPI
+MeatRcv --> InventoryAPI
+BakeryRcv --> InventoryAPI
+NonFoodRcv --> InventoryAPI
+CashpointRcv --> PurchaseAPI
+
+' --- Core APIs → Handlers (implements) ---
+ProductsAPI <|.. ProductsHandler
+InventoryAPI <|.. InventoryHandler
+FruitsAPI <|.. FruitsHandler
+VegetablesAPI <|.. VegetablesHandler
+DairyAPI <|.. DairyHandler
+BeveragesAPI <|.. BeveragesHandler
+MeatAPI <|.. MeatHandler
+BakeryAPI <|.. BakeryHandler
+NonFoodAPI <|.. NonFoodHandler
+PurchaseAPI <|.. PurchaseHandler
+
+' --- Handlers → SPIs (uses) ---
+ProductsHandler --> InventoryRepoSPI
+InventoryHandler --> InventoryRepoSPI
+InventoryHandler --> AuditLogSPI
+FruitsHandler --> FruitSPI
+FruitsHandler --> InventoryRepoSPI
+FruitsHandler --> AuditLogSPI
+VegetablesHandler --> VegSPI
+VegetablesHandler --> InventoryRepoSPI
+VegetablesHandler --> AuditLogSPI
+DairyHandler --> DairySPI
+DairyHandler --> InventoryRepoSPI
+DairyHandler --> AuditLogSPI
+BeveragesHandler --> BevSPI
+BeveragesHandler --> InventoryRepoSPI
+BeveragesHandler --> AuditLogSPI
+MeatHandler --> MeatSPI
+MeatHandler --> InventoryRepoSPI
+MeatHandler --> AuditLogSPI
+BakeryHandler --> BakerySPI
+BakeryHandler --> InventoryRepoSPI
+BakeryHandler --> AuditLogSPI
+NonFoodHandler --> NonFoodSPI
+NonFoodHandler --> InventoryRepoSPI
+NonFoodHandler --> AuditLogSPI
+PurchaseHandler --> InventoryRepoSPI
+PurchaseHandler --> AuditLogSPI
+
+' --- SPIs → Outbound adapters (implements) ---
+InventoryRepoSPI <|.. InvService
+AuditLogSPI <|.. AuditService
+FruitSPI <|.. FruitSvc
+VegSPI <|.. VegSvc
+DairySPI <|.. DairySvc
+BevSPI <|.. BevSvc
+MeatSPI <|.. MeatSvc
+BakerySPI <|.. BakerySvc
+NonFoodSPI <|.. NonFoodSvc
+
+' --- Outbound adapters → external systems ---
+InvService --> Postgres
+AuditService --> MongoDB
+FruitSvc --> FruitStub : POST /orders
+VegSvc --> VegStub : POST /vegetable-orders
+DairySvc --> DairyStub : POST /dairy-orders
+BevSvc --> BevStub : SOAP
+MeatSvc --> MeatStub : SOAP
+BakerySvc --> BakeryStub : SOAP
+NonFoodSvc --> T_NONFOOD_ORDERS : produce
+
+' --- External REST stubs → Kafka topics ---
+FruitStub --> T_FRUIT : produce
+VegStub --> T_VEG : produce
+DairyStub --> T_DAIRY : produce
+
+' --- External SOAP stubs → Kafka topics ---
+BevStub --> T_BEV : produce
+MeatStub --> T_MEAT : produce
+BakeryStub --> T_BAKERY : produce
+
+' --- nonfood-orders topic → NonFoodSupplierStub → nonfood-deliveries ---
+T_NONFOOD_ORDERS --> NonFoodStub : consume
+NonFoodStub --> T_NONFOOD_DEL : produce
+
+@enduml
