@@ -35,6 +35,7 @@
     <module>adapter-outbound-kafka-producer</module>
     <module>adapter-outbound-webservice</module>
     <module>adapter-outbound-httpclient</module>
+    <module>adapter-external-fruit-supplier-stub</module>
     <module>app-server</module>
   </modules>
 
@@ -95,6 +96,11 @@
       <dependency>
         <groupId>org.svenehrke.demo</groupId>
         <artifactId>adapter-outbound-httpclient</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.svenehrke.demo</groupId>
+        <artifactId>adapter-external-fruit-supplier-stub</artifactId>
         <version>${project.version}</version>
       </dependency>
     </dependencies>

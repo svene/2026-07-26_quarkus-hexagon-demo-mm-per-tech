@@ -9,7 +9,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import static io.restassured.RestAssured.given;
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 
 @QuarkusTest
 class ProductApiReceiverTest {
@@ -19,7 +21,10 @@ class ProductApiReceiverTest {
 
     @BeforeEach
     void setUp() {
-        helper.resetInventory();
+        await().atMost(5, SECONDS).until(() -> {
+            helper.resetInventory();
+            return given().get("/api/products").asString().equals("[]");
+        });
     }
 
     @Test

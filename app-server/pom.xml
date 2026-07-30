@@ -52,7 +52,13 @@
       <artifactId>adapter-outbound-httpclient</artifactId>
     </dependency>
 
-    <!-- E2E tests: WireMock dev service for supplier REST clients -->
+    <!-- E2E tests -->
+    <dependency>
+      <groupId>org.svenehrke.demo</groupId>
+      <artifactId>adapter-external-fruit-supplier-stub</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!-- WireMock dev service for the beverage supplier REST client -->
     <!-- quarkus-wiremock is 'provided' in adapter-outbound-webservice so Maven
          does not propagate it; add it directly so the Dev Service starts. -->
     <dependency>
@@ -69,6 +75,11 @@
     <dependency>
       <groupId>org.assertj</groupId>
       <artifactId>assertj-core</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.awaitility</groupId>
+      <artifactId>awaitility</artifactId>
       <scope>test</scope>
     </dependency>
   </dependencies>
