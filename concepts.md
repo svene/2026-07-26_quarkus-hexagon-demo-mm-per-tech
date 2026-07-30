@@ -202,6 +202,26 @@ implement or consume a hexagonal port; these stubs do neither.
 
 ---
 
+## HTML interface vs. JSON API
+
+The HTML interface at `/products` is the intended primary way to interact with
+the system. It gives a visual overview of the inventory and exposes every
+operation (ordering from each supplier technology, simulating a customer
+purchase) through browser forms.
+
+The JSON API at `/api/products` serves a different purpose: it is aimed at
+tests and development tooling. During development of backend functionality —
+new handlers, new adapters, new Kafka flows — it is faster to drive the system
+through HTTP calls in a unit or integration test than to open a browser. The
+flow tests in `app-server` use this API exclusively for that reason.
+
+The JSON API also provides a natural integration point if someone wants to
+build a separate frontend using Angular, React, or another framework. That
+frontend would be a completely separate project consuming the API; it is not
+part of this system and would not live in this repository.
+
+---
+
 ## What this POC does not show
 
 - **Authentication / authorization** — out of scope.
