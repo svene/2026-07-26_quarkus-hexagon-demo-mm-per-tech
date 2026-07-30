@@ -1,3 +1,5 @@
 package com.example.hexademo.adapter.inbound.kafka.cashpoint;
 
-public record PurchaseMessage(String productName, int quantity) {}
+import java.util.List;
+
+public record PurchaseMessage(List<PurchaseMessageItem> items) {}

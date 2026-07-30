@@ -138,8 +138,8 @@ test('purchasing a product deducts its inventory', async ({ page }) => {
   await waitForProductRow(page, purchase);
 
   // Now purchase 3 units.
-  await page.locator('form[action="/products/purchase"] input[name="productName"]').fill(purchase);
-  await page.locator('form[action="/products/purchase"] input[name="quantity"]').fill('3');
+  await page.locator('form[action="/products/purchase"] input[name="productName1"]').fill(purchase);
+  await page.locator('form[action="/products/purchase"] input[name="quantity1"]').fill('3');
   await page.locator('form[action="/products/purchase"] button[type="submit"]').click();
   await page.waitForURL('/products');
 

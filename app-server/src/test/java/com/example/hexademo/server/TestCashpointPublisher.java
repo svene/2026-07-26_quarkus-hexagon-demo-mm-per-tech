@@ -11,7 +11,7 @@ public class TestCashpointPublisher {
 
     @Inject @Channel("testing-cashpoint-purchases-out") Emitter<PurchaseMessage> emitter;
 
-    public void publish(String productName, int quantity) {
-        emitter.send(new PurchaseMessage(productName, quantity));
+    public void publish(PurchaseMessage message) {
+        emitter.send(message);
     }
 }

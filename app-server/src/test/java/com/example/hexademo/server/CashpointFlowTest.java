@@ -29,7 +29,6 @@ class CashpointFlowTest {
 
     @Test
     void customer_purchase_deducts_inventory() {
-        // First stock up via a fruit order so there is something to purchase.
         given()
             .contentType(ContentType.JSON)
             .body("""
@@ -38,7 +37,6 @@ class CashpointFlowTest {
             .post("/api/products/order-fruits")
             .then().statusCode(204);
 
-        // Wait for the delivery to arrive via Kafka and land in inventory.
         await().atMost(10, SECONDS).untilAsserted(() ->
             assertThat(given().get("/api/products").asString())
                 .isEqualTo("""
@@ -47,26 +45,56 @@ class CashpointFlowTest {
 
         auditHelper.clearAuditLog();
 
-        // Simulate a customer buying 3 apples via the REST endpoint.
         var purchaseResponse = given()
             .contentType(ContentType.JSON)
             .body("""
-                {"productName": "Apple", "quantity": 3}
+                {"items":[{"productName":"Apple","quantity":3}]}
                 """)
             .post("/api/products/purchase");
         assertThat(purchaseResponse.statusCode()).isEqualTo(204);
 
-        // PURCHASE_RECEIVED and INVENTORY_DEDUCTED are written synchronously
-        // inside PurchaseHandler during the HTTP request.
         assertThat(auditHelper.findEventDetails("PurchaseHandler: PURCHASE_RECEIVED"))
             .containsExactly("Apple qty=3");
         assertThat(auditHelper.findEventDetails("PurchaseHandler: INVENTORY_DEDUCTED"))
             .containsExactly("Apple -3 total=7");
 
-        // Verify the inventory reflects the deduction.
         assertThat(given().get("/api/products").asString())
             .isEqualTo("""
                 [{"name":"Apple","type":"FRUIT","availableAmount":7}]""");
+    }
+
+    @Test
+    void multi_item_purchase_deducts_each_product() {
+        given().contentType(ContentType.JSON)
+            .body("""
+                {"productName": "Apple", "quantity": 10}
+                """)
+            .post("/api/products/order-fruits").then().statusCode(204);
+        given().contentType(ContentType.JSON)
+            .body("""
+                {"productName": "Milk", "quantity": 6}
+                """)
+            .post("/api/products/order-dairy").then().statusCode(204);
+
+        await().atMost(10, SECONDS).untilAsserted(() -> {
+            var body = given().get("/api/products").asString();
+            assertThat(body).contains("Apple").contains("Milk");
+        });
+
+        auditHelper.clearAuditLog();
+
+        var purchaseResponse = given()
+            .contentType(ContentType.JSON)
+            .body("""
+                {"items":[{"productName":"Apple","quantity":3},{"productName":"Milk","quantity":2}]}
+                """)
+            .post("/api/products/purchase");
+        assertThat(purchaseResponse.statusCode()).isEqualTo(204);
+
+        assertThat(auditHelper.findEventDetails("PurchaseHandler: PURCHASE_RECEIVED"))
+            .containsExactly("Apple qty=3, Milk qty=2");
+        assertThat(auditHelper.findEventDetails("PurchaseHandler: INVENTORY_DEDUCTED"))
+            .containsExactly("Apple -3 total=7, Milk -2 total=4");
     }
 
     @Test
@@ -74,7 +102,7 @@ class CashpointFlowTest {
         given()
             .contentType(ContentType.JSON)
             .body("""
-                {"productName": "Ghost", "quantity": 1}
+                {"items":[{"productName":"Ghost","quantity":1}]}
                 """)
             .post("/api/products/purchase")
             .then().statusCode(204);

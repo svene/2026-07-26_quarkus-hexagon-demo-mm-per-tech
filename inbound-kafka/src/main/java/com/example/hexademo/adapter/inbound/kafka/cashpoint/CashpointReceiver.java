@@ -1,5 +1,6 @@
 package com.example.hexademo.adapter.inbound.kafka.cashpoint;
 
+import com.example.hexademo.core.domain.PurchaseItem;
 import com.example.hexademo.core.port.in.PurchaseAPI;
 import io.smallrye.reactive.messaging.annotations.Blocking;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -14,6 +15,9 @@ public class CashpointReceiver {
     @Incoming("cashpoint-purchases")
     @Blocking
     public void receive(PurchaseMessage message) {
-        purchaseAPI.purchase(message.productName(), message.quantity());
+        var items = message.items().stream()
+            .map(i -> new PurchaseItem(i.productName(), i.quantity()))
+            .toList();
+        purchaseAPI.purchase(items);
     }
 }

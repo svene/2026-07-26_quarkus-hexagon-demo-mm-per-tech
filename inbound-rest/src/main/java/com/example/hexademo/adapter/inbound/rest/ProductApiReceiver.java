@@ -2,6 +2,7 @@ package com.example.hexademo.adapter.inbound.rest;
 
 import com.example.hexademo.adapter.inbound.rest.cashpoint.PurchaseRequest;
 import com.example.hexademo.core.domain.Product;
+import com.example.hexademo.core.domain.PurchaseItem;
 import com.example.hexademo.core.port.in.BakeryAPI;
 import com.example.hexademo.core.port.in.BeveragesAPI;
 import com.example.hexademo.core.port.in.DairyAPI;
@@ -92,6 +93,9 @@ public class ProductApiReceiver {
     @Path("/purchase")
     @Consumes(MediaType.APPLICATION_JSON)
     public void purchase(PurchaseRequest request) {
-        purchaseAPI.purchase(request.productName(), request.quantity());
+        var items = request.items().stream()
+            .map(i -> new PurchaseItem(i.productName(), i.quantity()))
+            .toList();
+        purchaseAPI.purchase(items);
     }
 }

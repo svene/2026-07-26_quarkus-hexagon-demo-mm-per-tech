@@ -1,6 +1,8 @@
 package com.example.hexademo.adapter.inbound.rest;
 
 import com.example.hexademo.core.domain.Product;
+import com.example.hexademo.core.domain.PurchaseItem;
+import java.util.ArrayList;
 import com.example.hexademo.core.port.in.BakeryAPI;
 import com.example.hexademo.core.port.in.BeveragesAPI;
 import com.example.hexademo.core.port.in.DairyAPI;
@@ -114,9 +116,15 @@ public class ProductReceiver {
     @POST
     @Path("/purchase")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
-    public Response purchase(@FormParam("productName") String productName,
-                             @FormParam("quantity") int quantity) {
-        purchaseAPI.purchase(productName, quantity);
+    public Response purchase(
+            @FormParam("productName1") String n1, @FormParam("quantity1") Integer q1,
+            @FormParam("productName2") String n2, @FormParam("quantity2") Integer q2,
+            @FormParam("productName3") String n3, @FormParam("quantity3") Integer q3) {
+        var items = new ArrayList<PurchaseItem>();
+        if (n1 != null && !n1.isBlank()) items.add(new PurchaseItem(n1, q1 != null ? q1 : 1));
+        if (n2 != null && !n2.isBlank()) items.add(new PurchaseItem(n2, q2 != null ? q2 : 1));
+        if (n3 != null && !n3.isBlank()) items.add(new PurchaseItem(n3, q3 != null ? q3 : 1));
+        if (!items.isEmpty()) purchaseAPI.purchase(items);
         return Response.seeOther(URI.create("/products")).build();
     }
 }

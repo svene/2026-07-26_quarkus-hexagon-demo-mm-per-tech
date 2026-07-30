@@ -81,7 +81,7 @@
 </div>
 
 <div class="section">
-<h3>Kafka supplier <span class="tag">(outbound-kafka-supplier)</span></h3>
+<h3>Kafka supplier <span class="tag">(outbound-kafka)</span></h3>
 <form method="post" action="/products/order-nonfood">
     Non-food: <input name="productName" placeholder="e.g. Detergent" required>
     <input name="quantity" type="number" placeholder="Qty" min="1" required>
@@ -93,9 +93,15 @@
 <p><em>The scheduler also triggers purchases automatically every 30 s once inventory is non-empty.</em></p>
 <div class="section">
 <form method="post" action="/products/purchase">
-    Product: <input name="productName" placeholder="Exact product name" required>
-    <input name="quantity" type="number" placeholder="Qty" min="1" required>
-    <button type="submit">Purchase</button>
+    <div style="display:grid;grid-template-columns:1fr auto;gap:4px 8px;align-items:center;max-width:360px">
+        <input name="productName1" placeholder="Product name" required>
+        <input name="quantity1" type="number" placeholder="Qty" min="1" required style="width:60px">
+        <input name="productName2" placeholder="Product name (optional)">
+        <input name="quantity2" type="number" placeholder="Qty" min="1" style="width:60px">
+        <input name="productName3" placeholder="Product name (optional)">
+        <input name="quantity3" type="number" placeholder="Qty" min="1" style="width:60px">
+    </div>
+    <button type="submit" style="margin-top:6px">Purchase</button>
 </form>
 </div>
 

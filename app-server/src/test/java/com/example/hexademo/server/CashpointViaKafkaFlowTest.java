@@ -1,10 +1,14 @@
 package com.example.hexademo.server;
 
+import com.example.hexademo.adapter.inbound.kafka.cashpoint.PurchaseMessage;
+import com.example.hexademo.adapter.inbound.kafka.cashpoint.PurchaseMessageItem;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
 import jakarta.inject.Inject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+
+import java.util.List;
 
 import static io.restassured.RestAssured.given;
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -30,7 +34,6 @@ class CashpointViaKafkaFlowTest {
 
     @Test
     void kafka_purchase_event_deducts_inventory() {
-        // Stock up first so there is something to deduct.
         given()
             .contentType(ContentType.JSON)
             .body("""
@@ -47,10 +50,8 @@ class CashpointViaKafkaFlowTest {
 
         auditHelper.clearAuditLog();
 
-        // Simulate a purchase event arriving via the cashpoint-purchases Kafka topic.
-        cashpointPublisher.publish("Orange", 4);
+        cashpointPublisher.publish(new PurchaseMessage(List.of(new PurchaseMessageItem("Orange", 4))));
 
-        // CashpointReceiver → PurchaseHandler logs are async (Kafka path).
         await().atMost(10, SECONDS).untilAsserted(() -> {
             assertThat(auditHelper.findEventDetails("PurchaseHandler: PURCHASE_RECEIVED"))
                 .containsExactly("Orange qty=4");
