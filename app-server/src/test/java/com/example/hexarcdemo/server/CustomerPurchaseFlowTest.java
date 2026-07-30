@@ -68,4 +68,24 @@ class CustomerPurchaseFlowTest {
             .isEqualTo("""
                 [{"name":"Apple","type":"FRUIT","availableAmount":7}]""");
     }
+
+    @Test
+    void purchase_of_unknown_product_logs_product_not_found() {
+        given()
+            .contentType(ContentType.JSON)
+            .body("""
+                {"productName": "Ghost", "quantity": 1}
+                """)
+            .post("/api/products/purchase")
+            .then().statusCode(204);
+
+        assertThat(auditHelper.findEventDetails("PurchaseHandler: PURCHASE_RECEIVED"))
+            .containsExactly("Ghost qty=1");
+        assertThat(auditHelper.findEventDetails("PurchaseHandler: PRODUCT_NOT_FOUND"))
+            .containsExactly("Ghost");
+        assertThat(auditHelper.findEventDetails("PurchaseHandler: INVENTORY_DEDUCTED"))
+            .isEmpty();
+
+        assertThat(given().get("/api/products").asString()).isEqualTo("[]");
+    }
 }
