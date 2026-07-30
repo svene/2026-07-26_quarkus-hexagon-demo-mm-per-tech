@@ -34,9 +34,9 @@
     <module>outbound-kafka-producer</module>
     <module>outbound-webservice</module>
     <module>outbound-httpclient</module>
-    <module>external-fruit-supplier-stub</module>
-    <module>external-beverage-supplier-stub</module>
-    <module>external-nonfood-supplier-stub</module>
+    <module>external-rest-supplier-stub</module>
+    <module>external-soap-supplier-stub</module>
+    <module>external-kafka-supplier-stub</module>
     <module>inbound-scheduler</module>
     <module>outbound-kafka-supplier</module>
     <module>app-server</module>
@@ -103,17 +103,17 @@
       </dependency>
       <dependency>
         <groupId>org.svenehrke.demo</groupId>
-        <artifactId>external-fruit-supplier-stub</artifactId>
+        <artifactId>external-rest-supplier-stub</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>org.svenehrke.demo</groupId>
-        <artifactId>external-beverage-supplier-stub</artifactId>
+        <artifactId>external-soap-supplier-stub</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>org.svenehrke.demo</groupId>
-        <artifactId>external-nonfood-supplier-stub</artifactId>
+        <artifactId>external-kafka-supplier-stub</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>

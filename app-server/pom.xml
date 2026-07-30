@@ -64,15 +64,15 @@
     <!-- Stubs that simulate external systems in dev/test -->
     <dependency>
       <groupId>org.svenehrke.demo</groupId>
-      <artifactId>external-fruit-supplier-stub</artifactId>
+      <artifactId>external-rest-supplier-stub</artifactId>
     </dependency>
     <dependency>
       <groupId>org.svenehrke.demo</groupId>
-      <artifactId>external-beverage-supplier-stub</artifactId>
+      <artifactId>external-soap-supplier-stub</artifactId>
     </dependency>
     <dependency>
       <groupId>org.svenehrke.demo</groupId>
-      <artifactId>external-nonfood-supplier-stub</artifactId>
+      <artifactId>external-kafka-supplier-stub</artifactId>
     </dependency>
     <dependency>
       <groupId>io.rest-assured</groupId>

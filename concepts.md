@@ -165,6 +165,43 @@ call on `InventoryAPI`.
 
 ---
 
+## External stub modules: technology-per-module, product-type-per-package
+
+The three `external-*` modules simulate supplier systems that would be separate
+services in production. They are **not part of the hexagonal architecture** of
+the application — they sit entirely outside its boundary.
+
+**Module cut — by technology.** Like the adapter modules, external stubs are
+cut per technology, not per product category. One module per technology keeps
+the total module count low. The original modules were named after the first
+product type they contained (`external-fruit-supplier-stub`,
+`external-beverage-supplier-stub`), which became misleading as more product
+types were added. Renaming to the technology dimension keeps names accurate as
+products grow.
+
+| Module | Technology | Stubs inside |
+|---|---|---|
+| `external-rest-supplier-stub` | JAX-RS endpoints + Kafka producer | Fruit, Vegetable, Dairy suppliers |
+| `external-soap-supplier-stub` | CXF SOAP endpoints + Kafka producer | Beverage, Meat, Bakery suppliers |
+| `external-kafka-supplier-stub` | Kafka consumer + producer | Non-food supplier |
+
+**Package structure — by product type, no sharing.** Within each module,
+every product type lives in its own sub-package
+(`external.rest.fruit`, `external.rest.vegetable`, `external.rest.dairy`, …).
+Types such as `DeliveryMessage` and `OrderRequest` that have the same shape
+are deliberately duplicated rather than shared. The reason: in reality each
+supplier is a completely independent system that knows nothing about the
+others. Sharing a class would falsely imply a common contract between systems
+that have no relationship. A future change to one supplier's message format
+must not affect any other supplier — isolation at the package level enforces
+that.
+
+**Package root.** The package root is `com.example.hexarcdemo.external.*`,
+not `…adapter.external.*`. The word "adapter" is reserved for modules that
+implement or consume a hexagonal port; these stubs do neither.
+
+---
+
 ## What this POC does not show
 
 - **Authentication / authorization** — out of scope.
