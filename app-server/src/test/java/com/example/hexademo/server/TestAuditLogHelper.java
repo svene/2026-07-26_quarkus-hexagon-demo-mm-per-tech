@@ -1,6 +1,6 @@
 package com.example.hexademo.server;
 
-import com.example.hexademo.adapter.outbound.mongodb.AuditLogEntry;
+import com.example.hexademo.adapter.outbound.mongodb.auditlog.AuditLogEntry;
 import jakarta.enterprise.context.ApplicationScoped;
 import java.util.List;
 
