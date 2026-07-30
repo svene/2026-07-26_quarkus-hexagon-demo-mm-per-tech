@@ -13,44 +13,25 @@
   <artifactId>adapter-outbound-webservice</artifactId>
   <packaging>jar</packaging>
 
+  <properties>
+    <quarkus.cxf.version>3.33.2</quarkus.cxf.version>
+  </properties>
+
   <name>adapter-outbound-webservice</name>
-  <description>Outbound adapter: implements a port from core representing a call
-    to an external (partner/legacy) webservice.
-    In dev/test mode, a WireMock container is auto-started via the Quarkiverse
-    WireMock Dev Services extension, stubbed with canned responses - no real
-    third-party system required, but the call still goes over real HTTP.</description>
+  <description>Outbound adapter: SOAP client that calls the external beverage supplier webservice.
+    Implements an outbound port declared in core using Apache CXF (quarkus-cxf).
+    In dev/test mode the corresponding stub module exposes a SOAP server endpoint in the
+    same Quarkus process, so no external system is required.</description>
 
   <dependencies>
     <dependency>
       <groupId>org.svenehrke.demo</groupId>
       <artifactId>core</artifactId>
     </dependency>
-
-    <!-- REST client used to actually call the (stubbed) webservice.
-         Swap for quarkus-jaxws / a SOAP client here if the real service is SOAP-based. -->
     <dependency>
-      <groupId>io.quarkus</groupId>
-      <artifactId>quarkus-rest-client</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>io.quarkus</groupId>
-      <artifactId>quarkus-rest-client-jackson</artifactId>
-    </dependency>
-
-    <!-- Quarkiverse WireMock Dev Services: auto-starts + auto-stops a WireMock
-         container in dev/test mode. Check quarkus.io/extensions or
-         https://github.com/quarkiverse/quarkus-wiremock for the current version. -->
-    <dependency>
-      <groupId>io.quarkiverse.wiremock</groupId>
-      <artifactId>quarkus-wiremock</artifactId>
-      <version>1.6.3</version>
-      <scope>provided</scope>
-    </dependency>
-    <dependency>
-      <groupId>io.quarkiverse.wiremock</groupId>
-      <artifactId>quarkus-wiremock-test</artifactId>
-      <version>1.6.3</version>
-      <scope>test</scope>
+      <groupId>io.quarkiverse.cxf</groupId>
+      <artifactId>quarkus-cxf</artifactId>
+      <version>${quarkus.cxf.version}</version>
     </dependency>
   </dependencies>
 </project>

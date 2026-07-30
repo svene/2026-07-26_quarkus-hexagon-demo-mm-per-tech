@@ -14,20 +14,22 @@ runnable deployable (`app-server`) that wires everything together.
 | `adapter-outbound-postgres` | Outbound adapter | Hibernate ORM w/ Panache + PostgreSQL |
 | `adapter-outbound-mongodb` | Outbound adapter | MongoDB w/ Panache |
 | `adapter-outbound-kafka-producer` | Outbound adapter | Kafka producer (`@Outgoing`) |
-| `adapter-outbound-webservice` | Outbound adapter | REST client to a partner/legacy webservice, backed by WireMock in dev/test |
-| `adapter-outbound-httpclient` | Outbound adapter | REST client to another remote HTTP service |
+| `adapter-outbound-webservice` | Outbound adapter | SOAP client (Apache CXF) |
+| `adapter-outbound-httpclient` | Outbound adapter | REST client to a remote HTTP service |
+| `adapter-external-fruit-supplier-stub` | External system stub | JAX-RS endpoint → Kafka delivery event |
+| `adapter-external-beverage-supplier-stub` | External system stub | SOAP endpoint (Apache CXF) → Kafka delivery event |
 | `app-server` | Deployable | wires core + all adapters, no business logic of its own |
 
 `core` depends on nothing else in this tree. Every adapter module depends only
-on `core`. `app-server` depends on `core` and every adapter.
+on `core`. The two stub modules have no dependency on any adapter — they share
+only a WSDL/HTTP contract on the wire. `app-server` depends on `core` and every
+adapter and stub module.
 
 ## Running
 
 Requires Docker (or Podman) running. Quarkus Dev Services will automatically
 start real containers for Postgres, MongoDB, and a Kafka-compatible broker
-(Redpanda by default) - no docker-compose file, no manual connection strings.
-WireMock is auto-started the same way via the Quarkiverse WireMock Dev
-Services extension for the webservice adapter.
+(Redpanda by default) — no docker-compose file, no manual connection strings.
 
 ```bash
 cd app-server

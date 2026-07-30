@@ -1,6 +1,7 @@
 /**
- * Outbound adapter: call to an external partner/legacy webservice.
- * Implements an outbound port declared in core. Backed by WireMock
- * (via Dev Services) in dev/test mode instead of the real third-party system.
+ * Outbound adapter: SOAP client for the external beverage supplier webservice.
+ * Implements an outbound port declared in core via Apache CXF.
+ * The SOAP SEI (BeverageOrderService) is intentionally duplicated in the corresponding
+ * stub module — the WSDL contract is the wire interface, not a shared Java type.
  */
 package com.example.hexdemo.adapter.outbound.webservice;
