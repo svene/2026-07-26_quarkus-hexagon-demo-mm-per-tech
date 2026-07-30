@@ -8,7 +8,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import static io.restassured.RestAssured.given;
-import static org.hamcrest.Matchers.containsString;
+import static org.assertj.core.api.Assertions.assertThat;
 
 @QuarkusTest
 class ProductReceiverTest {
@@ -23,12 +23,11 @@ class ProductReceiverTest {
 
     @Test
     void get_empty_inventory_shows_no_products_message() {
-        given()
-            .when().get("/products")
-            .then()
-            .statusCode(200)
-            .contentType(containsString("text/html"))
-            .body(containsString("No products in inventory yet."));
+        var response = given().get("/products");
+
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(response.contentType()).contains("text/html");
+        assertThat(response.asString()).contains("No products in inventory yet.");
     }
 
     @Test
@@ -36,42 +35,38 @@ class ProductReceiverTest {
         inventory.addAmount("Apple", ProductType.FRUIT, 10);
         inventory.addAmount("Cola", ProductType.BEVERAGE, 5);
 
-        given()
-            .when().get("/products")
-            .then()
-            .statusCode(200)
-            .contentType(containsString("text/html"))
-            .body(containsString("Apple"))
-            .body(containsString("FRUIT"))
-            .body(containsString("10"))
-            .body(containsString("Cola"))
-            .body(containsString("BEVERAGE"))
-            .body(containsString("5"));
+        var response = given().get("/products");
+
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(response.contentType()).contains("text/html");
+        assertThat(response.asString())
+            .contains("Apple", "FRUIT", "10")
+            .contains("Cola", "BEVERAGE", "5");
     }
 
     @Test
     void order_fruits_form_post_redirects_to_products() {
-        given()
+        var response = given()
             .contentType("application/x-www-form-urlencoded")
             .formParam("productName", "Banana")
             .formParam("quantity", 20)
             .redirects().follow(false)
-            .when().post("/products/order-fruits")
-            .then()
-            .statusCode(303)
-            .header("Location", containsString("/products"));
+            .post("/products/order-fruits");
+
+        assertThat(response.statusCode()).isEqualTo(303);
+        assertThat(response.header("Location")).contains("/products");
     }
 
     @Test
     void order_beverages_form_post_redirects_to_products() {
-        given()
+        var response = given()
             .contentType("application/x-www-form-urlencoded")
             .formParam("productName", "OrangeJuice")
             .formParam("quantity", 12)
             .redirects().follow(false)
-            .when().post("/products/order-beverages")
-            .then()
-            .statusCode(303)
-            .header("Location", containsString("/products"));
+            .post("/products/order-beverages");
+
+        assertThat(response.statusCode()).isEqualTo(303);
+        assertThat(response.header("Location")).contains("/products");
     }
 }
