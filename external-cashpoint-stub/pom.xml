@@ -10,18 +10,23 @@
     <version>1.0.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>inbound-scheduler</artifactId>
+  <artifactId>external-cashpoint-stub</artifactId>
   <packaging>jar</packaging>
 
-  <name>inbound-scheduler</name>
-  <description>Inbound adapter: a Quarkus scheduler that periodically simulates random customer
-    purchases by directly calling PurchaseAPI. Demonstrates that a core use case can be
-    triggered by any inbound adapter technology, not only HTTP or Kafka.</description>
+  <name>external-cashpoint-stub</name>
+  <description>Stub simulating a point-of-sale system: a scheduler periodically picks a random
+    in-stock product (tracked via inventory-events) and publishes a purchase request to the
+    customer-purchases Kafka topic. Demonstrates that external systems driving the application
+    communicate via Kafka, not by calling core ports directly.</description>
 
   <dependencies>
     <dependency>
-      <groupId>org.svenehrke.demo</groupId>
-      <artifactId>core</artifactId>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-messaging-kafka</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-jackson</artifactId>
     </dependency>
     <dependency>
       <groupId>io.quarkus</groupId>

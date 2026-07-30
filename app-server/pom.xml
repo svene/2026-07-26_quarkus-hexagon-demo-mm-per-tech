@@ -54,10 +54,6 @@
 
     <dependency>
       <groupId>org.svenehrke.demo</groupId>
-      <artifactId>inbound-scheduler</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.svenehrke.demo</groupId>
       <artifactId>outbound-kafka-supplier</artifactId>
     </dependency>
 
@@ -73,6 +69,10 @@
     <dependency>
       <groupId>org.svenehrke.demo</groupId>
       <artifactId>external-kafka-supplier-stub</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.svenehrke.demo</groupId>
+      <artifactId>external-cashpoint-stub</artifactId>
     </dependency>
     <dependency>
       <groupId>io.rest-assured</groupId>

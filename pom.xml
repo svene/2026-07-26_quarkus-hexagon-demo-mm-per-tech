@@ -37,7 +37,7 @@
     <module>external-rest-supplier-stub</module>
     <module>external-soap-supplier-stub</module>
     <module>external-kafka-supplier-stub</module>
-    <module>inbound-scheduler</module>
+    <module>external-cashpoint-stub</module>
     <module>outbound-kafka-supplier</module>
     <module>app-server</module>
   </modules>
@@ -118,7 +118,7 @@
       </dependency>
       <dependency>
         <groupId>org.svenehrke.demo</groupId>
-        <artifactId>inbound-scheduler</artifactId>
+        <artifactId>external-cashpoint-stub</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>

@@ -155,13 +155,44 @@ handler logs inside its own boundary. This ensures the audit trail reflects
 
 ---
 
-## Scheduler as an inbound adapter
+## Customer checkout: external stub → Kafka → inbound adapter
 
-`inbound-scheduler` contains a single Quarkus `@Scheduled` bean. From
-the hexagonal perspective a timer tick is just another way to drive the
-application — it is an inbound port. The scheduler translates a time event into
-a call on `PurchaseAPI`, exactly as a Kafka receiver translates a message into a
-call on `InventoryAPI`.
+The customer purchase flow demonstrates the full event-driven path:
+
+```
+CashpointStub (scheduler) → cashpoint-purchases (Kafka) → CashpointReceiver → PurchaseAPI
+```
+
+`CashpointStub` lives in `external-cashpoint-stub`. Like the supplier stubs it is not part of
+the hexagonal architecture — it simulates a point-of-sale system that emits a Kafka message when a
+customer pays at checkout. It subscribes to `inventory-events` to maintain a local list of in-stock
+products and picks one at random each time the scheduler fires.
+
+`CashpointReceiver` in `inbound-kafka` is the actual inbound adapter: it receives the Kafka
+message and calls `PurchaseAPI`, exactly as a Kafka delivery receiver calls `InventoryAPI`.
+
+`PurchaseAPI` is also reachable directly via the REST endpoint (`/products/purchase`) so the UI can
+simulate a customer checkout without going through Kafka.
+
+---
+
+## One inbound port, multiple adapters
+
+`PurchaseAPI` is a good example of how a single inbound port can be driven by more than one adapter
+without any change to the core:
+
+| Adapter | Technology | Use case |
+|---|---|---|
+| `CashpointReceiver` | Kafka (`cashpoint-purchases`) | Physical cashpoint: payment terminal emits an event when a customer pays in-store |
+| `ProductApiReceiver` | REST (`POST /products/purchase`) | Online shop: a customer submits a purchase via a web or mobile app |
+
+Both adapters translate a different external event into the same `PurchaseAPI.purchase()` call. The
+core is unaware of how the purchase arrived. Adding a third channel — say a mobile push notification
+or a voice assistant — would mean adding one more adapter class with zero changes to `PurchaseHandler`
+or `PurchaseAPI`.
+
+This is the central promise of hexagonal architecture: the application core defines *what* can happen;
+adapters decide *how* it is triggered.
 
 ---
 
@@ -184,6 +215,7 @@ products grow.
 | `external-rest-supplier-stub` | JAX-RS endpoints + Kafka producer | Fruit, Vegetable, Dairy suppliers |
 | `external-soap-supplier-stub` | CXF SOAP endpoints + Kafka producer | Beverage, Meat, Bakery suppliers |
 | `external-kafka-supplier-stub` | Kafka consumer + producer | Non-food supplier |
+| `external-cashpoint-stub` | Quarkus Scheduler + Kafka producer | Customer checkout simulator |
 
 **Package structure — by product type, no sharing.** Within each module,
 every product type lives in its own sub-package
@@ -196,7 +228,7 @@ that have no relationship. A future change to one supplier's message format
 must not affect any other supplier — isolation at the package level enforces
 that.
 
-**Package root.** The package root is `com.example.hexarcdemo.external.*`,
+**Package root.** The package root is `com.example.hexademo.external.*`,
 not `…adapter.external.*`. The word "adapter" is reserved for modules that
 implement or consume a hexagonal port; these stubs do neither.
 
