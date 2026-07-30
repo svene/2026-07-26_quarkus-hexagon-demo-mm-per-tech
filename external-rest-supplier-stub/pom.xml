@@ -13,7 +13,7 @@
   <artifactId>external-rest-supplier-stub</artifactId>
   <packaging>jar</packaging>
 
-  <name>adapter-external-fruit-supplier-stub</name>
+  <name>external-fruit-supplier-stub</name>
   <description>Test stub simulating the external fruit supplier: accepts HTTP orders and
     immediately publishes a delivery notification to the fruit-deliveries Kafka topic,
     replacing a real external HTTP service for end-to-end flow tests.</description>

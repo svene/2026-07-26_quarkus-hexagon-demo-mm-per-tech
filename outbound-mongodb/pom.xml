@@ -13,7 +13,7 @@
   <artifactId>outbound-mongodb</artifactId>
   <packaging>jar</packaging>
 
-  <name>adapter-outbound-mongodb</name>
+  <name>outbound-mongodb</name>
   <description>Outbound adapter: implements a persistence port from core using
     MongoDB with Panache.
     In dev/test mode, Quarkus Dev Services starts a real MongoDB container

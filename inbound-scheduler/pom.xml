@@ -13,7 +13,7 @@
   <artifactId>inbound-scheduler</artifactId>
   <packaging>jar</packaging>
 
-  <name>adapter-inbound-scheduler</name>
+  <name>inbound-scheduler</name>
   <description>Inbound adapter: a Quarkus scheduler that periodically simulates random customer
     purchases by directly calling PurchaseAPI. Demonstrates that a core use case can be
     triggered by any inbound adapter technology, not only HTTP or Kafka.</description>

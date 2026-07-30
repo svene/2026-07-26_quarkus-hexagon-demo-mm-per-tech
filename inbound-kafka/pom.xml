@@ -13,7 +13,7 @@
   <artifactId>inbound-kafka</artifactId>
   <packaging>jar</packaging>
 
-  <name>adapter-inbound-kafka</name>
+  <name>inbound-kafka</name>
   <description>Inbound adapter: Kafka consumer(s) (@Incoming) that translate incoming
     records into calls against core use cases (inbound ports).
     In dev/test mode, Quarkus Dev Services starts a real Kafka-compatible broker

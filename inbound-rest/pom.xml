@@ -13,7 +13,7 @@
   <artifactId>inbound-rest</artifactId>
   <packaging>jar</packaging>
 
-  <name>adapter-inbound-rest</name>
+  <name>inbound-rest</name>
   <description>Inbound adapter: JAX-RS resources that translate HTTP requests into calls
     against core use cases (inbound ports).</description>
 

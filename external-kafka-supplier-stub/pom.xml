@@ -13,7 +13,7 @@
   <artifactId>external-kafka-supplier-stub</artifactId>
   <packaging>jar</packaging>
 
-  <name>adapter-external-nonfood-supplier-stub</name>
+  <name>external-nonfood-supplier-stub</name>
   <description>Stub simulating an external non-food supplier that communicates entirely via Kafka:
     consumes order requests from the nonfood-orders topic and immediately publishes a delivery
     notification to the nonfood-deliveries topic. Demonstrates a fully asynchronous supplier

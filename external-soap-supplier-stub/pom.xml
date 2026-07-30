@@ -17,7 +17,7 @@
     <quarkus.cxf.version>3.33.2</quarkus.cxf.version>
   </properties>
 
-  <name>adapter-external-beverage-supplier-stub</name>
+  <name>external-beverage-supplier-stub</name>
   <description>Test stub simulating the external beverage supplier: exposes a SOAP endpoint and
     immediately publishes a delivery notification to the beverages-deliveries Kafka topic,
     replacing a real external SOAP service for end-to-end flow tests.</description>

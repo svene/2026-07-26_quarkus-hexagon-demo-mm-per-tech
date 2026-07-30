@@ -13,7 +13,7 @@ public class CustomerPurchaseScheduler {
     @Inject ProductsAPI productsAPI;
     @Inject PurchaseAPI purchaseAPI;
 
-    @Scheduled(every = "2s", delayed = "10s")
+    @Scheduled(every = "2s", delayed = "30s") // delayed, so that playwright tests have a chance to run and don't get disturbed by random scheduler changes
     void simulatePurchase() {
         var products = productsAPI.listAll();
         if (products.isEmpty()) return;

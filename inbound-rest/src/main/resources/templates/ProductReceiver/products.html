@@ -43,7 +43,7 @@
 <h2>Restock Inventory</h2>
 
 <div class="section">
-<h3>REST suppliers <span class="tag">(adapter-outbound-httpclient)</span></h3>
+<h3>REST suppliers <span class="tag">(outbound-httpclient)</span></h3>
 <form method="post" action="/products/order-fruits">
     Fruits: <input name="productName" placeholder="e.g. Mango" required>
     <input name="quantity" type="number" placeholder="Qty" min="1" required>
@@ -62,7 +62,7 @@
 </div>
 
 <div class="section">
-<h3>SOAP suppliers <span class="tag">(adapter-outbound-webservice)</span></h3>
+<h3>SOAP suppliers <span class="tag">(outbound-webservice)</span></h3>
 <form method="post" action="/products/order-beverages">
     Beverages: <input name="productName" placeholder="e.g. Cola" required>
     <input name="quantity" type="number" placeholder="Qty" min="1" required>
@@ -81,7 +81,7 @@
 </div>
 
 <div class="section">
-<h3>Kafka supplier <span class="tag">(adapter-outbound-kafka-supplier)</span></h3>
+<h3>Kafka supplier <span class="tag">(outbound-kafka-supplier)</span></h3>
 <form method="post" action="/products/order-nonfood">
     Non-food: <input name="productName" placeholder="e.g. Detergent" required>
     <input name="quantity" type="number" placeholder="Qty" min="1" required>

@@ -13,7 +13,7 @@
   <artifactId>outbound-kafka-producer</artifactId>
   <packaging>jar</packaging>
 
-  <name>adapter-outbound-kafka-producer</name>
+  <name>outbound-kafka-producer</name>
   <description>Outbound adapter: implements an event-publishing port from core
     by emitting (@Outgoing) records to a Kafka topic.
     In dev/test mode, Quarkus Dev Services starts a real Kafka-compatible broker

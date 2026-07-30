@@ -71,18 +71,18 @@ POST bodies are JSON: `{"productName": "Mango", "quantity": 5}`.
 
 ```
 core/                           Domain model, use-case interfaces (API), SPI
-adapter-inbound-rest/           JAX-RS — HTML UI + JSON API
-adapter-inbound-kafka/          Kafka @Incoming — delivery events + purchase events
-adapter-inbound-scheduler/      Quarkus Scheduler — random purchase simulation
-adapter-outbound-postgres/      Hibernate ORM / Panache — inventory persistence
-adapter-outbound-mongodb/       MongoDB / Panache — audit log
-adapter-outbound-kafka-producer/Kafka @Channel Emitter — inventory change events
-adapter-outbound-httpclient/    MicroProfile REST Client — REST supplier orders
-adapter-outbound-webservice/    Apache CXF client — SOAP supplier orders
-adapter-outbound-kafka-supplier/Kafka @Channel Emitter — non-food supplier orders
-adapter-external-fruit-supplier-stub/  JAX-RS endpoints that echo delivery events onto Kafka
-adapter-external-beverage-supplier-stub/ CXF SOAP endpoints that echo delivery events onto Kafka
-adapter-external-nonfood-supplier-stub/  Kafka consumer/producer stub for non-food
+inbound-rest/           JAX-RS — HTML UI + JSON API
+inbound-kafka/          Kafka @Incoming — delivery events + purchase events
+inbound-scheduler/      Quarkus Scheduler — random purchase simulation
+outbound-postgres/      Hibernate ORM / Panache — inventory persistence
+outbound-mongodb/       MongoDB / Panache — audit log
+outbound-kafka-producer/Kafka @Channel Emitter — inventory change events
+outbound-httpclient/    MicroProfile REST Client — REST supplier orders
+outbound-webservice/    Apache CXF client — SOAP supplier orders
+outbound-kafka-supplier/Kafka @Channel Emitter — non-food supplier orders
+external-fruit-supplier-stub/  JAX-RS endpoints that echo delivery events onto Kafka
+external-beverage-supplier-stub/ CXF SOAP endpoints that echo delivery events onto Kafka
+external-nonfood-supplier-stub/  Kafka consumer/producer stub for non-food
 app-server/                     Deployable: wires everything, holds application.properties
 ```
 
@@ -96,18 +96,18 @@ stubs.
 | Module | Role | Technology |
 |---|---|---|
 | `core` | Domain + application (use cases + ports) | plain Java + CDI |
-| `adapter-inbound-rest` | Inbound adapter | JAX-RS + Qute templates |
-| `adapter-inbound-kafka` | Inbound adapter | SmallRye Reactive Messaging |
-| `adapter-inbound-scheduler` | Inbound adapter | Quarkus Scheduler |
-| `adapter-outbound-postgres` | Outbound adapter | Hibernate ORM / Panache |
-| `adapter-outbound-mongodb` | Outbound adapter | MongoDB / Panache |
-| `adapter-outbound-kafka-producer` | Outbound adapter | SmallRye Reactive Messaging |
-| `adapter-outbound-httpclient` | Outbound adapter | MicroProfile REST Client |
-| `adapter-outbound-webservice` | Outbound adapter | Apache CXF (SOAP client) |
-| `adapter-outbound-kafka-supplier` | Outbound adapter | SmallRye Reactive Messaging |
-| `adapter-external-fruit-supplier-stub` | External system stub | JAX-RS + Kafka producer |
-| `adapter-external-beverage-supplier-stub` | External system stub | CXF SOAP server + Kafka producer |
-| `adapter-external-nonfood-supplier-stub` | External system stub | Kafka consumer + producer |
+| `inbound-rest` | Inbound adapter | JAX-RS + Qute templates |
+| `inbound-kafka` | Inbound adapter | SmallRye Reactive Messaging |
+| `inbound-scheduler` | Inbound adapter | Quarkus Scheduler |
+| `outbound-postgres` | Outbound adapter | Hibernate ORM / Panache |
+| `outbound-mongodb` | Outbound adapter | MongoDB / Panache |
+| `outbound-kafka-producer` | Outbound adapter | SmallRye Reactive Messaging |
+| `outbound-httpclient` | Outbound adapter | MicroProfile REST Client |
+| `outbound-webservice` | Outbound adapter | Apache CXF (SOAP client) |
+| `outbound-kafka-supplier` | Outbound adapter | SmallRye Reactive Messaging |
+| `external-fruit-supplier-stub` | External system stub | JAX-RS + Kafka producer |
+| `external-beverage-supplier-stub` | External system stub | CXF SOAP server + Kafka producer |
+| `external-nonfood-supplier-stub` | External system stub | Kafka consumer + producer |
 | `app-server` | Deployable | Quarkus runner, no business logic |
 
 ### Running tests
@@ -137,15 +137,15 @@ to be ready, then runs the browser tests. Requires Docker/Podman for Dev Service
 2. Add an API interface in `core/.../port/in/` (e.g. `SnacksAPI`).
 3. Add an SPI interface in `core/.../port/out/` for the chosen supplier technology.
 4. Implement a Handler in `core/.../application/` that calls the SPI.
-5. Implement the outbound adapter in the matching `adapter-outbound-*` module.
-6. Add a delivery receiver in `adapter-inbound-kafka`.
+5. Implement the outbound adapter in the matching `outbound-*` module.
+6. Add a delivery receiver in `inbound-kafka`.
 7. Add an external stub (or extend an existing one).
 8. Wire Kafka channel names and REST/SOAP client keys in `app-server/application.properties`.
-9. Add a form to `adapter-inbound-rest/templates/ProductReceiver/products.html`.
+9. Add a form to `inbound-rest/templates/ProductReceiver/products.html`.
 
 ### Adding a new adapter technology
 
-1. Create a new Maven module `adapter-{direction}-{technology}`.
+1. Create a new Maven module `{direction}-{technology}`.
 2. Add the module to the root `pom.xml` `<modules>` list and
    `<dependencyManagement>`.
 3. Declare the dependency in `app-server/pom.xml`.

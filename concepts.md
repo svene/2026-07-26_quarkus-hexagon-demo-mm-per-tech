@@ -53,14 +53,14 @@ not about each other.
 The key architectural decision in this project is the module cut.
 
 **Alternative: one module per domain concept.** You could have a
-`adapter-fruits`, `adapter-beverages`, `adapter-vegetables` module, each
+`fruits`, `beverages`, `vegetables` module, each
 containing everything related to that product type: the REST client, the Kafka
 receiver, the database entity. This is intuitive at first. But as the number of
 product categories grows (7 here, hundreds in a real system), the number of
 modules explodes — and every module does the same thing, just for a different
 noun.
 
-**Chosen approach: one module per technology.** `adapter-outbound-httpclient`
+**Chosen approach: one module per technology.** `outbound-httpclient`
 handles *all* REST-client suppliers (fruits, vegetables, dairy). Adding a new
 REST-based supplier means adding one class to an existing module and wiring one
 Kafka channel. No new module, no new pom.xml, no new Maven dependency.
@@ -70,7 +70,7 @@ The benefits:
 - **Coherence**: all code for "how to call a REST API" lives together. If the
   REST client configuration changes, there is exactly one place to change it.
 - **Bounded blast radius**: a CXF upgrade affects only
-  `adapter-outbound-webservice`. Everything else is untouched.
+  `outbound-webservice`. Everything else is untouched.
 - **Reuse of technology configuration**: the Hibernate entity scanning, the CXF
   bus setup, the Kafka serializer — each configured once, used for all products.
 - **Predictable growth**: adding a 10th product type adds at most one class per
@@ -93,7 +93,7 @@ here. Adapter modules implement SPIs; inbound adapters call APIs.
 
 ## External system stubs
 
-The three `adapter-external-*-stub` modules simulate supplier systems that in
+The three `external-*-stub` modules simulate supplier systems that in
 production would be separate services. They run inside the same Quarkus process
 in dev and test — made possible by Quarkus Dev Services and the fact that all
 Kafka topics are shared inside the same Redpanda container.
@@ -103,8 +103,8 @@ them. The contract is the wire protocol:
 
 - REST stubs: same HTTP path and JSON structure.
 - SOAP stubs: same WSDL `targetNamespace` and operation name. The SEI interface
-  is duplicated — one copy in `adapter-outbound-webservice`, one in
-  `adapter-external-beverage-supplier-stub`. That is intentional: in production
+  is duplicated — one copy in `outbound-webservice`, one in
+  `external-beverage-supplier-stub`. That is intentional: in production
   the stub would not exist in the same JVM at all.
 - Kafka stubs: same topic name and JSON message structure.
 
@@ -157,7 +157,7 @@ handler logs inside its own boundary. This ensures the audit trail reflects
 
 ## Scheduler as an inbound adapter
 
-`adapter-inbound-scheduler` contains a single Quarkus `@Scheduled` bean. From
+`inbound-scheduler` contains a single Quarkus `@Scheduled` bean. From
 the hexagonal perspective a timer tick is just another way to drive the
 application — it is an inbound port. The scheduler translates a time event into
 a call on `PurchaseAPI`, exactly as a Kafka receiver translates a message into a

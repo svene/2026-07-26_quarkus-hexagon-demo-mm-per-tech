@@ -17,7 +17,7 @@
     <quarkus.cxf.version>3.33.2</quarkus.cxf.version>
   </properties>
 
-  <name>adapter-outbound-webservice</name>
+  <name>outbound-webservice</name>
   <description>Outbound adapter: SOAP client that calls the external beverage supplier webservice.
     Implements an outbound port declared in core using Apache CXF (quarkus-cxf).
     In dev/test mode the corresponding stub module exposes a SOAP server endpoint in the
