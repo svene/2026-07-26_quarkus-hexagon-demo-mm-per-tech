@@ -14,7 +14,8 @@ public class FruitsHandler implements FruitsAPI {
 
     @Override
     public void order(String productName, int quantity) {
+        auditLog.log("FruitsHandler: FRUITS_ORDER_RECEIVED", productName + " qty=" + quantity);
         fruitSupplier.placeOrder(productName, quantity);
-        auditLog.log("ORDER_FRUITS", productName + " qty=" + quantity);
+        auditLog.log("FruitsHandler: FRUITS_ORDER_PLACED", productName + " qty=" + quantity);
     }
 }

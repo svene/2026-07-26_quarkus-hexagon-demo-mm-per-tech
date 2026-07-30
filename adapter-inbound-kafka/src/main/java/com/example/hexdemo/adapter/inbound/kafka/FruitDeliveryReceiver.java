@@ -1,6 +1,5 @@
 package com.example.hexdemo.adapter.inbound.kafka;
 
-import com.example.hexdemo.core.domain.ProductType;
 import com.example.hexdemo.core.port.in.InventoryAPI;
 import io.smallrye.reactive.messaging.annotations.Blocking;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -15,6 +14,6 @@ public class FruitDeliveryReceiver {
     @Incoming("fruit-deliveries")
     @Blocking
     public void receive(DeliveryMessage message) {
-        inventoryAPI.updateAmount(message.productName(), ProductType.FRUIT, message.quantity());
+        inventoryAPI.updateFruitAmount(message.productName(), message.quantity());
     }
 }

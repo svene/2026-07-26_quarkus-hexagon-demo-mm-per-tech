@@ -16,9 +16,18 @@ public class InventoryHandler implements InventoryAPI {
     @Inject AuditLogSPI auditLog;
 
     @Override
-    public void updateAmount(String productName, ProductType type, int additionalAmount) {
-        var updated = inventoryRepository.addAmount(productName, type, additionalAmount);
+    public void updateFruitAmount(String productName, int quantity) {
+        auditLog.log("InventoryHandler: FRUIT_DELIVERY_RECEIVED", productName + " qty=" + quantity);
+        var updated = inventoryRepository.addAmount(productName, ProductType.FRUIT, quantity);
         eventPublisher.publishInventoryChanged(updated);
-        auditLog.log("INVENTORY_UPDATED", productName + " +" + additionalAmount + " total=" + updated.availableAmount());
+        auditLog.log("InventoryHandler: FRUIT_INVENTORY_UPDATED", productName + " +" + quantity + " total=" + updated.availableAmount());
+    }
+
+    @Override
+    public void updateBeverageAmount(String productName, int quantity) {
+        auditLog.log("InventoryHandler: BEVERAGE_DELIVERY_RECEIVED", productName + " qty=" + quantity);
+        var updated = inventoryRepository.addAmount(productName, ProductType.BEVERAGE, quantity);
+        eventPublisher.publishInventoryChanged(updated);
+        auditLog.log("InventoryHandler: BEVERAGE_INVENTORY_UPDATED", productName + " +" + quantity + " total=" + updated.availableAmount());
     }
 }

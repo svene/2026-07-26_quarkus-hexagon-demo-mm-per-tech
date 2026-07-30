@@ -14,7 +14,8 @@ public class BeveragesHandler implements BeveragesAPI {
 
     @Override
     public void order(String productName, int quantity) {
+        auditLog.log("BeveragesHandler: BEVERAGES_ORDER_RECEIVED", productName + " qty=" + quantity);
         beverageSupplier.placeOrder(productName, quantity);
-        auditLog.log("ORDER_BEVERAGES", productName + " qty=" + quantity);
+        auditLog.log("BeveragesHandler: BEVERAGES_ORDER_PLACED", productName + " qty=" + quantity);
     }
 }

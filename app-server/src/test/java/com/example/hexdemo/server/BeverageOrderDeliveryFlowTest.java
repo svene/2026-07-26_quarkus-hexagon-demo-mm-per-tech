@@ -14,14 +14,16 @@ import static org.awaitility.Awaitility.await;
 @QuarkusTest
 class BeverageOrderDeliveryFlowTest {
 
-    @Inject
-    TestInventoryHelper helper;
+    @Inject TestInventoryHelper inventoryHelper;
+    @Inject TestAuditLogHelper auditHelper;
 
     @BeforeEach
     void setUp() {
         await().atMost(5, SECONDS).until(() -> {
-            helper.resetInventory();
-            return given().get("/api/products").asString().equals("[]");
+            inventoryHelper.resetInventory();
+            auditHelper.clearAuditLog();
+            return given().get("/api/products").asString().equals("[]")
+                && auditHelper.isEmpty();
         });
     }
 
@@ -38,11 +40,30 @@ class BeverageOrderDeliveryFlowTest {
             .post("/api/products/order-beverages");
         assertThat(orderResponse.statusCode()).isEqualTo(204);
 
+        // Both written synchronously inside BeveragesHandler during the HTTP request:
+        // BEVERAGES_ORDER_RECEIVED proves ProductApiReceiver delegated to BeveragesHandler.
+        // BEVERAGES_ORDER_PLACED proves BeveragesHandler called BeverageSupplierSPI.
+        assertThat(auditHelper.findEventDetails("BeveragesHandler: BEVERAGES_ORDER_RECEIVED"))
+            .containsExactly("Cola qty=12");
+        assertThat(auditHelper.findEventDetails("BeveragesHandler: BEVERAGES_ORDER_PLACED"))
+            .containsExactly("Cola qty=12");
+
+        // Wait for: BeverageSupplierStub → Kafka → BeveragesDeliveryReceiver → InventoryHandler.
+        // BEVERAGE_DELIVERY_RECEIVED and INVENTORY_UPDATED are inside untilAsserted because
+        // InventoryHandler commits to Postgres before writing to MongoDB — the inventory
+        // may be visible slightly before the audit entries appear.
         await().atMost(10, SECONDS).untilAsserted(() -> {
             var response = given().get("/api/products");
             assertThat(response.statusCode()).isEqualTo(200);
             assertThat(response.asString()).isEqualTo("""
                 [{"name":"Cola","type":"BEVERAGE","availableAmount":12}]""");
+
+            // BEVERAGE_DELIVERY_RECEIVED proves BeveragesDeliveryReceiver delegated to InventoryHandler.
+            assertThat(auditHelper.findEventDetails("InventoryHandler: BEVERAGE_DELIVERY_RECEIVED"))
+                .containsExactly("Cola qty=12");
+            // BEVERAGE_INVENTORY_UPDATED proves InventoryHandler called InventoryRepositorySPI.
+            assertThat(auditHelper.findEventDetails("InventoryHandler: BEVERAGE_INVENTORY_UPDATED"))
+                .containsExactly("Cola +12 total=12");
         });
     }
 }
