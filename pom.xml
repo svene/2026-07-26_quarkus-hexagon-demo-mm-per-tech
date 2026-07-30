@@ -34,10 +34,10 @@
     <module>outbound-kafka-producer</module>
     <module>outbound-webservice</module>
     <module>outbound-httpclient</module>
-    <module>external-rest-supplier-stub</module>
-    <module>external-soap-supplier-stub</module>
-    <module>external-kafka-supplier-stub</module>
-    <module>external-cashpoint-stub</module>
+    <module>external-outbound-rest</module>
+    <module>external-outbound-soap</module>
+    <module>external-outbound-kafka</module>
+    <module>external-inbound-kafka</module>
     <module>outbound-kafka-supplier</module>
     <module>app-server</module>
   </modules>
@@ -103,22 +103,22 @@
       </dependency>
       <dependency>
         <groupId>org.svenehrke.demo</groupId>
-        <artifactId>external-rest-supplier-stub</artifactId>
+        <artifactId>external-outbound-rest</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>org.svenehrke.demo</groupId>
-        <artifactId>external-soap-supplier-stub</artifactId>
+        <artifactId>external-outbound-soap</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>org.svenehrke.demo</groupId>
-        <artifactId>external-kafka-supplier-stub</artifactId>
+        <artifactId>external-outbound-kafka</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>org.svenehrke.demo</groupId>
-        <artifactId>external-cashpoint-stub</artifactId>
+        <artifactId>external-inbound-kafka</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>

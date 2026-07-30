@@ -93,10 +93,10 @@ here. Adapter modules implement SPIs; inbound adapters call APIs.
 
 ## External system stubs
 
-The three `external-*-stub` modules simulate supplier systems that in
-production would be separate services. They run inside the same Quarkus process
-in dev and test — made possible by Quarkus Dev Services and the fact that all
-Kafka topics are shared inside the same Redpanda container.
+The `external-*` modules simulate external systems that in production would be
+separate services. They run inside the same Quarkus process in dev and test —
+made possible by Quarkus Dev Services and the fact that all Kafka topics are
+shared inside the same Redpanda container.
 
 **Deliberate decoupling:** stubs share no Java types with the adapters that call
 them. The contract is the wire protocol:
@@ -163,7 +163,7 @@ The customer purchase flow demonstrates the full event-driven path:
 CashpointStub (scheduler) → cashpoint-purchases (Kafka) → CashpointReceiver → PurchaseAPI
 ```
 
-`CashpointStub` lives in `external-cashpoint-stub`. Like the supplier stubs it is not part of
+`CashpointStub` lives in `external-inbound-kafka`. Like the supplier stubs it is not part of
 the hexagonal architecture — it simulates a point-of-sale system that emits a Kafka message when a
 customer pays at checkout. It subscribes to `inventory-events` to maintain a local list of in-stock
 products and picks one at random each time the scheduler fires.
@@ -198,24 +198,22 @@ adapters decide *how* it is triggered.
 
 ## External stub modules: technology-per-module, product-type-per-package
 
-The three `external-*` modules simulate supplier systems that would be separate
+The four `external-*` modules simulate external systems that would be separate
 services in production. They are **not part of the hexagonal architecture** of
 the application — they sit entirely outside its boundary.
 
-**Module cut — by technology.** Like the adapter modules, external stubs are
-cut per technology, not per product category. One module per technology keeps
-the total module count low. The original modules were named after the first
-product type they contained (`external-fruit-supplier-stub`,
-`external-beverage-supplier-stub`), which became misleading as more product
-types were added. Renaming to the technology dimension keeps names accurate as
-products grow.
+**Module cut — by direction and technology.** Modules are named
+`external-outbound-<tech>` for systems the application calls outbound
+(suppliers), and `external-inbound-<tech>` for systems that drive the
+application inbound (cashpoint). Within each direction, one module per
+technology keeps the total module count low.
 
 | Module | Technology | Stubs inside |
 |---|---|---|
-| `external-rest-supplier-stub` | JAX-RS endpoints + Kafka producer | Fruit, Vegetable, Dairy suppliers |
-| `external-soap-supplier-stub` | CXF SOAP endpoints + Kafka producer | Beverage, Meat, Bakery suppliers |
-| `external-kafka-supplier-stub` | Kafka consumer + producer | Non-food supplier |
-| `external-cashpoint-stub` | Quarkus Scheduler + Kafka producer | Customer checkout simulator |
+| `external-outbound-rest` | JAX-RS endpoints + Kafka producer | Fruit, Vegetable, Dairy suppliers |
+| `external-outbound-soap` | CXF SOAP endpoints + Kafka producer | Beverage, Meat, Bakery suppliers |
+| `external-outbound-kafka` | Kafka consumer + producer | Non-food supplier |
+| `external-inbound-kafka` | Quarkus Scheduler + Kafka producer | Customer checkout (cashpoint) |
 
 **Package structure — by product type, no sharing.** Within each module,
 every product type lives in its own sub-package

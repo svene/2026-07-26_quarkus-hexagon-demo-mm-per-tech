@@ -60,19 +60,19 @@
     <!-- Stubs that simulate external systems in dev/test -->
     <dependency>
       <groupId>org.svenehrke.demo</groupId>
-      <artifactId>external-rest-supplier-stub</artifactId>
+      <artifactId>external-outbound-rest</artifactId>
     </dependency>
     <dependency>
       <groupId>org.svenehrke.demo</groupId>
-      <artifactId>external-soap-supplier-stub</artifactId>
+      <artifactId>external-outbound-soap</artifactId>
     </dependency>
     <dependency>
       <groupId>org.svenehrke.demo</groupId>
-      <artifactId>external-kafka-supplier-stub</artifactId>
+      <artifactId>external-outbound-kafka</artifactId>
     </dependency>
     <dependency>
       <groupId>org.svenehrke.demo</groupId>
-      <artifactId>external-cashpoint-stub</artifactId>
+      <artifactId>external-inbound-kafka</artifactId>
     </dependency>
     <dependency>
       <groupId>io.rest-assured</groupId>
