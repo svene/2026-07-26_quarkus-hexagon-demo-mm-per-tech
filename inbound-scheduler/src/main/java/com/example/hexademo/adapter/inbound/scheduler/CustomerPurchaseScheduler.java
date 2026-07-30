@@ -13,7 +13,7 @@ public class CustomerPurchaseScheduler {
     @Inject ProductsAPI productsAPI;
     @Inject PurchaseAPI purchaseAPI;
 
-    @Scheduled(every = "30s", delayed = "60s")
+    @Scheduled(every = "2s", delayed = "10s")
     void simulatePurchase() {
         var products = productsAPI.listAll();
         if (products.isEmpty()) return;
