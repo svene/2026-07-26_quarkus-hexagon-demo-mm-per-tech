@@ -56,7 +56,6 @@
     <dependency>
       <groupId>org.svenehrke.demo</groupId>
       <artifactId>adapter-external-fruit-supplier-stub</artifactId>
-      <scope>test</scope>
     </dependency>
     <!-- WireMock dev service for the beverage supplier REST client -->
     <!-- quarkus-wiremock is 'provided' in adapter-outbound-webservice so Maven
