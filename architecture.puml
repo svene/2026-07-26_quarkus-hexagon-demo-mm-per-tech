@@ -31,8 +31,8 @@ queue "nonfood-deliveries" as T_NONFOOD_DEL
 
 package "inbound-rest\n[JAX-RS + Qute templates]" as INBOUND_REST {
   component "ProductApiReceiver\nGET  /api/products\nPOST /api/products/order-{fruit|vegetable|dairy|\n      beverage|meat|bakery|nonfood}\nPOST /api/products/purchase\n(JSON body)" as ProductApiReceiver
-  component "AdminReceiver\nGET  /admin\nPOST /admin/order-{fruit|vegetable|dairy|\n      beverage|meat|bakery|nonfood}\nGET  /admin/audit\n(HTML — inventory + ordering + audit log)" as AdminReceiver
-  component "ShopReceiver\nGET  /shop\nPOST /shop/checkout\n(HTML — cart-style multi-item purchase,\ndev-only random-fill button)" as ShopReceiver
+  component "AdminReceiver\nGET  /admin (inventory + ordering + audit log, merged)\nPOST /admin/order-{fruit|vegetable|dairy|\n      beverage|meat|bakery|nonfood}\n(hx-post; 204 for HX-Request, else 303 redirect —\nRandomize (dev) button fills + auto-submits all 7 via htmx)\nGET  /admin/inventory-fragment, /admin/audit-fragment\n(htmx polling targets, every 3s)\nBulma + htmx (static assets in META-INF/resources)" as AdminReceiver
+  component "ShopReceiver\nGET  /shop\nPOST /shop/checkout\nGET  /shop/inventory-fragment\n(htmx OOB polling target, every 3s)\n(HTML — cart-style multi-item purchase,\ndev-only random-fill button, Bulma + htmx)" as ShopReceiver
 }
 
 package "inbound-kafka\n[SmallRye Reactive Messaging @Incoming]" as INBOUND_KAFKA {

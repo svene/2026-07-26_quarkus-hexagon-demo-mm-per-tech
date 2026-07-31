@@ -1,0 +1,9 @@
+<tbody id="inventory-body" hx-get="/admin/inventory-fragment" hx-trigger="every 3s" hx-swap="outerHTML">
+    {#for p in products}
+    <tr>
+        <td>{p.name}</td>
+        <td>{p.type}</td>
+        <td>{p.availableAmount}</td>
+    </tr>
+    {/for}
+</tbody>

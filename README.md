@@ -46,7 +46,8 @@ grouped by the underlying technology of the outbound adapter:
 1. **Order a product** (on `/admin`) — fill in a name and quantity and click
    *Order*. The order goes to a supplier (stub running in the same process).
    The supplier sends a Kafka delivery event. The Kafka receiver updates
-   inventory. Refresh the page and the new stock appears.
+   inventory. No need to refresh — both `/admin` and `/shop` poll their
+   inventory numbers via htmx every 3 seconds.
 
 2. **Purchase a basket of products** (on `/shop`) — fill in quantities for one
    or more in-stock products and click *Purchase*. The amounts are deducted
@@ -56,8 +57,8 @@ grouped by the underlying technology of the outbound adapter:
 3. **Simulated customer checkouts** — a background `CashpointStub` stands in for
    customers paying at the register: starting 30 s after the app is ready, it
    checks out 2–4 random in-stock products every 10 seconds, deducting them
-   from inventory exactly as a real point-of-sale terminal would. Refresh
-   `/admin` or `/shop` to see the inventory shrink over time.
+   from inventory exactly as a real point-of-sale terminal would. Watch the
+   numbers on `/admin` or `/shop` shrink on their own, no refresh needed.
 
 ### JSON API
 
@@ -75,18 +76,32 @@ Purchase POST body: `{"items":[{"productName":"Mango","quantity":5}]}`.
 ### Admin UI
 
 The admin page at **http://localhost:8080/admin** covers everything above:
-the inventory table and supplier order forms, plus a link to
-**http://localhost:8080/admin/audit**, which lists recent audit log entries
-(event, details, timestamp) read from MongoDB.
+the inventory table and supplier order forms on the left, and the audit log
+(event, details, timestamp, read from MongoDB) in a column on the right — one
+page, no separate audit route. Both the inventory table and the audit log
+refresh themselves every 3 seconds via htmx polling, so multiple browser tabs
+(or `/shop` running alongside) stay in sync without a manual reload.
 
 ### Shop UI
 
 A customer-facing shopping page is available at **http://localhost:8080/shop**.
 It lists every in-stock product with a quantity field per row; filling in one
 or more quantities and clicking *Purchase* submits the whole basket in a single
-call to `PurchaseAPI.purchase(...)`. A *Randomize (dev)* button fills 2–4 random
-rows with random quantities (client-side JavaScript only, no server round trip)
-so you don't have to type values by hand while developing.
+call to `PurchaseAPI.purchase(...)`. The "Available" column also refreshes
+itself every 3 seconds via htmx (using an out-of-band swap that only touches
+the number, never the quantity inputs you're typing into). A *Randomize (dev)*
+button fills 2–4 random rows with random quantities (client-side JavaScript
+only, no server round trip) so you don't have to type values by hand while
+developing.
+
+### Styling and live updates
+
+Both `/admin` and `/shop` use [Bulma](https://bulma.io) for styling and
+[htmx](https://htmx.org) for the periodic polling described above. Both
+libraries are served locally — no CDN, no build step — from
+`inbound-rest/src/main/resources/META-INF/resources/{css,js}`, which Quarkus
+serves automatically at the web root (`/css/bulma.min.css`,
+`/js/htmx.org/2.0.8/htmx.js`).
 
 ---
 

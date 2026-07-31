@@ -17,6 +17,7 @@ import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.FormParam;
 import jakarta.ws.rs.GET;
+import jakarta.ws.rs.HeaderParam;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
@@ -42,83 +43,105 @@ public class AdminReceiver {
 
     @CheckedTemplate
     public static class Templates {
-        public static native TemplateInstance admin(List<Product> products);
-        public static native TemplateInstance audit(List<AuditLogEntry> entries);
+        public static native TemplateInstance admin(List<Product> products, List<AuditLogEntry> auditEntries);
+        public static native TemplateInstance inventoryFragment(List<Product> products);
+        public static native TemplateInstance auditFragment(List<AuditLogEntry> auditEntries);
     }
 
     @GET
     @Produces(MediaType.TEXT_HTML)
     public TemplateInstance list() {
-        return Templates.admin(productsAPI.listAll());
+        return Templates.admin(productsAPI.listAll(), auditLogAPI.recent(AUDIT_LOG_LIMIT));
     }
 
     @GET
-    @Path("/audit")
+    @Path("/inventory-fragment")
     @Produces(MediaType.TEXT_HTML)
-    public TemplateInstance audit() {
-        return Templates.audit(auditLogAPI.recent(AUDIT_LOG_LIMIT));
+    public TemplateInstance inventoryFragment() {
+        return Templates.inventoryFragment(productsAPI.listAll());
+    }
+
+    @GET
+    @Path("/audit-fragment")
+    @Produces(MediaType.TEXT_HTML)
+    public TemplateInstance auditFragment() {
+        return Templates.auditFragment(auditLogAPI.recent(AUDIT_LOG_LIMIT));
     }
 
     @POST
     @Path("/order-fruits")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     public Response orderFruits(@FormParam("productName") String productName,
-                                @FormParam("quantity") int quantity) {
+                                @FormParam("quantity") int quantity,
+                                @HeaderParam("HX-Request") String hxRequest) {
         fruitsAPI.order(productName, quantity);
-        return Response.seeOther(URI.create("/admin")).build();
+        return orderResponse(hxRequest);
     }
 
     @POST
     @Path("/order-vegetables")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     public Response orderVegetables(@FormParam("productName") String productName,
-                                    @FormParam("quantity") int quantity) {
+                                    @FormParam("quantity") int quantity,
+                                    @HeaderParam("HX-Request") String hxRequest) {
         vegetablesAPI.order(productName, quantity);
-        return Response.seeOther(URI.create("/admin")).build();
+        return orderResponse(hxRequest);
     }
 
     @POST
     @Path("/order-dairy")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     public Response orderDairy(@FormParam("productName") String productName,
-                               @FormParam("quantity") int quantity) {
+                               @FormParam("quantity") int quantity,
+                               @HeaderParam("HX-Request") String hxRequest) {
         dairyAPI.order(productName, quantity);
-        return Response.seeOther(URI.create("/admin")).build();
+        return orderResponse(hxRequest);
     }
 
     @POST
     @Path("/order-beverages")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     public Response orderBeverages(@FormParam("productName") String productName,
-                                   @FormParam("quantity") int quantity) {
+                                   @FormParam("quantity") int quantity,
+                                   @HeaderParam("HX-Request") String hxRequest) {
         beveragesAPI.order(productName, quantity);
-        return Response.seeOther(URI.create("/admin")).build();
+        return orderResponse(hxRequest);
     }
 
     @POST
     @Path("/order-meat")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     public Response orderMeat(@FormParam("productName") String productName,
-                              @FormParam("quantity") int quantity) {
+                              @FormParam("quantity") int quantity,
+                              @HeaderParam("HX-Request") String hxRequest) {
         meatAPI.order(productName, quantity);
-        return Response.seeOther(URI.create("/admin")).build();
+        return orderResponse(hxRequest);
     }
 
     @POST
     @Path("/order-bakery")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     public Response orderBakery(@FormParam("productName") String productName,
-                                @FormParam("quantity") int quantity) {
+                                @FormParam("quantity") int quantity,
+                                @HeaderParam("HX-Request") String hxRequest) {
         bakeryAPI.order(productName, quantity);
-        return Response.seeOther(URI.create("/admin")).build();
+        return orderResponse(hxRequest);
     }
 
     @POST
     @Path("/order-nonfood")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     public Response orderNonFood(@FormParam("productName") String productName,
-                                 @FormParam("quantity") int quantity) {
+                                 @FormParam("quantity") int quantity,
+                                 @HeaderParam("HX-Request") String hxRequest) {
         nonFoodAPI.order(productName, quantity);
+        return orderResponse(hxRequest);
+    }
+
+    private Response orderResponse(String hxRequest) {
+        if ("true".equals(hxRequest)) {
+            return Response.noContent().build();
+        }
         return Response.seeOther(URI.create("/admin")).build();
     }
 }

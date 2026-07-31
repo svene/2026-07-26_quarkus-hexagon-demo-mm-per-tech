@@ -1,0 +1,24 @@
+<div id="audit-panel" hx-get="/admin/audit-fragment" hx-trigger="every 3s" hx-swap="outerHTML">
+    <h2 class="title is-4">Audit Log</h2>
+    {#if auditEntries.isEmpty()}
+    <p class="has-text-grey"><em>No audit log entries yet.</em></p>
+    {/if}
+    {#if !auditEntries.isEmpty()}
+    <div style="overflow-x:auto">
+    <table class="table is-fullwidth is-narrow" style="white-space:nowrap">
+        <thead>
+            <tr><th>Time</th><th>Event</th><th>Details</th></tr>
+        </thead>
+        <tbody>
+            {#for e in auditEntries}
+            <tr>
+                <td>{e.timestamp}</td>
+                <td>{e.event}</td>
+                <td>{e.details}</td>
+            </tr>
+            {/for}
+        </tbody>
+    </table>
+    </div>
+    {/if}
+</div>

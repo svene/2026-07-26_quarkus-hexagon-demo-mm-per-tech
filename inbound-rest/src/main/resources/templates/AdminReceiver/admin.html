@@ -3,93 +3,137 @@
 <head>
     <meta charset="UTF-8">
     <title>Supermarket – Admin</title>
-    <style>
-        body { font-family: sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
-        h1 { border-bottom: 2px solid #333; }
-        h2 { margin-top: 2rem; color: #444; }
-        h3 { margin-top: 1rem; color: #666; }
-        table { border-collapse: collapse; width: 100%; }
-        th, td { border: 1px solid #ccc; padding: 6px 10px; text-align: left; }
-        th { background: #f0f0f0; }
-        form { display: flex; gap: 8px; align-items: center; margin: 4px 0; }
-        input[type=text], input[type=number] { padding: 4px 6px; width: 180px; }
-        button { padding: 4px 12px; cursor: pointer; }
-        .section { border: 1px solid #ddd; border-radius: 4px; padding: 1rem; margin-bottom: 1rem; }
-        .tag { font-size: 0.75rem; color: #888; margin-left: 6px; }
-        nav a { margin-right: 1rem; }
-    </style>
+    <link rel="stylesheet" href="/css/bulma.min.css">
+    <script src="/js/htmx.org/2.0.8/htmx.js"></script>
 </head>
 <body>
-<h1>Supermarket – Admin</h1>
-<nav><a href="/admin/audit">Audit log</a></nav>
+<section class="section">
+<div class="container is-fluid">
+    <h1 class="title">Supermarket – Admin</h1>
 
-<h2>Current Inventory</h2>
-{#if products.isEmpty()}<p><em>No products in inventory yet.</em></p>{/if}
-{#if !products.isEmpty()}
-<table>
-    <thead>
-        <tr><th>Name</th><th>Type</th><th>Available</th></tr>
-    </thead>
-    <tbody>
-        {#for p in products}
-        <tr>
-            <td>{p.name}</td>
-            <td>{p.type}</td>
-            <td>{p.availableAmount}</td>
-        </tr>
-        {/for}
-    </tbody>
-</table>
-{/if}
+    <div class="columns">
+        <div class="column is-half">
+            <h2 class="title is-4">Current Inventory</h2>
+            {#if products.isEmpty()}
+            <p class="has-text-grey"><em>No products in inventory yet.</em></p>
+            {/if}
+            {#if !products.isEmpty()}
+            <table class="table is-fullwidth is-striped">
+                <thead>
+                    <tr><th>Name</th><th>Type</th><th>Available</th></tr>
+                </thead>
+                <tbody id="inventory-body" hx-get="/admin/inventory-fragment" hx-trigger="every 3s" hx-swap="outerHTML">
+                    {#for p in products}
+                    <tr>
+                        <td>{p.name}</td>
+                        <td>{p.type}</td>
+                        <td>{p.availableAmount}</td>
+                    </tr>
+                    {/for}
+                </tbody>
+            </table>
+            {/if}
 
-<h2>Restock Inventory</h2>
+            <h2 class="title is-4">Restock Inventory
+                <button class="button is-light is-small" type="button" id="randomize-btn">Randomize (dev)</button>
+            </h2>
 
-<div class="section">
-<h3>REST suppliers <span class="tag">(outbound-httpclient)</span></h3>
-<form method="post" action="/admin/order-fruits">
-    Fruits: <input name="productName" placeholder="e.g. Mango" required>
-    <input name="quantity" type="number" placeholder="Qty" min="1" required>
-    <button type="submit">Order</button>
-</form>
-<form method="post" action="/admin/order-vegetables">
-    Vegetables: <input name="productName" placeholder="e.g. Carrot" required>
-    <input name="quantity" type="number" placeholder="Qty" min="1" required>
-    <button type="submit">Order</button>
-</form>
-<form method="post" action="/admin/order-dairy">
-    Dairy: <input name="productName" placeholder="e.g. Milk" required>
-    <input name="quantity" type="number" placeholder="Qty" min="1" required>
-    <button type="submit">Order</button>
-</form>
+            <div class="box">
+                <h3 class="subtitle is-6">REST suppliers <span class="tag is-light">outbound-httpclient</span></h3>
+                <form method="post" action="/admin/order-fruits" hx-post="/admin/order-fruits" hx-swap="none" class="field has-addons order-form" data-default-name="Mango">
+                    <div class="control"><span class="button is-static">Fruits</span></div>
+                    <div class="control"><input class="input" name="productName" placeholder="e.g. Mango" required></div>
+                    <div class="control"><input class="input" name="quantity" type="number" placeholder="Qty" min="1" required style="width:90px"></div>
+                    <div class="control"><button class="button is-link" type="submit">Order</button></div>
+                </form>
+                <form method="post" action="/admin/order-vegetables" hx-post="/admin/order-vegetables" hx-swap="none" class="field has-addons order-form" data-default-name="Carrot">
+                    <div class="control"><span class="button is-static">Vegetables</span></div>
+                    <div class="control"><input class="input" name="productName" placeholder="e.g. Carrot" required></div>
+                    <div class="control"><input class="input" name="quantity" type="number" placeholder="Qty" min="1" required style="width:90px"></div>
+                    <div class="control"><button class="button is-link" type="submit">Order</button></div>
+                </form>
+                <form method="post" action="/admin/order-dairy" hx-post="/admin/order-dairy" hx-swap="none" class="field has-addons order-form" data-default-name="Milk">
+                    <div class="control"><span class="button is-static">Dairy</span></div>
+                    <div class="control"><input class="input" name="productName" placeholder="e.g. Milk" required></div>
+                    <div class="control"><input class="input" name="quantity" type="number" placeholder="Qty" min="1" required style="width:90px"></div>
+                    <div class="control"><button class="button is-link" type="submit">Order</button></div>
+                </form>
+            </div>
+
+            <div class="box">
+                <h3 class="subtitle is-6">SOAP suppliers <span class="tag is-light">outbound-webservice</span></h3>
+                <form method="post" action="/admin/order-beverages" hx-post="/admin/order-beverages" hx-swap="none" class="field has-addons order-form" data-default-name="Cola">
+                    <div class="control"><span class="button is-static">Beverages</span></div>
+                    <div class="control"><input class="input" name="productName" placeholder="e.g. Cola" required></div>
+                    <div class="control"><input class="input" name="quantity" type="number" placeholder="Qty" min="1" required style="width:90px"></div>
+                    <div class="control"><button class="button is-link" type="submit">Order</button></div>
+                </form>
+                <form method="post" action="/admin/order-meat" hx-post="/admin/order-meat" hx-swap="none" class="field has-addons order-form" data-default-name="Chicken">
+                    <div class="control"><span class="button is-static">Meat</span></div>
+                    <div class="control"><input class="input" name="productName" placeholder="e.g. Chicken" required></div>
+                    <div class="control"><input class="input" name="quantity" type="number" placeholder="Qty" min="1" required style="width:90px"></div>
+                    <div class="control"><button class="button is-link" type="submit">Order</button></div>
+                </form>
+                <form method="post" action="/admin/order-bakery" hx-post="/admin/order-bakery" hx-swap="none" class="field has-addons order-form" data-default-name="Bread">
+                    <div class="control"><span class="button is-static">Bakery</span></div>
+                    <div class="control"><input class="input" name="productName" placeholder="e.g. Bread" required></div>
+                    <div class="control"><input class="input" name="quantity" type="number" placeholder="Qty" min="1" required style="width:90px"></div>
+                    <div class="control"><button class="button is-link" type="submit">Order</button></div>
+                </form>
+            </div>
+
+            <div class="box">
+                <h3 class="subtitle is-6">Kafka supplier <span class="tag is-light">outbound-kafka</span></h3>
+                <form method="post" action="/admin/order-nonfood" hx-post="/admin/order-nonfood" hx-swap="none" class="field has-addons order-form" data-default-name="Detergent">
+                    <div class="control"><span class="button is-static">Non-food</span></div>
+                    <div class="control"><input class="input" name="productName" placeholder="e.g. Detergent" required></div>
+                    <div class="control"><input class="input" name="quantity" type="number" placeholder="Qty" min="1" required style="width:90px"></div>
+                    <div class="control"><button class="button is-link" type="submit">Order</button></div>
+                </form>
+            </div>
+        </div>
+
+        <div class="column is-half">
+            <div id="audit-panel" hx-get="/admin/audit-fragment" hx-trigger="every 3s" hx-swap="outerHTML">
+                <h2 class="title is-4">Audit Log</h2>
+                {#if auditEntries.isEmpty()}
+                <p class="has-text-grey"><em>No audit log entries yet.</em></p>
+                {/if}
+                {#if !auditEntries.isEmpty()}
+                <div style="overflow-x:auto">
+                <table class="table is-fullwidth is-narrow" style="white-space:nowrap">
+                    <thead>
+                        <tr><th>Time</th><th>Event</th><th>Details</th></tr>
+                    </thead>
+                    <tbody>
+                        {#for e in auditEntries}
+                        <tr>
+                            <td>{e.timestamp}</td>
+                            <td>{e.event}</td>
+                            <td>{e.details}</td>
+                        </tr>
+                        {/for}
+                    </tbody>
+                </table>
+                </div>
+                {/if}
+            </div>
+        </div>
+    </div>
 </div>
+</section>
 
-<div class="section">
-<h3>SOAP suppliers <span class="tag">(outbound-webservice)</span></h3>
-<form method="post" action="/admin/order-beverages">
-    Beverages: <input name="productName" placeholder="e.g. Cola" required>
-    <input name="quantity" type="number" placeholder="Qty" min="1" required>
-    <button type="submit">Order</button>
-</form>
-<form method="post" action="/admin/order-meat">
-    Meat: <input name="productName" placeholder="e.g. Chicken" required>
-    <input name="quantity" type="number" placeholder="Qty" min="1" required>
-    <button type="submit">Order</button>
-</form>
-<form method="post" action="/admin/order-bakery">
-    Bakery: <input name="productName" placeholder="e.g. Bread" required>
-    <input name="quantity" type="number" placeholder="Qty" min="1" required>
-    <button type="submit">Order</button>
-</form>
-</div>
-
-<div class="section">
-<h3>Kafka supplier <span class="tag">(outbound-kafka)</span></h3>
-<form method="post" action="/admin/order-nonfood">
-    Non-food: <input name="productName" placeholder="e.g. Detergent" required>
-    <input name="quantity" type="number" placeholder="Qty" min="1" required>
-    <button type="submit">Order</button>
-</form>
-</div>
+<script>
+document.getElementById('randomize-btn')?.addEventListener('click', function () {
+    document.querySelectorAll('.order-form').forEach(function (form) {
+        var nameInput = form.querySelector('input[name="productName"]');
+        var qtyInput = form.querySelector('input[name="quantity"]');
+        if (nameInput) nameInput.value = form.dataset.defaultName;
+        if (qtyInput) qtyInput.value = 80 + Math.floor(Math.random() * 521); // 80-600
+        htmx.trigger(form, 'submit');
+    });
+});
+</script>
 
 </body>
 </html>

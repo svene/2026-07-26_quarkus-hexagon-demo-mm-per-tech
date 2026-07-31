@@ -28,6 +28,7 @@ public class ShopReceiver {
     @CheckedTemplate
     public static class Templates {
         public static native TemplateInstance shop(List<Product> products);
+        public static native TemplateInstance inventoryFragment(List<Product> products);
     }
 
     @GET
@@ -37,6 +38,13 @@ public class ShopReceiver {
             .filter(p -> p.availableAmount() > 0)
             .toList();
         return Templates.shop(inStock);
+    }
+
+    @GET
+    @Path("/inventory-fragment")
+    @Produces(MediaType.TEXT_HTML)
+    public TemplateInstance inventoryFragment() {
+        return Templates.inventoryFragment(productsAPI.listAll());
     }
 
     @POST

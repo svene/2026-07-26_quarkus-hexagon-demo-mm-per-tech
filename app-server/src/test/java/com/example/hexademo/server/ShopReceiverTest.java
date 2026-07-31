@@ -92,4 +92,18 @@ class ShopReceiverTest {
             .contains("\"name\":\"Apple\",\"type\":\"FRUIT\",\"availableAmount\":10")
             .contains("\"name\":\"Milk\",\"type\":\"DAIRY\",\"availableAmount\":6");
     }
+
+    @Test
+    void inventory_fragment_returns_an_out_of_band_cell_per_product() {
+        inventory.addAmount("Apple", ProductType.FRUIT, 10);
+
+        var response = given().get("/shop/inventory-fragment");
+
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(response.contentType()).contains("text/html");
+        assertThat(response.asString())
+            .contains("id=\"avail-Apple\"")
+            .contains("hx-swap-oob=\"true\"")
+            .contains(">10<");
+    }
 }

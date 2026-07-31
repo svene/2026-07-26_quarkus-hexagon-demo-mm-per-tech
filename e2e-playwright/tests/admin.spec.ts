@@ -16,20 +16,52 @@ async function waitForProductRow(page: Page, productName: string) {
   await expect.poll(
     async () => {
       await page.reload();
-      return page.getByRole('cell', { name: productName }).count();
+      return page.locator('#inventory-body').getByRole('cell', { name: productName }).count();
     },
     { message: `product "${productName}" did not appear in inventory`, timeout: 15_000, intervals: [1_000] },
   ).toBeGreaterThan(0);
 }
 
-test('admin page shows heading, supplier sections, and audit log link', async ({ page }) => {
+test('admin page shows heading, supplier sections, and the audit log panel', async ({ page }) => {
   await page.goto('/admin');
   await expect(page.getByRole('heading', { name: 'Supermarket – Admin' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Restock Inventory' })).toBeVisible();
   await expect(page.getByText('REST suppliers')).toBeVisible();
   await expect(page.getByText('SOAP suppliers')).toBeVisible();
   await expect(page.getByText('Kafka supplier')).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Audit log' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Audit Log' })).toBeVisible();
+});
+
+test('randomize button fills every order form and submits all 7 orders automatically via htmx', async ({ page }) => {
+  await page.goto('/admin');
+  await page.getByRole('button', { name: 'Randomize (dev)' }).click();
+
+  const expected: Record<string, string> = {
+    '/admin/order-fruits': 'Mango',
+    '/admin/order-vegetables': 'Carrot',
+    '/admin/order-dairy': 'Milk',
+    '/admin/order-beverages': 'Cola',
+    '/admin/order-meat': 'Chicken',
+    '/admin/order-bakery': 'Bread',
+    '/admin/order-nonfood': 'Detergent',
+  };
+
+  // The fields keep their filled values after the async htmx submit (hx-swap="none" touches nothing),
+  // so this also proves what was actually sent: a name and a quantity between 80 and 600 per form.
+  for (const [action, name] of Object.entries(expected)) {
+    const form = page.locator(`form[action="${action}"]`);
+    await expect(form.locator('input[name="productName"]')).toHaveValue(name);
+    const qty = Number(await form.locator('input[name="quantity"]').inputValue());
+    expect(qty).toBeGreaterThanOrEqual(80);
+    expect(qty).toBeLessThanOrEqual(600);
+  }
+
+  // The page never navigates away (no full-page POST) — submission happened without a reload.
+  expect(new URL(page.url()).pathname).toBe('/admin');
+
+  // Orders were actually placed: no manual "Order" click was needed for any of the 7 suppliers.
+  await waitForProductRow(page, 'Mango');
+  await waitForProductRow(page, 'Detergent');
 });
 
 test('ordering a fruit adds it to the inventory table', async ({ page }) => {
@@ -39,7 +71,7 @@ test('ordering a fruit adds it to the inventory table', async ({ page }) => {
   await page.locator('form[action="/admin/order-fruits"] button[type="submit"]').click();
   await page.waitForURL('/admin');
   await waitForProductRow(page, fruit);
-  const row = page.getByRole('row').filter({ hasText: fruit });
+  const row = page.locator('#inventory-body').getByRole('row').filter({ hasText: fruit });
   await expect(row.getByRole('cell').nth(1)).toHaveText('FRUIT');
   await expect(row.getByRole('cell').nth(2)).toHaveText('7');
 });
@@ -51,7 +83,7 @@ test('ordering a vegetable adds it to the inventory table', async ({ page }) => 
   await page.locator('form[action="/admin/order-vegetables"] button[type="submit"]').click();
   await page.waitForURL('/admin');
   await waitForProductRow(page, vegetable);
-  const row = page.getByRole('row').filter({ hasText: vegetable });
+  const row = page.locator('#inventory-body').getByRole('row').filter({ hasText: vegetable });
   await expect(row.getByRole('cell').nth(1)).toHaveText('VEGETABLE');
   await expect(row.getByRole('cell').nth(2)).toHaveText('8');
 });
@@ -63,7 +95,7 @@ test('ordering a dairy product adds it to the inventory table', async ({ page })
   await page.locator('form[action="/admin/order-dairy"] button[type="submit"]').click();
   await page.waitForURL('/admin');
   await waitForProductRow(page, dairy);
-  const row = page.getByRole('row').filter({ hasText: dairy });
+  const row = page.locator('#inventory-body').getByRole('row').filter({ hasText: dairy });
   await expect(row.getByRole('cell').nth(1)).toHaveText('DAIRY');
   await expect(row.getByRole('cell').nth(2)).toHaveText('6');
 });
@@ -75,7 +107,7 @@ test('ordering a beverage adds it to the inventory table', async ({ page }) => {
   await page.locator('form[action="/admin/order-beverages"] button[type="submit"]').click();
   await page.waitForURL('/admin');
   await waitForProductRow(page, beverage);
-  const row = page.getByRole('row').filter({ hasText: beverage });
+  const row = page.locator('#inventory-body').getByRole('row').filter({ hasText: beverage });
   await expect(row.getByRole('cell').nth(1)).toHaveText('BEVERAGE');
   await expect(row.getByRole('cell').nth(2)).toHaveText('24');
 });
@@ -87,7 +119,7 @@ test('ordering a meat product adds it to the inventory table', async ({ page }) 
   await page.locator('form[action="/admin/order-meat"] button[type="submit"]').click();
   await page.waitForURL('/admin');
   await waitForProductRow(page, meat);
-  const row = page.getByRole('row').filter({ hasText: meat });
+  const row = page.locator('#inventory-body').getByRole('row').filter({ hasText: meat });
   await expect(row.getByRole('cell').nth(1)).toHaveText('MEAT');
   await expect(row.getByRole('cell').nth(2)).toHaveText('4');
 });
@@ -99,7 +131,7 @@ test('ordering a bakery product adds it to the inventory table', async ({ page }
   await page.locator('form[action="/admin/order-bakery"] button[type="submit"]').click();
   await page.waitForURL('/admin');
   await waitForProductRow(page, bakery);
-  const row = page.getByRole('row').filter({ hasText: bakery });
+  const row = page.locator('#inventory-body').getByRole('row').filter({ hasText: bakery });
   await expect(row.getByRole('cell').nth(1)).toHaveText('BAKERY');
   await expect(row.getByRole('cell').nth(2)).toHaveText('10');
 });
@@ -111,7 +143,7 @@ test('ordering a non-food product adds it to the inventory table', async ({ page
   await page.locator('form[action="/admin/order-nonfood"] button[type="submit"]').click();
   await page.waitForURL('/admin');
   await waitForProductRow(page, nonfood);
-  const row = page.getByRole('row').filter({ hasText: nonfood });
+  const row = page.locator('#inventory-body').getByRole('row').filter({ hasText: nonfood });
   await expect(row.getByRole('cell').nth(1)).toHaveText('NON_FOOD');
   await expect(row.getByRole('cell').nth(2)).toHaveText('3');
 });

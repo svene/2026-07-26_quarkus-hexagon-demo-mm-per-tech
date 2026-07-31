@@ -64,8 +64,16 @@ class AdminReceiverTest {
     }
 
     @Test
-    void audit_log_empty_shows_no_entries_message() {
-        var response = given().get("/admin/audit");
+    void admin_page_shows_no_audit_entries_message_when_empty() {
+        var response = given().get("/admin");
+
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(response.asString()).contains("No audit log entries yet.");
+    }
+
+    @Test
+    void audit_fragment_shows_no_entries_message_when_empty() {
+        var response = given().get("/admin/audit-fragment");
 
         assertThat(response.statusCode()).isEqualTo(200);
         assertThat(response.contentType()).contains("text/html");
@@ -73,7 +81,7 @@ class AdminReceiverTest {
     }
 
     @Test
-    void audit_log_shows_recent_entries_after_an_order() {
+    void admin_page_and_audit_fragment_show_recent_entries_after_an_order() {
         given()
             .contentType("application/x-www-form-urlencoded")
             .formParam("productName", "Banana")
@@ -82,9 +90,23 @@ class AdminReceiverTest {
 
         await().atMost(5, SECONDS).until(() -> !auditLogHelper.findEventDetails("FruitsHandler: FRUITS_ORDER_PLACED").isEmpty());
 
-        var response = given().get("/admin/audit");
+        var adminResponse = given().get("/admin");
+        assertThat(adminResponse.statusCode()).isEqualTo(200);
+        assertThat(adminResponse.asString()).contains("FruitsHandler: FRUITS_ORDER_PLACED", "Banana");
+
+        var fragmentResponse = given().get("/admin/audit-fragment");
+        assertThat(fragmentResponse.statusCode()).isEqualTo(200);
+        assertThat(fragmentResponse.asString()).contains("FruitsHandler: FRUITS_ORDER_PLACED", "Banana");
+    }
+
+    @Test
+    void inventory_fragment_reflects_current_stock() {
+        inventory.addAmount("Apple", ProductType.FRUIT, 10);
+
+        var response = given().get("/admin/inventory-fragment");
 
         assertThat(response.statusCode()).isEqualTo(200);
-        assertThat(response.asString()).contains("FruitsHandler: FRUITS_ORDER_PLACED", "Banana");
+        assertThat(response.contentType()).contains("text/html");
+        assertThat(response.asString()).contains("Apple", "FRUIT", "10");
     }
 }
