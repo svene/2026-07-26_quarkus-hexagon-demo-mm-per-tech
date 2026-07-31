@@ -12,7 +12,7 @@ skinparam ArrowColor #555555
 actor "Browser /\nREST client" as Browser
 
 package "external-inbound-kafka" {
-  component "CashpointStub\n@Scheduled\nevery=2s  delay=30s\nGET /api/products (REST Client)" as CashpointStub
+  component "CashpointStub\n@Scheduled\nevery=10s  delay=30s\nGET /api/products (REST Client)" as CashpointStub
 }
 
 ' Kafka topics consumed by inbound-kafka adapters
@@ -30,7 +30,6 @@ queue "nonfood-deliveries" as T_NONFOOD_DEL
 ' =============================================================================
 
 package "inbound-rest\n[JAX-RS + Qute templates]" as INBOUND_REST {
-  component "ProductReceiver\nGET  /products\nPOST /products/order-{fruit|vegetable|dairy|\n      beverage|meat|bakery|nonfood}\nPOST /products/purchase\n(HTML form — 3-row purchase form)" as ProductReceiver
   component "ProductApiReceiver\nGET  /api/products\nPOST /api/products/order-{fruit|vegetable|dairy|\n      beverage|meat|bakery|nonfood}\nPOST /api/products/purchase\n(JSON body)" as ProductApiReceiver
   component "AdminReceiver\nGET  /admin\nPOST /admin/order-{fruit|vegetable|dairy|\n      beverage|meat|bakery|nonfood}\nGET  /admin/audit\n(HTML — inventory + ordering + audit log)" as AdminReceiver
   component "ShopReceiver\nGET  /shop\nPOST /shop/checkout\n(HTML — cart-style multi-item purchase,\ndev-only random-fill button)" as ShopReceiver
@@ -152,7 +151,6 @@ package "external-outbound-kafka\n[Kafka consumer + producer]" as EXT_KAFKA {
 ' =============================================================================
 
 ' --- External drivers → inbound ---
-Browser --> ProductReceiver : HTTP (form)
 Browser --> ProductApiReceiver : HTTP (JSON)
 Browser --> AdminReceiver : HTTP (form)
 Browser --> ShopReceiver : HTTP (form)
@@ -170,15 +168,6 @@ T_BAKERY --> BakeryRcv : consume
 T_NONFOOD_DEL --> NonFoodRcv : consume
 
 ' --- Inbound REST → Core APIs ---
-ProductReceiver --> ProductsAPI
-ProductReceiver --> FruitsAPI
-ProductReceiver --> VegetablesAPI
-ProductReceiver --> DairyAPI
-ProductReceiver --> BeveragesAPI
-ProductReceiver --> MeatAPI
-ProductReceiver --> BakeryAPI
-ProductReceiver --> NonFoodAPI
-ProductReceiver --> PurchaseAPI
 ProductApiReceiver --> ProductsAPI
 ProductApiReceiver --> FruitsAPI
 ProductApiReceiver --> VegetablesAPI

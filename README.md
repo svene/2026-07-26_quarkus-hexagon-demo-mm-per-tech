@@ -24,12 +24,18 @@ mvn -pl app-server quarkus:dev
 Quarkus Dev Services starts real containers for PostgreSQL, MongoDB, and Kafka
 (Redpanda) automatically. No docker-compose, no manual connection strings.
 
-Open **http://localhost:8080/products** in your browser.
+Open **http://localhost:8080/admin** in your browser.
 
 ### What you can do in the browser
 
-The page shows the current inventory table and a set of order forms grouped by
-the underlying technology of the outbound adapter:
+There are two HTML pages, aimed at two different kinds of user, plus a JSON API:
+
+- **`/admin`** — supermarket staff: inventory view, supplier ordering forms, audit log
+- **`/shop`** — customers: browse in-stock products and buy a basket of items
+- **`/api/products`** — JSON API for scripts, tests, and other frontends
+
+The admin page shows the current inventory table and a set of order forms
+grouped by the underlying technology of the outbound adapter:
 
 | Section | Products you can order | Adapter technology |
 |---|---|---|
@@ -37,18 +43,21 @@ the underlying technology of the outbound adapter:
 | SOAP suppliers | Beverages, Meat, Bakery | SOAP / Apache CXF |
 | Kafka supplier | Non-food | Kafka producer |
 
-1. **Order a product** — fill in a name and quantity and click *Order*. The order
-   goes to a supplier (stub running in the same process). The supplier sends a
-   Kafka delivery event. The Kafka receiver updates inventory. Refresh the page
-   and the new stock appears.
+1. **Order a product** (on `/admin`) — fill in a name and quantity and click
+   *Order*. The order goes to a supplier (stub running in the same process).
+   The supplier sends a Kafka delivery event. The Kafka receiver updates
+   inventory. Refresh the page and the new stock appears.
 
-2. **Simulate a customer purchase** — fill in up to three product names with
-   quantities and click *Purchase*. The amounts are deducted immediately. If a
-   product does not exist the line is silently ignored.
+2. **Purchase a basket of products** (on `/shop`) — fill in quantities for one
+   or more in-stock products and click *Purchase*. The amounts are deducted
+   immediately. See the Shop UI section below for details, including the
+   dev-only randomize button.
 
-3. **Automatic purchases** — once inventory is non-empty, a Quarkus Scheduler
-   fires every 2 seconds (30 s initial delay) and randomly purchases 2–4
-   products at once. Refresh the page to see the inventory shrink over time.
+3. **Simulated customer checkouts** — a background `CashpointStub` stands in for
+   customers paying at the register: starting 30 s after the app is ready, it
+   checks out 2–4 random in-stock products every 10 seconds, deducting them
+   from inventory exactly as a real point-of-sale terminal would. Refresh
+   `/admin` or `/shop` to see the inventory shrink over time.
 
 ### JSON API
 
@@ -65,12 +74,10 @@ Purchase POST body: `{"items":[{"productName":"Mango","quantity":5}]}`.
 
 ### Admin UI
 
-A separate admin page is available at **http://localhost:8080/admin**. It shows
-the same inventory table and the same supplier order forms as `/products`, plus
-a link to **http://localhost:8080/admin/audit**, which lists recent audit log
-entries (event, details, timestamp) read from MongoDB. `/products` and `/admin`
-are independent pages with their own POST endpoints — changes on one page
-redirect back to that same page.
+The admin page at **http://localhost:8080/admin** covers everything above:
+the inventory table and supplier order forms, plus a link to
+**http://localhost:8080/admin/audit**, which lists recent audit log entries
+(event, details, timestamp) read from MongoDB.
 
 ### Shop UI
 
@@ -157,7 +164,7 @@ to be ready, then runs the browser tests. Requires Docker/Podman for Dev Service
 6. Add a delivery receiver in `inbound-kafka`.
 7. Add an external stub (or extend an existing one).
 8. Wire Kafka channel names and REST/SOAP client keys in `app-server/application.properties`.
-9. Add a form to `inbound-rest/templates/ProductReceiver/products.html`.
+9. Add a form to `inbound-rest/templates/AdminReceiver/admin.html`.
 
 ### Adding a new adapter technology
 

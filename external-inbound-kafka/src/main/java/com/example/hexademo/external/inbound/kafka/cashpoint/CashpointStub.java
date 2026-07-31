@@ -23,7 +23,7 @@ public class CashpointStub {
     @Channel("cashpoint-purchases-out")
     Emitter<PurchaseRequest> emitter;
 
-    @Scheduled(every = "2s", delayed = "30s")
+    @Scheduled(every = "10s", delayed = "30s")
     void simulatePurchase() {
         List<ProductInfo> available;
         try {

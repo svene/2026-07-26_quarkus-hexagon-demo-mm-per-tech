@@ -171,8 +171,13 @@ scheduler fires to discover which products are in stock, then picks 2–4 of the
 `CashpointReceiver` in `inbound-kafka` is the actual inbound adapter: it receives the Kafka
 message and calls `PurchaseAPI`, exactly as a Kafka delivery receiver calls `InventoryAPI`.
 
-`PurchaseAPI` is also reachable directly via the REST endpoint (`/products/purchase`) so the UI can
-simulate a customer checkout without going through Kafka.
+`PurchaseAPI` is also reachable directly via the REST endpoint (`/api/products/purchase`), which
+bypasses Kafka entirely and is what tests and tooling use to drive a purchase synchronously.
+
+The `/shop` HTML page reaches the same port for a different reason: it is not a simulation at all,
+but the actual online-shopping channel — a customer who is not physically in the store, buying
+through a browser instead of a till. See the next section for how `PurchaseAPI` serves both of these
+callers, plus the physical cashpoint, without knowing which one it is.
 
 ---
 
@@ -184,12 +189,13 @@ without any change to the core:
 | Adapter | Technology | Use case |
 |---|---|---|
 | `CashpointReceiver` | Kafka (`cashpoint-purchases`) | Physical cashpoint: payment terminal emits an event when a customer pays in-store |
-| `ProductApiReceiver` | REST (`POST /products/purchase`) | Online shop: a customer submits a purchase via a web or mobile app |
+| `ShopReceiver` | HTML form (`POST /shop/checkout`) | Online shop: a customer submits a basket through the browser |
+| `ProductApiReceiver` | REST (`POST /api/products/purchase`) | Any script or external frontend submitting a purchase directly |
 
-Both adapters translate a different external event into the same `PurchaseAPI.purchase()` call. The
-core is unaware of how the purchase arrived. Adding a third channel — say a mobile push notification
-or a voice assistant — would mean adding one more adapter class with zero changes to `PurchaseHandler`
-or `PurchaseAPI`.
+All three adapters translate a different external event into the same `PurchaseAPI.purchase()` call.
+The core is unaware of how the purchase arrived. Adding a fourth channel — say a mobile push
+notification or a voice assistant — would mean adding one more adapter class with zero changes to
+`PurchaseHandler` or `PurchaseAPI`.
 
 This is the central promise of hexagonal architecture: the application core defines *what* can happen;
 adapters decide *how* it is triggered.
@@ -234,10 +240,19 @@ implement or consume a hexagonal port; these stubs do neither.
 
 ## HTML interface vs. JSON API
 
-The HTML interface at `/products` is the intended primary way to interact with
-the system. It gives a visual overview of the inventory and exposes every
-operation (ordering from each supplier technology, simulating a customer
-purchase) through browser forms.
+There are two HTML pages, each aimed at a different kind of user, sharing the
+same core ports:
+
+- **`/admin`** — supermarket staff: inventory view, supplier ordering forms
+  grouped by technology, and an audit log view backed by `AuditLogAPI`.
+- **`/shop`** — customers: a cart-style purchase form over `PurchaseAPI`, plus
+  a dev-only "Randomize" button (pure client-side JavaScript, no server round
+  trip) that fills in random quantities so testers don't have to type values
+  by hand.
+
+Both pages are thin `Templates`-based Qute receivers in `inbound-rest`; neither
+contains business logic, they only translate form submissions into calls on
+core API interfaces.
 
 The JSON API at `/api/products` serves a different purpose: it is aimed at
 tests and development tooling. During development of backend functionality —
@@ -249,12 +264,6 @@ The JSON API also provides a natural integration point if someone wants to
 build a separate frontend using Angular, React, or another framework. That
 frontend would be a completely separate project consuming the API; it is not
 part of this system and would not live in this repository.
-
-`/admin` is a second, independent HTML page aimed at supermarket staff: the
-same inventory + ordering forms as `/products`, plus an audit log view backed
-by a new `AuditLogAPI` inbound port. It exists alongside `/products` rather
-than replacing it, so the existing Playwright tests against `/products`
-continue to pass unchanged.
 
 ---
 

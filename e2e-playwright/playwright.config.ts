@@ -12,7 +12,7 @@ export default defineConfig({
     // blocking when Playwright spawns the process without a TTY.
     // -Dquarkus.analytics.disabled=true suppresses the first-run analytics prompt.
     command: 'mvn -pl app-server quarkus:dev -Dnodebug -Dquarkus.console.enabled=false -Dquarkus.analytics.disabled=true',
-    url: 'http://localhost:8080/products',
+    url: 'http://localhost:8080/admin',
     timeout: 300_000,
     // Reuse a running server locally so you can keep quarkus:dev open in a terminal.
     // In CI (CI=true) always start fresh.
