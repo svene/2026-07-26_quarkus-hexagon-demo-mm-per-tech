@@ -1,0 +1,21 @@
+@startuml admin_get_audit
+!theme plain
+skinparam sequenceMessageAlign center
+skinparam backgroundColor #ffffff
+
+actor "Admin" as user
+participant "AdminReceiver\n(HTTP)" as receiver
+participant "AuditLogHandler\n(Core)" as handler
+participant "AuditLogService\n(MongoDB)" as audit
+database "MongoDB\n(Audit Logs)" as db
+
+user -> receiver: GET /admin/audit-fragment
+receiver -> handler: recent(limit=100)
+handler -> audit: findRecent(100)
+audit -> db: find({}).sort({timestamp: -1}).limit(100)
+db --> audit: AuditLogEntry[]
+audit --> handler: AuditLogEntry[]
+handler --> receiver: AuditLogEntry[]
+receiver --> user: HTML Fragment (Audit Log Table)
+
+@enduml

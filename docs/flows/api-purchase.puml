@@ -1,0 +1,40 @@
+@startuml api_purchase
+!theme plain
+skinparam sequenceMessageAlign center
+skinparam backgroundColor #ffffff
+
+actor "API Client" as user
+participant "ProductApiReceiver\n(HTTP)" as receiver
+participant "PurchaseHandler\n(Core)" as handler
+participant "AuditLogService\n(MongoDB)" as audit
+participant "InventoryService\n(PostgreSQL)" as inventory
+database "PostgreSQL\n(Inventory)" as db_inv
+database "MongoDB\n(Audit)" as db_audit
+
+user -> receiver: POST /api/products/purchase\n{items: [{product, qty}, ...]}
+receiver -> handler: purchase(items)
+handler -> audit: log("PURCHASE_RECEIVED")
+audit -> db_audit: Insert audit entry
+audit --> handler
+
+loop for each item
+  handler -> inventory: deductAmount(productName, quantity)
+  inventory -> db_inv: UPDATE products SET availableAmount -= quantity
+  db_inv --> inventory: Product (updated)
+  inventory --> handler: Product (updated)
+  alt Product found
+    handler -> audit: log("PRODUCT_DEDUCTED", product details)
+  else Product not found
+    handler -> audit: log("PRODUCT_NOT_FOUND", productName)
+  end
+  audit -> db_audit: Insert audit entry
+  audit --> handler
+end
+
+handler -> audit: log("INVENTORY_DEDUCTED", summary)
+audit -> db_audit: Insert audit entry
+audit --> handler
+handler --> receiver: (void)
+receiver --> user: OK (200)
+
+@enduml

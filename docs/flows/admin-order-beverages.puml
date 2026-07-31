@@ -1,0 +1,52 @@
+@startuml admin_order_beverages
+!theme plain
+skinparam sequenceMessageAlign center
+skinparam backgroundColor #ffffff
+
+actor "Admin" as user
+participant "AdminReceiver\n(HTTP)" as receiver
+participant "BeveragesHandler\n(Core)" as handler
+participant "AuditLogService\n(MongoDB)" as audit
+participant "BeverageSupplierService\n(SOAP)" as service
+participant "BeverageSupplierStub\n(SOAP, External)" as stub
+participant "Kafka Topic:\nbeverages-deliveries" as kafka_out
+participant "BeveragesDeliveryReceiver\n(Kafka)" as kafka_receiver
+participant "InventoryHandler\n(Core)" as inv_handler
+participant "InventoryService\n(PostgreSQL)" as inventory
+database "PostgreSQL\n(Inventory)" as db_inv
+database "MongoDB\n(Audit)" as db_audit
+
+user -> receiver: POST /admin/order-beverages\n(productName, quantity)
+receiver -> handler: order(productName, quantity)
+handler -> audit: log("BEVERAGES_ORDER_RECEIVED")
+audit -> db_audit: Insert audit entry
+audit --> handler
+handler -> service: placeOrder(productName, quantity)
+service -> stub: SOAP call (in-process)
+stub -> kafka_out: publish delivery message
+kafka_out --> service: ack
+service --> handler
+handler -> audit: log("BEVERAGES_ORDER_PLACED")
+audit -> db_audit: Insert audit entry
+audit --> handler
+handler --> receiver
+receiver --> user: OK (204 No Content)
+
+note right of kafka_out
+  Asynchronous delivery path begins
+end note
+
+kafka_out -> kafka_receiver: consume delivery message
+kafka_receiver -> inv_handler: updateBeverageAmount(productName, quantity)
+inv_handler -> audit: log("BEVERAGE_DELIVERY_RECEIVED")
+audit -> db_audit: Insert audit entry
+audit --> inv_handler
+inv_handler -> inventory: addAmount(productName, quantity)
+inventory -> db_inv: UPDATE products SET availableAmount += quantity
+db_inv --> inventory
+inventory --> inv_handler
+inv_handler -> audit: log("BEVERAGE_INVENTORY_UPDATED")
+audit -> db_audit: Insert audit entry
+audit --> inv_handler
+
+@enduml

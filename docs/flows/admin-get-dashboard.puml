@@ -1,0 +1,21 @@
+@startuml admin_get_dashboard
+!theme plain
+skinparam sequenceMessageAlign center
+skinparam backgroundColor #ffffff
+
+actor "Browser" as user
+participant "AdminReceiver\n(HTTP)" as receiver
+participant "ProductsHandler\n(Core)" as handler
+participant "InventoryService\n(PostgreSQL)" as inventory
+database "PostgreSQL\n(Products)" as db
+
+user -> receiver: GET /admin
+receiver -> handler: listAll()
+handler -> inventory: findAll()
+inventory -> db: SELECT * FROM products
+db --> inventory: Product[]
+inventory --> handler: Product[]
+handler --> receiver: Product[]
+receiver --> user: HTML (Dashboard)
+
+@enduml

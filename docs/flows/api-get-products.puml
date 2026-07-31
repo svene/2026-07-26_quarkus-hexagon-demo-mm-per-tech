@@ -1,0 +1,21 @@
+@startuml api_get_products
+!theme plain
+skinparam sequenceMessageAlign center
+skinparam backgroundColor #ffffff
+
+actor "API Client" as user
+participant "ProductApiReceiver\n(HTTP)" as receiver
+participant "ProductsHandler\n(Core)" as handler
+participant "InventoryService\n(PostgreSQL)" as inventory
+database "PostgreSQL\n(Products)" as db
+
+user -> receiver: GET /api/products
+receiver -> handler: listAll()
+handler -> inventory: findAll()
+inventory -> db: SELECT * FROM products
+db --> inventory: Product[]
+inventory --> handler: Product[]
+handler --> receiver: Product[]
+receiver --> user: JSON Response (200)\n[{product1}, {product2}, ...]
+
+@enduml

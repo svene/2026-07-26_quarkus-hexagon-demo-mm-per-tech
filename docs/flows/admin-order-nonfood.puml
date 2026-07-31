@@ -1,0 +1,56 @@
+@startuml admin_order_nonfood
+!theme plain
+skinparam sequenceMessageAlign center
+skinparam backgroundColor #ffffff
+
+actor "Admin" as user
+participant "AdminReceiver\n(HTTP)" as receiver
+participant "NonFoodHandler\n(Core)" as handler
+participant "AuditLogService\n(MongoDB)" as audit
+participant "NonFoodSupplierService\n(Kafka)" as service
+participant "Kafka Topic:\nnonfood-orders" as kafka_order
+participant "NonFoodSupplierStub\n(External)" as stub
+participant "Kafka Topic:\nnonfood-deliveries" as kafka_delivery
+participant "NonFoodDeliveryReceiver\n(Kafka)" as kafka_receiver
+participant "InventoryHandler\n(Core)" as inv_handler
+participant "InventoryService\n(PostgreSQL)" as inventory
+database "PostgreSQL\n(Inventory)" as db_inv
+database "MongoDB\n(Audit)" as db_audit
+
+user -> receiver: POST /admin/order-nonfood\n(productName, quantity)
+receiver -> handler: order(productName, quantity)
+handler -> audit: log("NON_FOOD_ORDER_RECEIVED")
+audit -> db_audit: Insert audit entry
+audit --> handler
+handler -> service: placeOrder(productName, quantity)
+service -> kafka_order: publish order message
+kafka_order --> service: ack
+service --> handler
+handler -> audit: log("NON_FOOD_ORDER_PLACED")
+audit -> db_audit: Insert audit entry
+audit --> handler
+handler --> receiver
+receiver --> user: OK (204 No Content)
+
+note right of kafka_order
+  Two-topic Kafka cycle begins
+end note
+
+kafka_order -> stub: consume order message
+stub -> kafka_delivery: publish delivery message
+kafka_delivery --> stub: ack
+
+kafka_delivery -> kafka_receiver: consume delivery message
+kafka_receiver -> inv_handler: updateNonFoodAmount(productName, quantity)
+inv_handler -> audit: log("NON_FOOD_DELIVERY_RECEIVED")
+audit -> db_audit: Insert audit entry
+audit --> inv_handler
+inv_handler -> inventory: addAmount(productName, quantity)
+inventory -> db_inv: UPDATE products SET availableAmount += quantity
+db_inv --> inventory
+inventory --> inv_handler
+inv_handler -> audit: log("NON_FOOD_INVENTORY_UPDATED")
+audit -> db_audit: Insert audit entry
+audit --> inv_handler
+
+@enduml

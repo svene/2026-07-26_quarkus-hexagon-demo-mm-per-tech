@@ -1,0 +1,46 @@
+@startuml cashpoint_purchase_event
+!theme plain
+skinparam sequenceMessageAlign center
+skinparam backgroundColor #ffffff
+
+actor "External\nCheckout System" as external
+participant "Kafka Topic:\ncashpoint-purchases" as kafka
+participant "CashpointReceiver\n(Kafka)" as receiver
+participant "PurchaseHandler\n(Core)" as handler
+participant "AuditLogService\n(MongoDB)" as audit
+participant "InventoryService\n(PostgreSQL)" as inventory
+database "PostgreSQL\n(Inventory)" as db_inv
+database "MongoDB\n(Audit)" as db_audit
+
+external -> kafka: publish purchase message\n{items: [{product, qty}, ...]}
+
+kafka -> receiver: consume (@Incoming)
+receiver -> handler: purchase(items)
+handler -> audit: log("PURCHASE_RECEIVED")
+audit -> db_audit: Insert audit entry
+audit --> handler
+
+loop for each item
+  handler -> inventory: deductAmount(productName, quantity)
+  inventory -> db_inv: UPDATE products SET availableAmount -= quantity
+  db_inv --> inventory: Product (updated)
+  inventory --> handler: Product (updated)
+  alt Product found
+    handler -> audit: log("PRODUCT_DEDUCTED", product details)
+  else Product not found
+    handler -> audit: log("PRODUCT_NOT_FOUND", productName)
+  end
+  audit -> db_audit: Insert audit entry
+  audit --> handler
+end
+
+handler -> audit: log("INVENTORY_DEDUCTED", summary)
+audit -> db_audit: Insert audit entry
+audit --> handler
+
+note right of receiver
+  Event processed asynchronously
+  Response not sent to external system
+end note
+
+@enduml
