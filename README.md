@@ -72,6 +72,15 @@ entries (event, details, timestamp) read from MongoDB. `/products` and `/admin`
 are independent pages with their own POST endpoints — changes on one page
 redirect back to that same page.
 
+### Shop UI
+
+A customer-facing shopping page is available at **http://localhost:8080/shop**.
+It lists every in-stock product with a quantity field per row; filling in one
+or more quantities and clicking *Purchase* submits the whole basket in a single
+call to `PurchaseAPI.purchase(...)`. A *Randomize (dev)* button fills 2–4 random
+rows with random quantities (client-side JavaScript only, no server round trip)
+so you don't have to type values by hand while developing.
+
 ---
 
 ## Developer guide

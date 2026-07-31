@@ -33,6 +33,7 @@ package "inbound-rest\n[JAX-RS + Qute templates]" as INBOUND_REST {
   component "ProductReceiver\nGET  /products\nPOST /products/order-{fruit|vegetable|dairy|\n      beverage|meat|bakery|nonfood}\nPOST /products/purchase\n(HTML form — 3-row purchase form)" as ProductReceiver
   component "ProductApiReceiver\nGET  /api/products\nPOST /api/products/order-{fruit|vegetable|dairy|\n      beverage|meat|bakery|nonfood}\nPOST /api/products/purchase\n(JSON body)" as ProductApiReceiver
   component "AdminReceiver\nGET  /admin\nPOST /admin/order-{fruit|vegetable|dairy|\n      beverage|meat|bakery|nonfood}\nGET  /admin/audit\n(HTML — inventory + ordering + audit log)" as AdminReceiver
+  component "ShopReceiver\nGET  /shop\nPOST /shop/checkout\n(HTML — cart-style multi-item purchase,\ndev-only random-fill button)" as ShopReceiver
 }
 
 package "inbound-kafka\n[SmallRye Reactive Messaging @Incoming]" as INBOUND_KAFKA {
@@ -154,6 +155,7 @@ package "external-outbound-kafka\n[Kafka consumer + producer]" as EXT_KAFKA {
 Browser --> ProductReceiver : HTTP (form)
 Browser --> ProductApiReceiver : HTTP (JSON)
 Browser --> AdminReceiver : HTTP (form)
+Browser --> ShopReceiver : HTTP (form)
 CashpointStub --> T_CASHPOINT : produce
 CashpointStub ..> ProductApiReceiver : GET /api/products\n(MicroProfile REST Client)
 
@@ -195,6 +197,8 @@ AdminReceiver --> MeatAPI
 AdminReceiver --> BakeryAPI
 AdminReceiver --> NonFoodAPI
 AdminReceiver --> AuditLogAPI
+ShopReceiver --> ProductsAPI
+ShopReceiver --> PurchaseAPI
 
 ' --- Inbound Kafka receivers → Core APIs ---
 FruitRcv --> InventoryAPI

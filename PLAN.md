@@ -1,15 +1,14 @@
 # Next steps
 
-## 1. Customer UI — online shopping
+## 1. Customer UI — online shopping (DONE)
 
-A dedicated HTML interface for customers to browse and purchase products.
+A dedicated HTML interface for customers to browse and purchase products, added alongside `/products` and `/admin`.
 
-- New Qute template, separate from the admin page
-- Show available products with current stock levels (read-only inventory view)
-- Shopping cart: add/remove items, then submit the whole basket as one purchase
-  - The backend `PurchaseAPI.purchase(List<PurchaseItem>)` already supports multi-item purchases
-- The current 3-row purchase form in `/products` was a POC shortcut; this replaces it for the customer-facing path
-- Route suggestion: `GET /shop` (HTML) + `POST /shop/checkout` (form submit)
+- `GET /shop` shows every in-stock product as a cart row (name, type, available amount, quantity input); one form submits the whole basket to `POST /shop/checkout`, which builds a `PurchaseItem` list and calls the existing `PurchaseAPI.purchase(...)`
+- No core changes were needed — reuses `ProductsAPI.listAll()` and `PurchaseAPI.purchase(List<PurchaseItem>)` as-is
+- **Randomize (dev) button**: client-side JavaScript only (no server round trip) that fills 2–4 random rows with a random quantity up to that row's available amount, so quantities don't have to be typed by hand during development
+- Covered by `ShopReceiverTest` in `app-server`
+- `architecture.puml` and `README.md` updated with `ShopReceiver`
 
 ## 2. Administrator UI — inventory management and ordering (DONE)
 
@@ -24,5 +23,5 @@ A dedicated HTML interface for supermarket staff, added alongside (not replacing
 
 ## Open questions
 
-- Authentication/authorization is out of scope for this POC, but the two separate routes make it easy to add later.
-- Customer UI (`/shop`) is still open — see section 1 above.
+- Authentication/authorization is out of scope for this POC, but the separate routes (`/products`, `/admin`, `/shop`) make it easy to add later.
+- No further planned work at the moment — all items in this file are done.
