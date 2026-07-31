@@ -1,0 +1,126 @@
+@startuml rest-architecture
+left to right direction
+skinparam packageStyle rectangle
+skinparam defaultTextAlignment center
+skinparam componentStyle rectangle
+skinparam ArrowColor #555555
+
+' =============================================================================
+' LEFT: External drivers + Inbound adapters
+' =============================================================================
+
+actor "Browser\n(HTML + JSON)" as Browser
+actor "REST Client\n(Scripts, tests)" as RestClient
+
+package "inbound-http\n[JAX-RS — HTTP (HTML + JSON API)]" as INBOUND_REST {
+  component "AdminReceiver\nGET  /admin\nPOST /admin/order-{fruit|vegetable|...}\nGET  /admin/*-fragment" as AdminReceiver
+  component "ShopReceiver\nGET  /shop\nPOST /shop/checkout\nGET  /shop/inventory-fragment" as ShopReceiver
+  component "ProductApiReceiver\nGET  /api/products\nPOST /api/products/order-{...}\nPOST /api/products/purchase" as ProductApiReceiver
+}
+
+' =============================================================================
+' CENTER: Core handlers
+' =============================================================================
+
+package "core\n[use cases]" as CORE {
+  component "ProductsHandler\nlistAll()" as ProductsHandler
+  component "FruitsHandler\norder()" as FruitsHandler
+  component "VegetablesHandler\norder()" as VegetablesHandler
+  component "DairyHandler\norder()" as DairyHandler
+  component "BeveragesHandler\norder()" as BeveragesHandler
+  component "MeatHandler\norder()" as MeatHandler
+  component "BakeryHandler\norder()" as BakeryHandler
+  component "NonFoodHandler\norder()" as NonFoodHandler
+  component "PurchaseHandler\npurchase()" as PurchaseHandler
+  component "AuditLogHandler\nrecent()" as AuditLogHandler
+}
+
+' =============================================================================
+' RIGHT: Outbound adapters
+' =============================================================================
+
+package "outbound-httpclient\n[MicroProfile REST Client]" as OUTBOUND_HTTP {
+  component "FruitSupplierService\nPOST /orders" as FruitSvc
+  component "VegetablesSupplierService\nPOST /vegetable-orders" as VegSvc
+  component "DairySupplierService\nPOST /dairy-orders" as DairySvc
+}
+
+' =============================================================================
+' FAR RIGHT: External REST stubs
+' =============================================================================
+
+package "external-outbound-rest\n[JAX-RS + Kafka producer]" as EXT_REST {
+  component "FruitSupplierStub\nPOST /orders" as FruitStub
+  component "VegetablesSupplierStub\nPOST /vegetable-orders" as VegStub
+  component "DairySupplierStub\nPOST /dairy-orders" as DairyStub
+}
+
+' =============================================================================
+' CONNECTIONS: Request/response flow left-to-right through core
+' =============================================================================
+
+' Left: External drivers → inbound adapters
+Browser --> AdminReceiver : HTTP form
+Browser --> ShopReceiver : HTTP form
+RestClient --> ProductApiReceiver : HTTP JSON
+
+' Left to center: Inbound → core handlers
+AdminReceiver --> ProductsHandler : call
+AdminReceiver --> FruitsHandler : call
+AdminReceiver --> VegetablesHandler : call
+AdminReceiver --> DairyHandler : call
+AdminReceiver --> BeveragesHandler : call
+AdminReceiver --> MeatHandler : call
+AdminReceiver --> BakeryHandler : call
+AdminReceiver --> NonFoodHandler : call
+AdminReceiver --> AuditLogHandler : call
+
+ShopReceiver --> ProductsHandler : call
+ShopReceiver --> PurchaseHandler : call
+
+ProductApiReceiver --> ProductsHandler : call
+ProductApiReceiver --> FruitsHandler : call
+ProductApiReceiver --> VegetablesHandler : call
+ProductApiReceiver --> DairyHandler : call
+ProductApiReceiver --> BeveragesHandler : call
+ProductApiReceiver --> MeatHandler : call
+ProductApiReceiver --> BakeryHandler : call
+ProductApiReceiver --> NonFoodHandler : call
+ProductApiReceiver --> PurchaseHandler : call
+
+' Center to right: Core handlers → outbound adapters
+FruitsHandler --> FruitSvc : HTTP POST
+VegetablesHandler --> VegSvc : HTTP POST
+DairyHandler --> DairySvc : HTTP POST
+
+' Right to far right: Outbound → external stubs
+FruitSvc --> FruitStub : POST /orders
+VegSvc --> VegStub : POST /vegetable-orders
+DairySvc --> DairyStub : POST /dairy-orders
+
+' Far right to right: Stubs respond
+FruitStub --> FruitSvc : HTTP response
+VegStub --> VegSvc : HTTP response
+DairyStub --> DairySvc : HTTP response
+
+' Right to left: Response chain back
+FruitSvc --> FruitsHandler : return
+VegSvc --> VegetablesHandler : return
+DairySvc --> DairyHandler : return
+
+' Center to left: Responses to inbound
+FruitsHandler --> AdminReceiver : return
+FruitsHandler --> ProductApiReceiver : return
+ProductsHandler --> AdminReceiver : return
+ProductsHandler --> ShopReceiver : return
+ProductsHandler --> ProductApiReceiver : return
+PurchaseHandler --> ShopReceiver : return
+PurchaseHandler --> ProductApiReceiver : return
+AuditLogHandler --> AdminReceiver : return
+
+' Left to external: Responses to drivers
+AdminReceiver --> Browser : HTML
+ShopReceiver --> Browser : HTML
+ProductApiReceiver --> RestClient : JSON
+
+@enduml

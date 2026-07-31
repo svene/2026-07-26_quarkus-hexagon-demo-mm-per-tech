@@ -29,10 +29,14 @@ queue "nonfood-deliveries" as T_NONFOOD_DEL
 ' INBOUND ADAPTERS (left side of the hexagon)
 ' =============================================================================
 
-package "inbound-rest\n[JAX-RS + Qute templates]" as INBOUND_REST {
-  component "ProductApiReceiver\nGET  /api/products\nPOST /api/products/order-{fruit|vegetable|dairy|\n      beverage|meat|bakery|nonfood}\nPOST /api/products/purchase\n(JSON body)" as ProductApiReceiver
-  component "AdminReceiver\nGET  /admin (inventory + ordering + audit log, merged)\nPOST /admin/order-{fruit|vegetable|dairy|\n      beverage|meat|bakery|nonfood}\n(hx-post; 204 for HX-Request, else 303 redirect —\nRandomize (dev) button fills + auto-submits all 7 via htmx)\nGET  /admin/inventory-fragment, /admin/audit-fragment\n(htmx polling targets, every 3s)\nBulma + htmx (static assets in META-INF/resources)" as AdminReceiver
-  component "ShopReceiver\nGET  /shop\nPOST /shop/checkout\nGET  /shop/inventory-fragment\n(htmx OOB polling target, every 3s)\n(HTML — cart-style multi-item purchase,\ndev-only random-fill button, Bulma + htmx)" as ShopReceiver
+package "inbound-http\n[JAX-RS — HTTP adapter]" as INBOUND_HTTP {
+  package "html\n[HTML UI: AdminReceiver, ShopReceiver]" as INBOUND_HTML {
+    component "AdminReceiver\nGET  /admin (inventory + ordering + audit log, merged)\nPOST /admin/order-{fruit|vegetable|dairy|\n      beverage|meat|bakery|nonfood}\n(hx-post; 204 for HX-Request, else 303 redirect)\nGET  /admin/inventory-fragment, /admin/audit-fragment\nBulma + htmx" as AdminReceiver
+    component "ShopReceiver\nGET  /shop\nPOST /shop/checkout\nGET  /shop/inventory-fragment\nBulma + htmx (OOB polling)" as ShopReceiver
+  }
+  package "jsonapi\n[JSON API: ProductApiReceiver]" as INBOUND_JSONAPI {
+    component "ProductApiReceiver\nGET  /api/products\nPOST /api/products/order-{...}\nPOST /api/products/purchase\n(JSON body)" as ProductApiReceiver
+  }
 }
 
 package "inbound-kafka\n[SmallRye Reactive Messaging @Incoming]" as INBOUND_KAFKA {

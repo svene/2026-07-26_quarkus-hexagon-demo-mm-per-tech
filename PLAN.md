@@ -92,7 +92,45 @@ randomize button.
   manual-order tests still pass unchanged, since their completion check already polls via a manual
   `page.reload()`, independent of navigation.
 
+## 6. Architecture diagram refactoring — technology-focused views (DONE)
+
+Split the monolithic `architecture.puml` into 4 focused diagrams by technology:
+
+- **`kafka-architecture.puml`** — all async messaging: Kafka topics, inbound receivers, core handlers, outbound emitters, external stubs
+- **`rest-architecture.puml`** — HTTP request/response: Browser/REST clients, inbound adapters, core handlers, outbound HTTP services, external stubs
+- **`soap-architecture.puml`** — SOAP supplier integration only: order endpoints, handlers, SOAP services, external SOAP stubs
+- **`persistence-architecture.puml`** — data storage patterns: SPI interfaces, core handlers, outbound adapters, databases (Postgres transactional inventory, MongoDB append-only audit log)
+
+Each diagram significantly reduces visual complexity compared to the original by focusing on one technology concern at a time. All diagrams keep core in the middle; left-to-right flow through core is not yet fully clean (left-to-right refactoring deferred to section 7).
+
+## 7. Diagram left-to-right flow improvement (NOT STARTED)
+
+Reorganize all architecture diagrams (main + 4 focused ones) to ensure **strict left-to-right dependency flow through core**:
+- External sources / inbound → **Core** → outbound adapters → external systems
+- No arrows crossing the core horizontally
+- Visual clarity: where does data/requests come in, where do they go out
+
+This is deferred because PlantUML's auto-layout makes it challenging to enforce; a manual coordinate-based approach or a different diagram tool might be needed for full control.
+
+## 8. Clean separation: HTML interface vs JSON API (NOT STARTED)
+
+Split the monolithic `inbound-rest` module into cleanly separated concerns:
+
+- **Rename module**: `inbound-rest` → `inbound-http` (reflects that it handles HTTP, both HTML and JSON)
+- **Create subpackage `inbound-http.jsonapi`**: move `ProductApiReceiver` here; contains all JSON API endpoints (`/api/products/*`)
+- **Create subpackage `inbound-http.html`**: move `AdminReceiver`, `ShopReceiver` here; contains all HTML UI endpoints (`/admin/*`, `/shop/*`)
+- **Rationale**: the term "REST" conflates two different interaction styles — this makes it explicit: JSON API over HTTP is one thing, HTML interfaces over HTTP is another. The original REST meant request-response hypermedia; JSON over HTTP is just "HTTP JSON API"
+
+Steps:
+- Rename the module in `pom.xml` and filesystem
+- Reorganize Java package structure with `.jsonapi` and `.html` subpackages
+- Update `app-server/pom.xml` to reference new module name
+- Update all references in other modules' `pom.xml` files
+- Update test classes in `app-server` to match new package structure
+- Update `architecture.puml` and focused diagrams to show `inbound-http.html` and `inbound-http.jsonapi` separately
+- All tests should still pass (no functional changes, pure refactoring)
+
 ## Open questions
 
 - Authentication/authorization is out of scope for this POC, but the separate routes (`/admin`, `/shop`) make it easy to add later.
-- No further planned work at the moment — all items in this file are done.
+- Section 7 (diagram refactoring) may need a different tool or manual layout if PlantUML cannot enforce the strict left-to-right constraint.

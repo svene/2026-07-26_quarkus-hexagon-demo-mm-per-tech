@@ -1,0 +1,111 @@
+@startuml persistence-architecture
+left to right direction
+skinparam packageStyle rectangle
+skinparam defaultTextAlignment center
+skinparam componentStyle rectangle
+skinparam ArrowColor #555555
+
+' =============================================================================
+' LEFT: Outbound port interfaces (abstractions, dependency direction)
+' =============================================================================
+
+package "Outbound Ports (SPI)" as PORTS {
+  interface "InventoryRepositorySPI\naddAmount()\ndeductAmount()\nfindAll()" as InventoryRepoSPI
+  interface "AuditLogSPI\nlog(event, details)\nfindRecent(limit)" as AuditLogSPI
+}
+
+' =============================================================================
+' CENTER: Core handlers (all depend on the SPIs)
+' =============================================================================
+
+package "core\n[use cases — all handlers]" as CORE {
+  component "ProductsHandler" as ProductsHandler
+  component "InventoryHandler" as InventoryHandler
+  component "FruitsHandler" as FruitsHandler
+  component "VegetablesHandler" as VegetablesHandler
+  component "DairyHandler" as DairyHandler
+  component "BeveragesHandler" as BeveragesHandler
+  component "MeatHandler" as MeatHandler
+  component "BakeryHandler" as BakeryHandler
+  component "NonFoodHandler" as NonFoodHandler
+  component "PurchaseHandler" as PurchaseHandler
+  component "AuditLogHandler" as AuditLogHandler
+}
+
+' =============================================================================
+' RIGHT: Outbound adapters (implement SPIs)
+' =============================================================================
+
+package "outbound-postgres\n[Hibernate ORM / Panache]" as OUTBOUND_PG {
+  component "InventoryService\nimpl InventoryRepositorySPI" as InvService
+}
+
+package "outbound-mongodb\n[MongoDB Panache]" as OUTBOUND_MONGO {
+  component "AuditLogService\nimpl AuditLogSPI" as AuditService
+}
+
+' =============================================================================
+' FAR RIGHT: Persistent data stores (databases)
+' =============================================================================
+
+database "PostgreSQL\n(Quarkus Dev Services)\n\nTable: product\nColumns:\n  name (PK)\n  type\n  availableAmount" as Postgres
+
+database "MongoDB\n(Quarkus Dev Services)\n\nDatabase: hexdemo\nCollection: audit-log-entry\nFields:\n  timestamp\n  event\n  details" as MongoDB
+
+' =============================================================================
+' CONNECTIONS: Dependency flow left-to-right
+' =============================================================================
+
+' Core handlers depend on inventory SPI
+ProductsHandler --> InventoryRepoSPI
+InventoryHandler --> InventoryRepoSPI
+FruitsHandler --> InventoryRepoSPI
+VegetablesHandler --> InventoryRepoSPI
+DairyHandler --> InventoryRepoSPI
+BeveragesHandler --> InventoryRepoSPI
+MeatHandler --> InventoryRepoSPI
+BakeryHandler --> InventoryRepoSPI
+NonFoodHandler --> InventoryRepoSPI
+PurchaseHandler --> InventoryRepoSPI
+
+' Core handlers depend on audit log SPI
+InventoryHandler --> AuditLogSPI
+FruitsHandler --> AuditLogSPI
+VegetablesHandler --> AuditLogSPI
+DairyHandler --> AuditLogSPI
+BeveragesHandler --> AuditLogSPI
+MeatHandler --> AuditLogSPI
+BakeryHandler --> AuditLogSPI
+NonFoodHandler --> AuditLogSPI
+PurchaseHandler --> AuditLogSPI
+AuditLogHandler --> AuditLogSPI
+
+' SPIs implemented by adapters
+InventoryRepoSPI <|.. InvService : implements
+AuditLogSPI <|.. AuditService : implements
+
+' Adapters connect to databases
+InvService --> Postgres : JDBC\n(Panache ORM)
+AuditService --> MongoDB : MongoDB driver
+
+' =============================================================================
+' NOTES: Explain data store patterns
+' =============================================================================
+
+note right of Postgres
+  **Transactional Inventory**
+  • Immediate consistency
+  • Read + Write operations
+  • Current stock levels
+  • Optimistic locking
+end note
+
+note right of MongoDB
+  **Append-Only Audit Log**
+  • Event log immutability
+  • Insert-only semantics
+  • Permanent event trail
+  • Naturally thread-safe
+end note
+
+@enduml
