@@ -112,23 +112,18 @@ Reorganize all architecture diagrams (main + 4 focused ones) to ensure **strict 
 
 This is deferred because PlantUML's auto-layout makes it challenging to enforce; a manual coordinate-based approach or a different diagram tool might be needed for full control.
 
-## 8. Clean separation: HTML interface vs JSON API (NOT STARTED)
+## 8. Clean separation: HTML interface vs JSON API (DONE)
 
 Split the monolithic `inbound-rest` module into cleanly separated concerns:
 
 - **Rename module**: `inbound-rest` → `inbound-http` (reflects that it handles HTTP, both HTML and JSON)
-- **Create subpackage `inbound-http.jsonapi`**: move `ProductApiReceiver` here; contains all JSON API endpoints (`/api/products/*`)
-- **Create subpackage `inbound-http.html`**: move `AdminReceiver`, `ShopReceiver` here; contains all HTML UI endpoints (`/admin/*`, `/shop/*`)
+- **Create subpackage `inbound-http.jsonapi`**: `ProductApiReceiver` here; contains all JSON API endpoints (`/api/products/*`)
+  - Request classes (`OrderRequest`, `PurchaseRequest`) organized under jsonapi subpackages (fruit, vegetable, dairy, beverage, meat, bakery, nonfood, cashpoint) since only consumed by ProductApiReceiver
+- **Create subpackage `inbound-http.html`**: `AdminReceiver`, `ShopReceiver` here; contains all HTML UI endpoints (`/admin/*`, `/shop/*`)
 - **Rationale**: the term "REST" conflates two different interaction styles — this makes it explicit: JSON API over HTTP is one thing, HTML interfaces over HTTP is another. The original REST meant request-response hypermedia; JSON over HTTP is just "HTTP JSON API"
-
-Steps:
-- Rename the module in `pom.xml` and filesystem
-- Reorganize Java package structure with `.jsonapi` and `.html` subpackages
-- Update `app-server/pom.xml` to reference new module name
-- Update all references in other modules' `pom.xml` files
-- Update test classes in `app-server` to match new package structure
-- Update `architecture.puml` and focused diagrams to show `inbound-http.html` and `inbound-http.jsonapi` separately
-- All tests should still pass (no functional changes, pure refactoring)
+- Updated module metadata (pom.xml), package structure, all imports in ProductApiReceiver
+- Updated `architecture.puml` and focused diagrams (kafka, rest, soap, persistence) to show `inbound-http.html` and `inbound-http.jsonapi` subpackages
+- All 30 tests pass (pure refactoring, no functional changes)
 
 ## Open questions
 
