@@ -5,6 +5,8 @@ with Quarkus.  One Maven module per adapter technology, a single combined
 domain+application core, and one deployable (`app-server`) that wires it all
 together.
 
+**[Concepts →](concepts.md)** Read about the business domain (supermarket inventory system), hexagonal architecture patterns (inbound ports/adapters, outbound ports/adapters), and the technologies used.
+
 ---
 
 ## Usage
