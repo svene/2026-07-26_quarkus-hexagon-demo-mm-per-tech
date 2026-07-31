@@ -1,6 +1,6 @@
 package com.example.hexademo.adapter.outbound.kafka.nonfood;
 
-import com.example.hexademo.core.port.out.NonFoodSupplierSPI;
+import com.example.hexademo.core.spi.NonFoodSupplierSPI;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.reactive.messaging.Channel;

@@ -1,8 +1,8 @@
 package com.example.hexademo.core.application;
 
-import com.example.hexademo.core.port.in.BakeryAPI;
-import com.example.hexademo.core.port.out.AuditLogSPI;
-import com.example.hexademo.core.port.out.BakerySupplierSPI;
+import com.example.hexademo.core.api.BakeryAPI;
+import com.example.hexademo.core.spi.AuditLogSPI;
+import com.example.hexademo.core.spi.BakerySupplierSPI;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 

@@ -1,6 +1,6 @@
 package com.example.hexademo.adapter.outbound.webservice.meat;
 
-import com.example.hexademo.core.port.out.MeatSupplierSPI;
+import com.example.hexademo.core.spi.MeatSupplierSPI;
 import io.quarkiverse.cxf.annotation.CXFClient;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;

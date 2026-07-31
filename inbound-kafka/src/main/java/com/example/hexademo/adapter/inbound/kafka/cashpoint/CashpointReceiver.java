@@ -1,7 +1,7 @@
 package com.example.hexademo.adapter.inbound.kafka.cashpoint;
 
 import com.example.hexademo.core.domain.PurchaseItem;
-import com.example.hexademo.core.port.in.PurchaseAPI;
+import com.example.hexademo.core.api.PurchaseAPI;
 import io.smallrye.reactive.messaging.annotations.Blocking;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;

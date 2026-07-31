@@ -1,4 +1,4 @@
-package com.example.hexademo.core.port.in;
+package com.example.hexademo.core.api;
 
 public interface InventoryAPI {
     void updateFruitAmount(String productName, int quantity);

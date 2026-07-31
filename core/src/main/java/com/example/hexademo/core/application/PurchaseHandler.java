@@ -1,9 +1,9 @@
 package com.example.hexademo.core.application;
 
 import com.example.hexademo.core.domain.PurchaseItem;
-import com.example.hexademo.core.port.in.PurchaseAPI;
-import com.example.hexademo.core.port.out.AuditLogSPI;
-import com.example.hexademo.core.port.out.InventoryRepositorySPI;
+import com.example.hexademo.core.api.PurchaseAPI;
+import com.example.hexademo.core.spi.AuditLogSPI;
+import com.example.hexademo.core.spi.InventoryRepositorySPI;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.ArrayList;

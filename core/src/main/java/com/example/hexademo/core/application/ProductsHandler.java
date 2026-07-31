@@ -1,8 +1,8 @@
 package com.example.hexademo.core.application;
 
 import com.example.hexademo.core.domain.Product;
-import com.example.hexademo.core.port.in.ProductsAPI;
-import com.example.hexademo.core.port.out.InventoryRepositorySPI;
+import com.example.hexademo.core.api.ProductsAPI;
+import com.example.hexademo.core.spi.InventoryRepositorySPI;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.List;

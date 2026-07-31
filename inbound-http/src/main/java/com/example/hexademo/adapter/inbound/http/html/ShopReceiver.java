@@ -2,8 +2,8 @@ package com.example.hexademo.adapter.inbound.http.html;
 
 import com.example.hexademo.core.domain.Product;
 import com.example.hexademo.core.domain.PurchaseItem;
-import com.example.hexademo.core.port.in.ProductsAPI;
-import com.example.hexademo.core.port.in.PurchaseAPI;
+import com.example.hexademo.core.api.ProductsAPI;
+import com.example.hexademo.core.api.PurchaseAPI;
 import io.quarkus.qute.CheckedTemplate;
 import io.quarkus.qute.TemplateInstance;
 import jakarta.inject.Inject;

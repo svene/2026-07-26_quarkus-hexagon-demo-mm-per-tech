@@ -1,6 +1,6 @@
 package com.example.hexademo.adapter.outbound.httpclient.vegetable;
 
-import com.example.hexademo.core.port.out.VegetablesSupplierSPI;
+import com.example.hexademo.core.spi.VegetablesSupplierSPI;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.rest.client.inject.RestClient;

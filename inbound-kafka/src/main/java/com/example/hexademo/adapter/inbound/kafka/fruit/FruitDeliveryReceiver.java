@@ -1,6 +1,6 @@
 package com.example.hexademo.adapter.inbound.kafka.fruit;
 
-import com.example.hexademo.core.port.in.InventoryAPI;
+import com.example.hexademo.core.api.InventoryAPI;
 import io.smallrye.reactive.messaging.annotations.Blocking;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;

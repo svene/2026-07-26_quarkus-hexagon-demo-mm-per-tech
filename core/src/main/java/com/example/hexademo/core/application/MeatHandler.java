@@ -1,8 +1,8 @@
 package com.example.hexademo.core.application;
 
-import com.example.hexademo.core.port.in.MeatAPI;
-import com.example.hexademo.core.port.out.AuditLogSPI;
-import com.example.hexademo.core.port.out.MeatSupplierSPI;
+import com.example.hexademo.core.api.MeatAPI;
+import com.example.hexademo.core.spi.AuditLogSPI;
+import com.example.hexademo.core.spi.MeatSupplierSPI;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 

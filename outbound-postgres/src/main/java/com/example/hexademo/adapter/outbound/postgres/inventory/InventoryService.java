@@ -2,7 +2,7 @@ package com.example.hexademo.adapter.outbound.postgres.inventory;
 
 import com.example.hexademo.core.domain.Product;
 import com.example.hexademo.core.domain.ProductType;
-import com.example.hexademo.core.port.out.InventoryRepositorySPI;
+import com.example.hexademo.core.spi.InventoryRepositorySPI;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.transaction.Transactional;
 import java.util.List;

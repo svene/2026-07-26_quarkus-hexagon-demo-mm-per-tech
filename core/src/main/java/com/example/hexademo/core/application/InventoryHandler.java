@@ -2,9 +2,9 @@ package com.example.hexademo.core.application;
 
 import com.example.hexademo.core.domain.Product;
 import com.example.hexademo.core.domain.ProductType;
-import com.example.hexademo.core.port.in.InventoryAPI;
-import com.example.hexademo.core.port.out.AuditLogSPI;
-import com.example.hexademo.core.port.out.InventoryRepositorySPI;
+import com.example.hexademo.core.api.InventoryAPI;
+import com.example.hexademo.core.spi.AuditLogSPI;
+import com.example.hexademo.core.spi.InventoryRepositorySPI;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 

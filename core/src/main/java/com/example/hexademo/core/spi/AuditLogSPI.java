@@ -1,4 +1,4 @@
-package com.example.hexademo.core.port.out;
+package com.example.hexademo.core.spi;
 
 import com.example.hexademo.core.domain.AuditLogEntry;
 import java.util.List;

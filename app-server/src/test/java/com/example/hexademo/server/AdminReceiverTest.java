@@ -1,7 +1,7 @@
 package com.example.hexademo.server;
 
 import com.example.hexademo.core.domain.ProductType;
-import com.example.hexademo.core.port.out.InventoryRepositorySPI;
+import com.example.hexademo.core.spi.InventoryRepositorySPI;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
 import org.junit.jupiter.api.BeforeEach;

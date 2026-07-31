@@ -1,6 +1,6 @@
 package com.example.hexademo.adapter.outbound.mongodb.auditlog;
 
-import com.example.hexademo.core.port.out.AuditLogSPI;
+import com.example.hexademo.core.spi.AuditLogSPI;
 import io.quarkus.panache.common.Sort;
 import jakarta.enterprise.context.ApplicationScoped;
 import java.time.Instant;

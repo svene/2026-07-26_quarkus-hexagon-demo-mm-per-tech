@@ -1,6 +1,6 @@
 package com.example.hexademo.adapter.outbound.httpclient.dairy;
 
-import com.example.hexademo.core.port.out.DairySupplierSPI;
+import com.example.hexademo.core.spi.DairySupplierSPI;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.rest.client.inject.RestClient;

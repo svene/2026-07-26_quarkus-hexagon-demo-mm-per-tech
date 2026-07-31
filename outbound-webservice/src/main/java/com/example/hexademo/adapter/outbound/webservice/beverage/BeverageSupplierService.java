@@ -1,6 +1,6 @@
 package com.example.hexademo.adapter.outbound.webservice.beverage;
 
-import com.example.hexademo.core.port.out.BeverageSupplierSPI;
+import com.example.hexademo.core.spi.BeverageSupplierSPI;
 import io.quarkiverse.cxf.annotation.CXFClient;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;

@@ -1,8 +1,8 @@
 package com.example.hexademo.core.application;
 
 import com.example.hexademo.core.domain.AuditLogEntry;
-import com.example.hexademo.core.port.in.AuditLogAPI;
-import com.example.hexademo.core.port.out.AuditLogSPI;
+import com.example.hexademo.core.api.AuditLogAPI;
+import com.example.hexademo.core.spi.AuditLogSPI;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.List;
