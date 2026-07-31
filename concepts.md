@@ -250,6 +250,12 @@ build a separate frontend using Angular, React, or another framework. That
 frontend would be a completely separate project consuming the API; it is not
 part of this system and would not live in this repository.
 
+`/admin` is a second, independent HTML page aimed at supermarket staff: the
+same inventory + ordering forms as `/products`, plus an audit log view backed
+by a new `AuditLogAPI` inbound port. It exists alongside `/products` rather
+than replacing it, so the existing Playwright tests against `/products`
+continue to pass unchanged.
+
 ---
 
 ## What this POC does not show

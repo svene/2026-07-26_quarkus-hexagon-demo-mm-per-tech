@@ -32,6 +32,7 @@ queue "nonfood-deliveries" as T_NONFOOD_DEL
 package "inbound-rest\n[JAX-RS + Qute templates]" as INBOUND_REST {
   component "ProductReceiver\nGET  /products\nPOST /products/order-{fruit|vegetable|dairy|\n      beverage|meat|bakery|nonfood}\nPOST /products/purchase\n(HTML form — 3-row purchase form)" as ProductReceiver
   component "ProductApiReceiver\nGET  /api/products\nPOST /api/products/order-{fruit|vegetable|dairy|\n      beverage|meat|bakery|nonfood}\nPOST /api/products/purchase\n(JSON body)" as ProductApiReceiver
+  component "AdminReceiver\nGET  /admin\nPOST /admin/order-{fruit|vegetable|dairy|\n      beverage|meat|bakery|nonfood}\nGET  /admin/audit\n(HTML — inventory + ordering + audit log)" as AdminReceiver
 }
 
 package "inbound-kafka\n[SmallRye Reactive Messaging @Incoming]" as INBOUND_KAFKA {
@@ -62,6 +63,7 @@ package "core\n[plain Java + CDI, no framework deps]" as CORE {
     interface "BakeryAPI\norder(name,qty)" as BakeryAPI
     interface "NonFoodAPI\norder(name,qty)" as NonFoodAPI
     interface "PurchaseAPI\npurchase(List<PurchaseItem>)" as PurchaseAPI
+    interface "AuditLogAPI\nrecent(limit)" as AuditLogAPI
   }
 
   package "Handlers (use-case implementations)" as HANDLERS {
@@ -75,11 +77,12 @@ package "core\n[plain Java + CDI, no framework deps]" as CORE {
     component "BakeryHandler\n→ BakerySupplierSPI.placeOrder()\n→ InventoryRepositorySPI.addAmount()\n→ AuditLogSPI.log()" as BakeryHandler
     component "NonFoodHandler\n→ NonFoodSupplierSPI.placeOrder()\n→ InventoryRepositorySPI.addAmount()\n→ AuditLogSPI.log()" as NonFoodHandler
     component "PurchaseHandler\n→ InventoryRepositorySPI.deductAmount()\n→ AuditLogSPI.log()" as PurchaseHandler
+    component "AuditLogHandler\n→ AuditLogSPI.findRecent()" as AuditLogHandler
   }
 
   package "SPI — outbound ports" as SPI {
     interface "InventoryRepositorySPI\naddAmount(name,type,delta)\ndeductAmount(name,delta)\nfindAll()" as InventoryRepoSPI
-    interface "AuditLogSPI\nlog(event,details)" as AuditLogSPI
+    interface "AuditLogSPI\nlog(event,details)\nfindRecent(limit)" as AuditLogSPI
     interface "FruitSupplierSPI\nplaceOrder(name,qty)" as FruitSPI
     interface "VegetablesSupplierSPI\nplaceOrder(name,qty)" as VegSPI
     interface "DairySupplierSPI\nplaceOrder(name,qty)" as DairySPI
@@ -150,6 +153,7 @@ package "external-outbound-kafka\n[Kafka consumer + producer]" as EXT_KAFKA {
 ' --- External drivers → inbound ---
 Browser --> ProductReceiver : HTTP (form)
 Browser --> ProductApiReceiver : HTTP (JSON)
+Browser --> AdminReceiver : HTTP (form)
 CashpointStub --> T_CASHPOINT : produce
 CashpointStub ..> ProductApiReceiver : GET /api/products\n(MicroProfile REST Client)
 
@@ -182,6 +186,15 @@ ProductApiReceiver --> MeatAPI
 ProductApiReceiver --> BakeryAPI
 ProductApiReceiver --> NonFoodAPI
 ProductApiReceiver --> PurchaseAPI
+AdminReceiver --> ProductsAPI
+AdminReceiver --> FruitsAPI
+AdminReceiver --> VegetablesAPI
+AdminReceiver --> DairyAPI
+AdminReceiver --> BeveragesAPI
+AdminReceiver --> MeatAPI
+AdminReceiver --> BakeryAPI
+AdminReceiver --> NonFoodAPI
+AdminReceiver --> AuditLogAPI
 
 ' --- Inbound Kafka receivers → Core APIs ---
 FruitRcv --> InventoryAPI
@@ -204,6 +217,7 @@ MeatAPI <|.. MeatHandler
 BakeryAPI <|.. BakeryHandler
 NonFoodAPI <|.. NonFoodHandler
 PurchaseAPI <|.. PurchaseHandler
+AuditLogAPI <|.. AuditLogHandler
 
 ' --- Handlers → SPIs (uses) ---
 ProductsHandler --> InventoryRepoSPI
@@ -232,6 +246,7 @@ NonFoodHandler --> InventoryRepoSPI
 NonFoodHandler --> AuditLogSPI
 PurchaseHandler --> InventoryRepoSPI
 PurchaseHandler --> AuditLogSPI
+AuditLogHandler --> AuditLogSPI
 
 ' --- SPIs → Outbound adapters (implements) ---
 InventoryRepoSPI <|.. InvService

@@ -63,6 +63,15 @@ POST /api/products/purchase
 Order POST bodies are JSON: `{"productName": "Mango", "quantity": 5}`.
 Purchase POST body: `{"items":[{"productName":"Mango","quantity":5}]}`.
 
+### Admin UI
+
+A separate admin page is available at **http://localhost:8080/admin**. It shows
+the same inventory table and the same supplier order forms as `/products`, plus
+a link to **http://localhost:8080/admin/audit**, which lists recent audit log
+entries (event, details, timestamp) read from MongoDB. `/products` and `/admin`
+are independent pages with their own POST endpoints — changes on one page
+redirect back to that same page.
+
 ---
 
 ## Developer guide

@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Supermarket – Admin</title>
+    <style>
+        body { font-family: sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
+        h1 { border-bottom: 2px solid #333; }
+        h2 { margin-top: 2rem; color: #444; }
+        h3 { margin-top: 1rem; color: #666; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #ccc; padding: 6px 10px; text-align: left; }
+        th { background: #f0f0f0; }
+        form { display: flex; gap: 8px; align-items: center; margin: 4px 0; }
+        input[type=text], input[type=number] { padding: 4px 6px; width: 180px; }
+        button { padding: 4px 12px; cursor: pointer; }
+        .section { border: 1px solid #ddd; border-radius: 4px; padding: 1rem; margin-bottom: 1rem; }
+        .tag { font-size: 0.75rem; color: #888; margin-left: 6px; }
+        nav a { margin-right: 1rem; }
+    </style>
+</head>
+<body>
+<h1>Supermarket – Admin</h1>
+<nav><a href="/admin/audit">Audit log</a></nav>
+
+<h2>Current Inventory</h2>
+{#if products.isEmpty()}<p><em>No products in inventory yet.</em></p>{/if}
+{#if !products.isEmpty()}
+<table>
+    <thead>
+        <tr><th>Name</th><th>Type</th><th>Available</th></tr>
+    </thead>
+    <tbody>
+        {#for p in products}
+        <tr>
+            <td>{p.name}</td>
+            <td>{p.type}</td>
+            <td>{p.availableAmount}</td>
+        </tr>
+        {/for}
+    </tbody>
+</table>
+{/if}
+
+<h2>Restock Inventory</h2>
+
+<div class="section">
+<h3>REST suppliers <span class="tag">(outbound-httpclient)</span></h3>
+<form method="post" action="/admin/order-fruits">
+    Fruits: <input name="productName" placeholder="e.g. Mango" required>
+    <input name="quantity" type="number" placeholder="Qty" min="1" required>
+    <button type="submit">Order</button>
+</form>
+<form method="post" action="/admin/order-vegetables">
+    Vegetables: <input name="productName" placeholder="e.g. Carrot" required>
+    <input name="quantity" type="number" placeholder="Qty" min="1" required>
+    <button type="submit">Order</button>
+</form>
+<form method="post" action="/admin/order-dairy">
+    Dairy: <input name="productName" placeholder="e.g. Milk" required>
+    <input name="quantity" type="number" placeholder="Qty" min="1" required>
+    <button type="submit">Order</button>
+</form>
+</div>
+
+<div class="section">
+<h3>SOAP suppliers <span class="tag">(outbound-webservice)</span></h3>
+<form method="post" action="/admin/order-beverages">
+    Beverages: <input name="productName" placeholder="e.g. Cola" required>
+    <input name="quantity" type="number" placeholder="Qty" min="1" required>
+    <button type="submit">Order</button>
+</form>
+<form method="post" action="/admin/order-meat">
+    Meat: <input name="productName" placeholder="e.g. Chicken" required>
+    <input name="quantity" type="number" placeholder="Qty" min="1" required>
+    <button type="submit">Order</button>
+</form>
+<form method="post" action="/admin/order-bakery">
+    Bakery: <input name="productName" placeholder="e.g. Bread" required>
+    <input name="quantity" type="number" placeholder="Qty" min="1" required>
+    <button type="submit">Order</button>
+</form>
+</div>
+
+<div class="section">
+<h3>Kafka supplier <span class="tag">(outbound-kafka)</span></h3>
+<form method="post" action="/admin/order-nonfood">
+    Non-food: <input name="productName" placeholder="e.g. Detergent" required>
+    <input name="quantity" type="number" placeholder="Qty" min="1" required>
+    <button type="submit">Order</button>
+</form>
+</div>
+
+</body>
+</html>
