@@ -1,9 +1,8 @@
 package com.example.hexademo.adapter.inbound.http.html;
 
+import com.example.hexademo.core.application.APIs;
 import com.example.hexademo.core.domain.Product;
 import com.example.hexademo.core.domain.PurchaseItem;
-import com.example.hexademo.core.api.ProductsAPI;
-import com.example.hexademo.core.api.PurchaseAPI;
 import io.quarkus.qute.CheckedTemplate;
 import io.quarkus.qute.TemplateInstance;
 import jakarta.inject.Inject;
@@ -22,8 +21,10 @@ import java.util.List;
 @Path("/shop")
 public class ShopReceiver {
 
-    @Inject ProductsAPI productsAPI;
-    @Inject PurchaseAPI purchaseAPI;
+    @Inject
+    APIs.ProductsAPI productsAPI;
+    @Inject
+    APIs.PurchaseAPI purchaseAPI;
 
     @CheckedTemplate
     public static class Templates {

@@ -2,13 +2,13 @@ package com.example.hexademo.adapter.outbound.postgres.inventory;
 
 import com.example.hexademo.core.domain.Product;
 import com.example.hexademo.core.domain.ProductType;
-import com.example.hexademo.core.spi.InventoryRepositorySPI;
+import com.example.hexademo.core.application.SPIs;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.transaction.Transactional;
 import java.util.List;
 
 @ApplicationScoped
-public class InventoryService implements InventoryRepositorySPI {
+public class InventoryService implements SPIs.InventoryRepositorySPI {
 
     @Override
     @Transactional

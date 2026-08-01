@@ -1,16 +1,15 @@
 package com.example.hexademo.core.application;
 
-import com.example.hexademo.core.api.NonFoodAPI;
-import com.example.hexademo.core.spi.AuditLogSPI;
-import com.example.hexademo.core.spi.NonFoodSupplierSPI;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 @ApplicationScoped
-public class NonFoodHandler implements NonFoodAPI {
+public class NonFoodHandler implements APIs.NonFoodAPI {
 
-    @Inject NonFoodSupplierSPI nonFoodSupplier;
-    @Inject AuditLogSPI auditLog;
+    @Inject
+    SPIs.NonFoodSupplierSPI nonFoodSupplier;
+    @Inject
+    SPIs.AuditLogSPI auditLog;
 
     @Override
     public void order(String productName, int quantity) {

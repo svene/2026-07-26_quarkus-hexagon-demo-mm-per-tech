@@ -1,12 +1,12 @@
 package com.example.hexademo.adapter.outbound.webservice.beverage;
 
-import com.example.hexademo.core.spi.BeverageSupplierSPI;
+import com.example.hexademo.core.application.SPIs;
 import io.quarkiverse.cxf.annotation.CXFClient;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 @ApplicationScoped
-public class BeverageSupplierService implements BeverageSupplierSPI {
+public class BeverageSupplierService implements SPIs.BeverageSupplierSPI {
 
     @Inject
     @CXFClient("beverage-supplier")

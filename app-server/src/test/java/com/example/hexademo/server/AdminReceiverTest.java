@@ -1,7 +1,7 @@
 package com.example.hexademo.server;
 
 import com.example.hexademo.core.domain.ProductType;
-import com.example.hexademo.core.spi.InventoryRepositorySPI;
+import com.example.hexademo.core.application.SPIs;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
 import org.junit.jupiter.api.BeforeEach;
@@ -17,7 +17,8 @@ class AdminReceiverTest {
 
     @Inject TestInventoryHelper inventoryHelper;
     @Inject TestAuditLogHelper auditLogHelper;
-    @Inject InventoryRepositorySPI inventory;
+    @Inject
+    SPIs.InventoryRepositorySPI inventory;
 
     @BeforeEach
     void setUp() {

@@ -1,12 +1,12 @@
 package com.example.hexademo.adapter.outbound.httpclient.fruit;
 
-import com.example.hexademo.core.spi.FruitSupplierSPI;
+import com.example.hexademo.core.application.SPIs;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 
 @ApplicationScoped
-public class FruitSupplierService implements FruitSupplierSPI {
+public class FruitSupplierService implements SPIs.FruitSupplierSPI {
 
     @Inject
     @RestClient

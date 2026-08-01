@@ -1,17 +1,9 @@
 package com.example.hexademo.adapter.inbound.http.jsonapi;
 
 import com.example.hexademo.adapter.inbound.http.jsonapi.cashpoint.PurchaseRequest;
+import com.example.hexademo.core.application.APIs;
 import com.example.hexademo.core.domain.Product;
 import com.example.hexademo.core.domain.PurchaseItem;
-import com.example.hexademo.core.api.BakeryAPI;
-import com.example.hexademo.core.api.BeveragesAPI;
-import com.example.hexademo.core.api.DairyAPI;
-import com.example.hexademo.core.api.FruitsAPI;
-import com.example.hexademo.core.api.MeatAPI;
-import com.example.hexademo.core.api.NonFoodAPI;
-import com.example.hexademo.core.api.ProductsAPI;
-import com.example.hexademo.core.api.PurchaseAPI;
-import com.example.hexademo.core.api.VegetablesAPI;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.GET;
@@ -24,15 +16,24 @@ import java.util.List;
 @Path("/api/products")
 public class ProductApiReceiver {
 
-    @Inject ProductsAPI productsAPI;
-    @Inject FruitsAPI fruitsAPI;
-    @Inject VegetablesAPI vegetablesAPI;
-    @Inject DairyAPI dairyAPI;
-    @Inject BeveragesAPI beveragesAPI;
-    @Inject MeatAPI meatAPI;
-    @Inject BakeryAPI bakeryAPI;
-    @Inject NonFoodAPI nonFoodAPI;
-    @Inject PurchaseAPI purchaseAPI;
+    @Inject
+    APIs.ProductsAPI productsAPI;
+    @Inject
+    APIs.FruitsAPI fruitsAPI;
+    @Inject
+    APIs.VegetablesAPI vegetablesAPI;
+    @Inject
+    APIs.DairyAPI dairyAPI;
+    @Inject
+    APIs.BeveragesAPI beveragesAPI;
+    @Inject
+    APIs.MeatAPI meatAPI;
+    @Inject
+    APIs.BakeryAPI bakeryAPI;
+    @Inject
+    APIs.NonFoodAPI nonFoodAPI;
+    @Inject
+    APIs.PurchaseAPI purchaseAPI;
 
     @GET
     @Produces(MediaType.APPLICATION_JSON)

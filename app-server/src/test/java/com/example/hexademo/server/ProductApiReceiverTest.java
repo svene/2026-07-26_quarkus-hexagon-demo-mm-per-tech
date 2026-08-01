@@ -1,7 +1,7 @@
 package com.example.hexademo.server;
 
 import com.example.hexademo.core.domain.ProductType;
-import com.example.hexademo.core.spi.InventoryRepositorySPI;
+import com.example.hexademo.core.application.SPIs;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
 import jakarta.inject.Inject;
@@ -17,7 +17,8 @@ import static org.awaitility.Awaitility.await;
 class ProductApiReceiverTest {
 
     @Inject TestInventoryHelper helper;
-    @Inject InventoryRepositorySPI inventory;
+    @Inject
+    SPIs.InventoryRepositorySPI inventory;
 
     @BeforeEach
     void setUp() {

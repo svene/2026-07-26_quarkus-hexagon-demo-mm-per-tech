@@ -1,16 +1,15 @@
 package com.example.hexademo.core.application;
 
-import com.example.hexademo.core.api.MeatAPI;
-import com.example.hexademo.core.spi.AuditLogSPI;
-import com.example.hexademo.core.spi.MeatSupplierSPI;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 @ApplicationScoped
-public class MeatHandler implements MeatAPI {
+public class MeatHandler implements APIs.MeatAPI {
 
-    @Inject MeatSupplierSPI meatSupplier;
-    @Inject AuditLogSPI auditLog;
+    @Inject
+    SPIs.MeatSupplierSPI meatSupplier;
+    @Inject
+    SPIs.AuditLogSPI auditLog;
 
     @Override
     public void order(String productName, int quantity) {

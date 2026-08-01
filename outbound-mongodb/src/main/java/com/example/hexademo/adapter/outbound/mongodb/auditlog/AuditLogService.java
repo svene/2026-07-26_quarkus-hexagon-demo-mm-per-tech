@@ -1,13 +1,13 @@
 package com.example.hexademo.adapter.outbound.mongodb.auditlog;
 
-import com.example.hexademo.core.spi.AuditLogSPI;
+import com.example.hexademo.core.application.SPIs;
 import io.quarkus.panache.common.Sort;
 import jakarta.enterprise.context.ApplicationScoped;
 import java.time.Instant;
 import java.util.List;
 
 @ApplicationScoped
-public class AuditLogService implements AuditLogSPI {
+public class AuditLogService implements SPIs.AuditLogSPI {
 
     @Override
     public void log(String event, String details) {

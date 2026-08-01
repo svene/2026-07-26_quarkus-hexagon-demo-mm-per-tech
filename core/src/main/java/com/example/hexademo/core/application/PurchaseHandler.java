@@ -1,9 +1,6 @@
 package com.example.hexademo.core.application;
 
 import com.example.hexademo.core.domain.PurchaseItem;
-import com.example.hexademo.core.api.PurchaseAPI;
-import com.example.hexademo.core.spi.AuditLogSPI;
-import com.example.hexademo.core.spi.InventoryRepositorySPI;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.ArrayList;
@@ -11,10 +8,12 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
-public class PurchaseHandler implements PurchaseAPI {
+public class PurchaseHandler implements APIs.PurchaseAPI {
 
-    @Inject InventoryRepositorySPI inventoryRepository;
-    @Inject AuditLogSPI auditLog;
+    @Inject
+    SPIs.InventoryRepositorySPI inventoryRepository;
+    @Inject
+    SPIs.AuditLogSPI auditLog;
 
     @Override
     public void purchase(List<PurchaseItem> items) {

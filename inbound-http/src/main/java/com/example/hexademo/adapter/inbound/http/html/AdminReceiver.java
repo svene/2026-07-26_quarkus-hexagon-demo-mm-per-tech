@@ -1,16 +1,8 @@
 package com.example.hexademo.adapter.inbound.http.html;
 
+import com.example.hexademo.core.application.APIs;
 import com.example.hexademo.core.domain.AuditLogEntry;
 import com.example.hexademo.core.domain.Product;
-import com.example.hexademo.core.api.AuditLogAPI;
-import com.example.hexademo.core.api.BakeryAPI;
-import com.example.hexademo.core.api.BeveragesAPI;
-import com.example.hexademo.core.api.DairyAPI;
-import com.example.hexademo.core.api.FruitsAPI;
-import com.example.hexademo.core.api.MeatAPI;
-import com.example.hexademo.core.api.NonFoodAPI;
-import com.example.hexademo.core.api.ProductsAPI;
-import com.example.hexademo.core.api.VegetablesAPI;
 import io.quarkus.qute.CheckedTemplate;
 import io.quarkus.qute.TemplateInstance;
 import jakarta.inject.Inject;
@@ -31,15 +23,24 @@ public class AdminReceiver {
 
     private static final int AUDIT_LOG_LIMIT = 100;
 
-    @Inject ProductsAPI productsAPI;
-    @Inject FruitsAPI fruitsAPI;
-    @Inject VegetablesAPI vegetablesAPI;
-    @Inject DairyAPI dairyAPI;
-    @Inject BeveragesAPI beveragesAPI;
-    @Inject MeatAPI meatAPI;
-    @Inject BakeryAPI bakeryAPI;
-    @Inject NonFoodAPI nonFoodAPI;
-    @Inject AuditLogAPI auditLogAPI;
+    @Inject
+    APIs.ProductsAPI productsAPI;
+    @Inject
+    APIs.FruitsAPI fruitsAPI;
+    @Inject
+    APIs.VegetablesAPI vegetablesAPI;
+    @Inject
+    APIs.DairyAPI dairyAPI;
+    @Inject
+    APIs.BeveragesAPI beveragesAPI;
+    @Inject
+    APIs.MeatAPI meatAPI;
+    @Inject
+    APIs.BakeryAPI bakeryAPI;
+    @Inject
+    APIs.NonFoodAPI nonFoodAPI;
+    @Inject
+    APIs.AuditLogAPI auditLogAPI;
 
     @CheckedTemplate
     public static class Templates {

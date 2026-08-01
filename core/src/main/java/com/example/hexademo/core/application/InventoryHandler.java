@@ -2,17 +2,16 @@ package com.example.hexademo.core.application;
 
 import com.example.hexademo.core.domain.Product;
 import com.example.hexademo.core.domain.ProductType;
-import com.example.hexademo.core.api.InventoryAPI;
-import com.example.hexademo.core.spi.AuditLogSPI;
-import com.example.hexademo.core.spi.InventoryRepositorySPI;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 @ApplicationScoped
-public class InventoryHandler implements InventoryAPI {
+public class InventoryHandler implements APIs.InventoryAPI {
 
-    @Inject InventoryRepositorySPI inventoryRepository;
-    @Inject AuditLogSPI auditLog;
+    @Inject
+    SPIs.InventoryRepositorySPI inventoryRepository;
+    @Inject
+    SPIs.AuditLogSPI auditLog;
 
     @Override
     public void updateFruitAmount(String productName, int quantity) {
