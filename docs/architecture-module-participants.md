@@ -9,7 +9,8 @@ Complete inventory of all classes participating in the system flows, organized b
 
 | Module | Participants |
 |--------|--------------|
-| **inbound-http** | `AdminReceiver`<br>`ShopReceiver`<br>`ProductApiReceiver` |
+| **inbound-http-html** | `AdminReceiver`<br>`ShopReceiver` |
+| **inbound-http-jsonapi** | `ProductApiReceiver` |
 | **inbound-kafka** | `FruitDeliveryReceiver`<br>`VegetablesDeliveryReceiver`<br>`DairyDeliveryReceiver`<br>`BeveragesDeliveryReceiver`<br>`MeatDeliveryReceiver`<br>`BakeryDeliveryReceiver`<br>`NonFoodDeliveryReceiver`<br>`CashpointReceiver` |
 | **core (application)** | `ProductsHandler`<br>`InventoryHandler`<br>`FruitsHandler`<br>`VegetablesHandler`<br>`DairyHandler`<br>`BeveragesHandler`<br>`MeatHandler`<br>`BakeryHandler`<br>`NonFoodHandler`<br>`PurchaseHandler`<br>`AuditLogHandler` |
 | **core (api)** | `ProductsAPI`<br>`InventoryAPI`<br>`FruitsAPI`<br>`VegetablesAPI`<br>`DairyAPI`<br>`BeveragesAPI`<br>`MeatAPI`<br>`BakeryAPI`<br>`NonFoodAPI`<br>`PurchaseAPI`<br>`AuditLogAPI` |
@@ -26,23 +27,52 @@ Complete inventory of all classes participating in the system flows, organized b
 
 ---
 
-## inbound-http
+## inbound-http-html
 
-**Purpose**: HTTP inbound adapters (JAX-RS endpoints) that receive user requests
-**Package**: `com.example.hexademo.adapter.inbound.http`
+**Purpose**: HTTP inbound adapter for HTML form-based user interfaces
+**Package**: `com.example.hexademo.adapter.inbound.http.html`
 
-### HTML Subpackage (Form-based UI)
+### Receivers
 - `AdminReceiver` - Admin dashboard and ordering endpoints (GET /admin, POST /admin/order-*)
 - `ShopReceiver` - Customer shopping interface (GET /shop, POST /shop/checkout)
 
-### JSON API Subpackage (REST API)
+**Responsibilities**:
+- Parse HTTP form requests (APPLICATION_FORM_URLENCODED)
+- Route to appropriate core API handlers
+- Return HTML responses via Qute templates
+- Manage session state for browser interactions
+
+**Technology**: Quarkus REST (JAX-RS), Qute templating engine
+
+---
+
+## inbound-http-jsonapi
+
+**Purpose**: HTTP inbound adapter for JSON REST API
+**Package**: `com.example.hexademo.adapter.inbound.http.jsonapi`
+
+### Receivers
 - `ProductApiReceiver` - REST API endpoints (GET /api/products, POST /api/products/order-*, POST /api/products/purchase)
 
+### Request Models (by product category)
+- `fruit/OrderRequest` - Fruit order request
+- `vegetable/OrderRequest` - Vegetable order request
+- `dairy/OrderRequest` - Dairy order request
+- `beverage/OrderRequest` - Beverage order request
+- `meat/OrderRequest` - Meat order request
+- `bakery/OrderRequest` - Bakery order request
+- `nonfood/OrderRequest` - Non-food order request
+- `cashpoint/PurchaseRequest` - Purchase request
+- `cashpoint/PurchaseRequestItem` - Purchase item details
+
 **Responsibilities**:
-- Parse HTTP requests (form data or JSON)
+- Parse HTTP JSON requests (APPLICATION_JSON)
+- Deserialize JSON into request objects
 - Route to appropriate core API handlers
-- Return responses (HTML or JSON)
-- Extract query parameters and request bodies
+- Return JSON responses
+- Validate API input contracts
+
+**Technology**: Quarkus REST (JAX-RS), Jackson (JSON serialization)
 
 ---
 
@@ -336,9 +366,9 @@ Complete inventory of all classes participating in the system flows, organized b
 ## Summary by Layer
 
 ### Presentation Layer (HTTP Inbound)
-- `inbound-http` module
-- Participants: AdminReceiver, ShopReceiver, ProductApiReceiver
-- Responsibility: Handle HTTP requests, return HTTP responses
+- `inbound-http-html` module - HTML user interfaces (AdminReceiver, ShopReceiver)
+- `inbound-http-jsonapi` module - JSON REST API (ProductApiReceiver)
+- Responsibility: Handle HTTP requests, return HTTP responses (HTML or JSON)
 
 ### Asynchronous Event Layer (Kafka Inbound)
 - `inbound-kafka` module
@@ -374,7 +404,8 @@ Complete inventory of all classes participating in the system flows, organized b
 
 | Module | Participants | Type |
 |--------|--------------|------|
-| inbound-http | 3 | HTTP Receivers |
+| inbound-http-html | 2 | HTTP HTML Receivers |
+| inbound-http-jsonapi | 1 | HTTP JSON API Receiver |
 | inbound-kafka | 8 | Kafka Receivers |
 | core (application) | 11 | Handlers |
 | core (api) | 11 | Inbound Port Interfaces |
@@ -388,7 +419,7 @@ Complete inventory of all classes participating in the system flows, organized b
 | external-outbound-soap | 3 | Supplier Stubs |
 | external-outbound-kafka | 1 | Supplier Stub |
 | external-inbound-kafka | 2 | Mock Event Sources |
-| **Total** | **~62 classes** | **across 14 modules** |
+| **Total** | **~62 classes** | **across 15 modules** |
 
 ---
 

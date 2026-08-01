@@ -31,7 +31,8 @@ find . -name pom.xml -type f | grep -v target | sort
 # Expected structure:
 # ./pom.xml (root)
 # ./app-server/pom.xml (runner)
-# ./inbound-http/pom.xml
+# ./inbound-http-html/pom.xml
+# ./inbound-http-jsonapi/pom.xml
 # ./inbound-kafka/pom.xml
 # ./core/pom.xml
 # ./outbound-postgres/pom.xml
@@ -87,9 +88,10 @@ Read each receiver file to understand:
 - Which APIs/SPIs it calls
 - What it returns (HTML, JSON, void)
 
-**HTTP Receivers** (inbound-http module):
+**HTTP Receivers** (inbound-http-html and inbound-http-jsonapi modules):
 ```bash
-find inbound-http/src/main/java -name "*Receiver.java" -exec grep -l "@Path" {} \;
+find inbound-http-html/src/main/java -name "*Receiver.java" -exec grep -l "@Path" {} \;
+find inbound-http-jsonapi/src/main/java -name "*Receiver.java" -exec grep -l "@Path" {} \;
 ```
 
 For each receiver:

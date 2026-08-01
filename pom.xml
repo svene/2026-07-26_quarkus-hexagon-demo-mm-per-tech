@@ -27,7 +27,8 @@
 
   <modules>
     <module>core</module>
-    <module>inbound-http</module>
+    <module>inbound-http-html</module>
+    <module>inbound-http-jsonapi</module>
     <module>inbound-kafka</module>
     <module>outbound-postgres</module>
     <module>outbound-mongodb</module>
@@ -67,7 +68,12 @@
       </dependency>
       <dependency>
         <groupId>org.svenehrke.demo</groupId>
-        <artifactId>inbound-http</artifactId>
+        <artifactId>inbound-http-html</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.svenehrke.demo</groupId>
+        <artifactId>inbound-http-jsonapi</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>

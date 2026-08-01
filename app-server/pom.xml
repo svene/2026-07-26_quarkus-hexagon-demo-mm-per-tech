@@ -25,7 +25,11 @@
     </dependency>
     <dependency>
       <groupId>org.svenehrke.demo</groupId>
-      <artifactId>inbound-http</artifactId>
+      <artifactId>inbound-http-html</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.svenehrke.demo</groupId>
+      <artifactId>inbound-http-jsonapi</artifactId>
     </dependency>
     <dependency>
       <groupId>org.svenehrke.demo</groupId>
