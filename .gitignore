@@ -8,3 +8,6 @@ target/
 .project
 .classpath
 /.quarkus/
+
+# custom
+.not-commited/
