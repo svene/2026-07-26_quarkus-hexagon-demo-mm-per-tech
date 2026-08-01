@@ -5,6 +5,15 @@ import com.example.hexademo.core.domain.ProductType;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
+/**
+ * NOTE: Do not merge the individual update methods!
+ * It could be easily done.
+ * BUT: the reason why they are separate is that the audit log proves that the the expected Receiver
+ * triggered the call which we want to verify in the *FlowTests.
+ * It would be better if the Receivers themselves write an audit-log. But that would mean an addition
+ * API for AuditLogAPI would be needed which it would not nice because it is not for a business use-case, only for internal reasons.
+ * Therefore this compromise here.
+ */
 @ApplicationScoped
 public class InventoryHandler implements APIs.InventoryAPI {
 
