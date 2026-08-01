@@ -1,6 +1,5 @@
 package com.example.hexademo.adapter.inbound.http.jsonapi;
 
-import com.example.hexademo.adapter.inbound.http.jsonapi.cashpoint.PurchaseRequest;
 import com.example.hexademo.core.application.APIs;
 import com.example.hexademo.core.domain.Product;
 import com.example.hexademo.core.domain.PurchaseItem;
@@ -44,56 +43,56 @@ public class ProductApiReceiver {
     @POST
     @Path("/order-fruits")
     @Consumes(MediaType.APPLICATION_JSON)
-    public void orderFruits(com.example.hexademo.adapter.inbound.http.jsonapi.fruit.OrderRequest request) {
+    public void orderFruits(Requests.FruitOrderRequest request) {
         fruitsAPI.order(request.productName(), request.quantity());
     }
 
     @POST
     @Path("/order-vegetables")
     @Consumes(MediaType.APPLICATION_JSON)
-    public void orderVegetables(com.example.hexademo.adapter.inbound.http.jsonapi.vegetable.OrderRequest request) {
+    public void orderVegetables(Requests.VegetableOrderRequest request) {
         vegetablesAPI.order(request.productName(), request.quantity());
     }
 
     @POST
     @Path("/order-dairy")
     @Consumes(MediaType.APPLICATION_JSON)
-    public void orderDairy(com.example.hexademo.adapter.inbound.http.jsonapi.dairy.OrderRequest request) {
+    public void orderDairy(Requests.DairyOrderRequest request) {
         dairyAPI.order(request.productName(), request.quantity());
     }
 
     @POST
     @Path("/order-beverages")
     @Consumes(MediaType.APPLICATION_JSON)
-    public void orderBeverages(com.example.hexademo.adapter.inbound.http.jsonapi.beverage.OrderRequest request) {
+    public void orderBeverages(Requests.BeverageOrderRequest request) {
         beveragesAPI.order(request.productName(), request.quantity());
     }
 
     @POST
     @Path("/order-meat")
     @Consumes(MediaType.APPLICATION_JSON)
-    public void orderMeat(com.example.hexademo.adapter.inbound.http.jsonapi.meat.OrderRequest request) {
+    public void orderMeat(Requests.MeatOrderRequest request) {
         meatAPI.order(request.productName(), request.quantity());
     }
 
     @POST
     @Path("/order-bakery")
     @Consumes(MediaType.APPLICATION_JSON)
-    public void orderBakery(com.example.hexademo.adapter.inbound.http.jsonapi.bakery.OrderRequest request) {
+    public void orderBakery(Requests.BakeryOrderRequest request) {
         bakeryAPI.order(request.productName(), request.quantity());
     }
 
     @POST
     @Path("/order-nonfood")
     @Consumes(MediaType.APPLICATION_JSON)
-    public void orderNonFood(com.example.hexademo.adapter.inbound.http.jsonapi.nonfood.OrderRequest request) {
+    public void orderNonFood(Requests.NonFoodOrderRequest request) {
         nonFoodAPI.order(request.productName(), request.quantity());
     }
 
     @POST
     @Path("/purchase")
     @Consumes(MediaType.APPLICATION_JSON)
-    public void purchase(PurchaseRequest request) {
+    public void purchase(Requests.PurchaseRequest request) {
         var items = request.items().stream()
             .map(i -> new PurchaseItem(i.productName(), i.quantity()))
             .toList();

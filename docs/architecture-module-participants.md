@@ -54,16 +54,16 @@ Complete inventory of all classes participating in the system flows, organized b
 ### Receivers
 - `ProductApiReceiver` - REST API endpoints (GET /api/products, POST /api/products/order-*, POST /api/products/purchase)
 
-### Request Models (by product category)
-- `fruit/OrderRequest` - Fruit order request
-- `vegetable/OrderRequest` - Vegetable order request
-- `dairy/OrderRequest` - Dairy order request
-- `beverage/OrderRequest` - Beverage order request
-- `meat/OrderRequest` - Meat order request
-- `bakery/OrderRequest` - Bakery order request
-- `nonfood/OrderRequest` - Non-food order request
-- `cashpoint/PurchaseRequest` - Purchase request
-- `cashpoint/PurchaseRequestItem` - Purchase item details
+### Request Models (consolidated in Requests interface)
+- `Requests.FruitOrderRequest` - Fruit order (productName, quantity)
+- `Requests.VegetableOrderRequest` - Vegetable order (productName, quantity)
+- `Requests.DairyOrderRequest` - Dairy order (productName, quantity)
+- `Requests.BeverageOrderRequest` - Beverage order (productName, quantity)
+- `Requests.MeatOrderRequest` - Meat order (productName, quantity)
+- `Requests.BakeryOrderRequest` - Bakery order (productName, quantity)
+- `Requests.NonFoodOrderRequest` - Non-food order (productName, quantity)
+- `Requests.PurchaseRequest` - Purchase request (List of PurchaseRequestItem)
+- `Requests.PurchaseRequestItem` - Purchase item (productName, quantity)
 
 **Responsibilities**:
 - Parse HTTP JSON requests (APPLICATION_JSON)
