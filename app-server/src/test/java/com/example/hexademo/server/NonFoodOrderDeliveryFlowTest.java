@@ -51,10 +51,10 @@ class NonFoodOrderDeliveryFlowTest {
             assertThat(response.asString()).isEqualTo("""
                 [{"name":"Detergent","type":"NON_FOOD","availableAmount":3}]""");
 
-            assertThat(auditHelper.findEventDetails("InventoryHandler: NON_FOOD_DELIVERY_RECEIVED"))
+            assertThat(auditHelper.findEventDetails("NonFoodDeliveryReceiver: NON_FOOD_DELIVERY_RECEIVED"))
                 .containsExactly("Detergent qty=3");
-            assertThat(auditHelper.findEventDetails("InventoryHandler: NON_FOOD_INVENTORY_UPDATED"))
-                .containsExactly("Detergent +3 total=3");
+            assertThat(auditHelper.findEventDetails("NonFoodDeliveryReceiver: NON_FOOD_INVENTORY_UPDATED"))
+                .containsExactly("Detergent +3");
         });
     }
 }

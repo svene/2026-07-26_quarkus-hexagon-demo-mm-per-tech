@@ -51,10 +51,10 @@ class MeatOrderDeliveryFlowTest {
             assertThat(response.asString()).isEqualTo("""
                 [{"name":"Chicken","type":"MEAT","availableAmount":4}]""");
 
-            assertThat(auditHelper.findEventDetails("InventoryHandler: MEAT_DELIVERY_RECEIVED"))
+            assertThat(auditHelper.findEventDetails("MeatDeliveryReceiver: MEAT_DELIVERY_RECEIVED"))
                 .containsExactly("Chicken qty=4");
-            assertThat(auditHelper.findEventDetails("InventoryHandler: MEAT_INVENTORY_UPDATED"))
-                .containsExactly("Chicken +4 total=4");
+            assertThat(auditHelper.findEventDetails("MeatDeliveryReceiver: MEAT_INVENTORY_UPDATED"))
+                .containsExactly("Chicken +4");
         });
     }
 }

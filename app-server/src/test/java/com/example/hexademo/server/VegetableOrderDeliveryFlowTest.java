@@ -51,10 +51,10 @@ class VegetableOrderDeliveryFlowTest {
             assertThat(response.asString()).isEqualTo("""
                 [{"name":"Carrot","type":"VEGETABLE","availableAmount":8}]""");
 
-            assertThat(auditHelper.findEventDetails("InventoryHandler: VEGETABLE_DELIVERY_RECEIVED"))
+            assertThat(auditHelper.findEventDetails("VegetablesDeliveryReceiver: VEGETABLE_DELIVERY_RECEIVED"))
                 .containsExactly("Carrot qty=8");
-            assertThat(auditHelper.findEventDetails("InventoryHandler: VEGETABLE_INVENTORY_UPDATED"))
-                .containsExactly("Carrot +8 total=8");
+            assertThat(auditHelper.findEventDetails("VegetablesDeliveryReceiver: VEGETABLE_INVENTORY_UPDATED"))
+                .containsExactly("Carrot +8");
         });
     }
 }

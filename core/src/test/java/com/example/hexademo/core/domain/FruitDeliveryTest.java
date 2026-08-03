@@ -49,7 +49,9 @@ class FruitDeliveryTest {
 
 			String json = mapper.writeValueAsString(delivery);
 
-			assertThat(json).isEqualTo("{\"quantity\":42}");
+			assertThat(json).isEqualTo("""
+				{"productName":"productName","quantity":42}\
+				""");
 		}
 
 		@Test

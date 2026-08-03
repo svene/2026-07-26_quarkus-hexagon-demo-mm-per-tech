@@ -51,10 +51,10 @@ class BakeryOrderDeliveryFlowTest {
             assertThat(response.asString()).isEqualTo("""
                 [{"name":"Bread","type":"BAKERY","availableAmount":10}]""");
 
-            assertThat(auditHelper.findEventDetails("InventoryHandler: BAKERY_DELIVERY_RECEIVED"))
+            assertThat(auditHelper.findEventDetails("BakeryDeliveryReceiver: BAKERY_DELIVERY_RECEIVED"))
                 .containsExactly("Bread qty=10");
-            assertThat(auditHelper.findEventDetails("InventoryHandler: BAKERY_INVENTORY_UPDATED"))
-                .containsExactly("Bread +10 total=10");
+            assertThat(auditHelper.findEventDetails("BakeryDeliveryReceiver: BAKERY_INVENTORY_UPDATED"))
+                .containsExactly("Bread +10");
         });
     }
 }

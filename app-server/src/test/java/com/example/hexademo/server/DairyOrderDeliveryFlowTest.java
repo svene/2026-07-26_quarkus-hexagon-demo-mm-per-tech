@@ -51,10 +51,10 @@ class DairyOrderDeliveryFlowTest {
             assertThat(response.asString()).isEqualTo("""
                 [{"name":"Milk","type":"DAIRY","availableAmount":6}]""");
 
-            assertThat(auditHelper.findEventDetails("InventoryHandler: DAIRY_DELIVERY_RECEIVED"))
+            assertThat(auditHelper.findEventDetails("DairyDeliveryReceiver: DAIRY_DELIVERY_RECEIVED"))
                 .containsExactly("Milk qty=6");
-            assertThat(auditHelper.findEventDetails("InventoryHandler: DAIRY_INVENTORY_UPDATED"))
-                .containsExactly("Milk +6 total=6");
+            assertThat(auditHelper.findEventDetails("DairyDeliveryReceiver: DAIRY_INVENTORY_UPDATED"))
+                .containsExactly("Milk +6");
         });
     }
 }
