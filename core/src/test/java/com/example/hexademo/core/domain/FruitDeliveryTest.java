@@ -19,7 +19,7 @@ class FruitDeliveryTest {
 	@ParameterizedTest
 	@ValueSource(ints = {1, 500, 10_000})
 	void parse_returnsPresentOptional_forValidQuantities(int quantity) {
-		Optional<FruitDelivery> order = FruitDelivery.parse(quantity);
+		Optional<FruitDelivery> order = FruitDelivery.parse("productName", quantity);
 
 		assertThat(order)
 			.isPresent()
@@ -33,7 +33,7 @@ class FruitDeliveryTest {
 	@ParameterizedTest
 	@ValueSource(ints = {0, -1, -100, 10_001, Integer.MAX_VALUE})
 	void parse_returnsEmptyOptional_forInvalidQuantities(int quantity) {
-		Optional<FruitDelivery> order = FruitDelivery.parse(quantity);
+		Optional<FruitDelivery> order = FruitDelivery.parse("productName", quantity);
 
 		assertThat(order).isEmpty();
 	}
@@ -45,7 +45,7 @@ class FruitDeliveryTest {
 
 		@Test
 		void serializesInterfaceTypedInstance() throws Exception {
-			FruitDelivery delivery = FruitDelivery.parse(42).orElseThrow();
+			FruitDelivery delivery = FruitDelivery.parse("productName", 42).orElseThrow();
 
 			String json = mapper.writeValueAsString(delivery);
 

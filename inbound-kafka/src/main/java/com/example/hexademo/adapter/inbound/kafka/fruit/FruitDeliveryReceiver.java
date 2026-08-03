@@ -21,6 +21,6 @@ public class FruitDeliveryReceiver {
         // Validation:
         if (x.isEmpty()) return;
         // Processing:
-        inventoryAPI.updateFruitAmount(message.productName(), message.quantity());
+        inventoryAPI.updateFruitAmount(x.get());
     }
 }

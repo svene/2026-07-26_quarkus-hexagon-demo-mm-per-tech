@@ -1,6 +1,7 @@
 package com.example.hexademo.core.application;
 
 import com.example.hexademo.core.domain.AuditLogEntry;
+import com.example.hexademo.core.domain.FruitDelivery;
 import com.example.hexademo.core.domain.Product;
 import com.example.hexademo.core.domain.PurchaseItem;
 
@@ -28,7 +29,7 @@ public interface APIs {
 	}
 
 	interface InventoryAPI {
-		void updateFruitAmount(String productName, int quantity);
+		void updateFruitAmount(FruitDelivery fruitDelivery);
 		void updateVegetableAmount(String productName, int quantity);
 		void updateDairyAmount(String productName, int quantity);
 		void updateBeverageAmount(String productName, int quantity);

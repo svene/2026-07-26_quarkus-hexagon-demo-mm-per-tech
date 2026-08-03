@@ -1,5 +1,6 @@
 package com.example.hexademo.core.application;
 
+import com.example.hexademo.core.domain.FruitDelivery;
 import com.example.hexademo.core.domain.Product;
 import com.example.hexademo.core.domain.ProductType;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -23,8 +24,8 @@ public class InventoryHandler implements APIs.InventoryAPI {
     SPIs.AuditLogSPI auditLog;
 
     @Override
-    public void updateFruitAmount(String productName, int quantity) {
-        update(productName, ProductType.FRUIT, quantity, "FRUIT");
+    public void updateFruitAmount(FruitDelivery fruitDelivery) {
+        update(fruitDelivery.productName(), ProductType.FRUIT, fruitDelivery.quantity(), "FRUIT");
     }
 
     @Override
