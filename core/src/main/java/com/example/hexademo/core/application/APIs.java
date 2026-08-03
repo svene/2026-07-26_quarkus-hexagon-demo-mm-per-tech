@@ -1,9 +1,15 @@
 package com.example.hexademo.core.application;
 
 import com.example.hexademo.core.domain.AuditLogEntry;
+import com.example.hexademo.core.domain.BakeryDelivery;
+import com.example.hexademo.core.domain.BeverageDelivery;
+import com.example.hexademo.core.domain.DairyDelivery;
 import com.example.hexademo.core.domain.FruitDelivery;
+import com.example.hexademo.core.domain.MeatDelivery;
+import com.example.hexademo.core.domain.NonFoodDelivery;
 import com.example.hexademo.core.domain.Product;
 import com.example.hexademo.core.domain.PurchaseItem;
+import com.example.hexademo.core.domain.VegetableDelivery;
 
 import java.util.List;
 
@@ -31,12 +37,12 @@ public interface APIs {
 
 	interface InventoryAPI {
 		void updateFruitAmount(FruitDelivery fruitDelivery);
-		void updateVegetableAmount(String productName, int quantity);
-		void updateDairyAmount(String productName, int quantity);
-		void updateBeverageAmount(String productName, int quantity);
-		void updateMeatAmount(String productName, int quantity);
-		void updateBakeryAmount(String productName, int quantity);
-		void updateNonFoodAmount(String productName, int quantity);
+		void updateVegetableAmount(VegetableDelivery vegetableDelivery);
+		void updateDairyAmount(DairyDelivery dairyDelivery);
+		void updateBeverageAmount(BeverageDelivery beverageDelivery);
+		void updateMeatAmount(MeatDelivery meatDelivery);
+		void updateBakeryAmount(BakeryDelivery bakeryDelivery);
+		void updateNonFoodAmount(NonFoodDelivery nonFoodDelivery);
 	}
 
 	interface MeatAPI {

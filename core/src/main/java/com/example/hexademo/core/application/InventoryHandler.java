@@ -1,7 +1,13 @@
 package com.example.hexademo.core.application;
 
 import com.example.hexademo.core.domain.FruitDelivery;
+import com.example.hexademo.core.domain.BakeryDelivery;
+import com.example.hexademo.core.domain.BeverageDelivery;
+import com.example.hexademo.core.domain.DairyDelivery;
+import com.example.hexademo.core.domain.MeatDelivery;
+import com.example.hexademo.core.domain.NonFoodDelivery;
 import com.example.hexademo.core.domain.ProductType;
+import com.example.hexademo.core.domain.VegetableDelivery;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
@@ -17,32 +23,32 @@ public class InventoryHandler implements APIs.InventoryAPI {
     }
 
     @Override
-    public void updateVegetableAmount(String productName, int quantity) {
-        inventoryRepository.addAmount(productName, ProductType.VEGETABLE, quantity);
+    public void updateVegetableAmount(VegetableDelivery vegetableDelivery) {
+        inventoryRepository.addAmount(vegetableDelivery.productName(), ProductType.VEGETABLE, vegetableDelivery.quantity());
     }
 
     @Override
-    public void updateDairyAmount(String productName, int quantity) {
-        inventoryRepository.addAmount(productName, ProductType.DAIRY, quantity);
+    public void updateDairyAmount(DairyDelivery dairyDelivery) {
+        inventoryRepository.addAmount(dairyDelivery.productName(), ProductType.DAIRY, dairyDelivery.quantity());
     }
 
     @Override
-    public void updateBeverageAmount(String productName, int quantity) {
-        inventoryRepository.addAmount(productName, ProductType.BEVERAGE, quantity);
+    public void updateBeverageAmount(BeverageDelivery beverageDelivery) {
+        inventoryRepository.addAmount(beverageDelivery.productName(), ProductType.BEVERAGE, beverageDelivery.quantity());
     }
 
     @Override
-    public void updateMeatAmount(String productName, int quantity) {
-        inventoryRepository.addAmount(productName, ProductType.MEAT, quantity);
+    public void updateMeatAmount(MeatDelivery meatDelivery) {
+        inventoryRepository.addAmount(meatDelivery.productName(), ProductType.MEAT, meatDelivery.quantity());
     }
 
     @Override
-    public void updateBakeryAmount(String productName, int quantity) {
-        inventoryRepository.addAmount(productName, ProductType.BAKERY, quantity);
+    public void updateBakeryAmount(BakeryDelivery bakeryDelivery) {
+        inventoryRepository.addAmount(bakeryDelivery.productName(), ProductType.BAKERY, bakeryDelivery.quantity());
     }
 
     @Override
-    public void updateNonFoodAmount(String productName, int quantity) {
-        inventoryRepository.addAmount(productName, ProductType.NON_FOOD, quantity);
+    public void updateNonFoodAmount(NonFoodDelivery nonFoodDelivery) {
+        inventoryRepository.addAmount(nonFoodDelivery.productName(), ProductType.NON_FOOD, nonFoodDelivery.quantity());
     }
 }

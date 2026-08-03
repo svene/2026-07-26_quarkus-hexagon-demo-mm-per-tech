@@ -1,6 +1,7 @@
 package com.example.hexademo.adapter.inbound.kafka.beverage;
 
 import com.example.hexademo.core.application.APIs;
+import com.example.hexademo.core.domain.BeverageDelivery;
 import io.smallrye.reactive.messaging.annotations.Blocking;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -16,9 +17,14 @@ public class BeveragesDeliveryReceiver {
 
     @Incoming("beverages-deliveries")
     @Blocking
-    public void receive(DeliveryMessage message) {
-        auditLog.log("BeveragesDeliveryReceiver: BEVERAGE_DELIVERY_RECEIVED", message.productName() + " qty=" + message.quantity());
-        inventoryAPI.updateBeverageAmount(message.productName(), message.quantity());
-        auditLog.log("BeveragesDeliveryReceiver: BEVERAGE_INVENTORY_UPDATED", message.productName() + " +" + message.quantity());
+    public void receive(RawBeverageDelivery message) {
+        // Mapping: RawBeverageDelivery -> BeverageDelivery:
+        var x = BeverageDelivery.parse(message.productName(), message.quantity());
+        // Validation:
+        if (x.isEmpty()) return;
+        // Processing:
+        auditLog.log("BeveragesDeliveryReceiver: BEVERAGE_DELIVERY_RECEIVED", x.get().productName() + " qty=" + x.get().quantity());
+        inventoryAPI.updateBeverageAmount(x.get());
+        auditLog.log("BeveragesDeliveryReceiver: BEVERAGE_INVENTORY_UPDATED", x.get().productName() + " +" + x.get().quantity());
     }
 }
