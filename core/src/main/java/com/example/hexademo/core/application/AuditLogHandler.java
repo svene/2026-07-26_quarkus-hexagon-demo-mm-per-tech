@@ -12,6 +12,11 @@ public class AuditLogHandler implements APIs.AuditLogAPI {
     SPIs.AuditLogSPI auditLog;
 
     @Override
+    public void log(String event, String details) {
+        auditLog.log(event, details);
+    }
+
+    @Override
     public List<AuditLogEntry> recent(int limit) {
         return auditLog.findRecent(limit);
     }

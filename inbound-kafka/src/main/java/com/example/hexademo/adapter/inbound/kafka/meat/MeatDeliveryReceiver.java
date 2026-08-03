@@ -11,10 +11,14 @@ public class MeatDeliveryReceiver {
 
     @Inject
     APIs.InventoryAPI inventoryAPI;
+    @Inject
+    APIs.AuditLogAPI auditLog;
 
     @Incoming("meat-deliveries")
     @Blocking
     public void receive(DeliveryMessage message) {
+        auditLog.log("MeatDeliveryReceiver: MEAT_DELIVERY_RECEIVED", message.productName() + " qty=" + message.quantity());
         inventoryAPI.updateMeatAmount(message.productName(), message.quantity());
+        auditLog.log("MeatDeliveryReceiver: MEAT_INVENTORY_UPDATED", message.productName() + " +" + message.quantity());
     }
 }

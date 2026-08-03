@@ -12,6 +12,8 @@ public class FruitDeliveryReceiver {
 
     @Inject
     APIs.InventoryAPI inventoryAPI;
+    @Inject
+    APIs.AuditLogAPI auditLog;
 
     @Incoming("fruit-deliveries")
     @Blocking
@@ -21,6 +23,8 @@ public class FruitDeliveryReceiver {
         // Validation:
         if (x.isEmpty()) return;
         // Processing:
+        auditLog.log("FruitDeliveryReceiver: FRUIT_DELIVERY_RECEIVED", x.get().productName() + " qty=" + x.get().quantity());
         inventoryAPI.updateFruitAmount(x.get());
+        auditLog.log("FruitDeliveryReceiver: FRUIT_INVENTORY_UPDATED", x.get().productName() + " +" + x.get().quantity());
     }
 }

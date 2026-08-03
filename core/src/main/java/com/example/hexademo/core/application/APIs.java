@@ -9,6 +9,7 @@ import java.util.List;
 
 public interface APIs {
 	interface AuditLogAPI {
+		void log(String event, String details);
 		List<AuditLogEntry> recent(int limit);
 	}
 

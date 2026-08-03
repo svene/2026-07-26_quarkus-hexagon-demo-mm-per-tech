@@ -11,10 +11,14 @@ public class DairyDeliveryReceiver {
 
     @Inject
     APIs.InventoryAPI inventoryAPI;
+    @Inject
+    APIs.AuditLogAPI auditLog;
 
     @Incoming("dairy-deliveries")
     @Blocking
     public void receive(DeliveryMessage message) {
+        auditLog.log("DairyDeliveryReceiver: DAIRY_DELIVERY_RECEIVED", message.productName() + " qty=" + message.quantity());
         inventoryAPI.updateDairyAmount(message.productName(), message.quantity());
+        auditLog.log("DairyDeliveryReceiver: DAIRY_INVENTORY_UPDATED", message.productName() + " +" + message.quantity());
     }
 }
