@@ -15,9 +15,12 @@ public class FruitDeliveryReceiver {
 
     @Incoming("fruit-deliveries")
     @Blocking
-    public void receive(DeliveryMessage message) {
-        var x = FruitDelivery.parse(1);
+    public void receive(RawFruitDelivery message) {
+        // Mapping: RawFruitDelivery -> FruitDelivery:
+        var x = FruitDelivery.parse(message.productName(), message.quantity());
+        // Validation:
         if (x.isEmpty()) return;
+        // Processing:
         inventoryAPI.updateFruitAmount(message.productName(), message.quantity());
     }
 }

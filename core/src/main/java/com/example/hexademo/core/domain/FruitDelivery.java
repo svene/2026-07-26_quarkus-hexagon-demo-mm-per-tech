@@ -2,7 +2,7 @@ package com.example.hexademo.core.domain;
 
 import java.util.Optional;
 
-public record FruitDelivery(int quantity) {
+public record FruitDelivery(String productName, int quantity) {
 
 	private static final int MAX_QUANTITY = 10_000;
 
@@ -22,9 +22,10 @@ public record FruitDelivery(int quantity) {
 		return quantity > 0 && quantity <= MAX_QUANTITY;
 	}
 
-	public static Optional<FruitDelivery> parse(int quantity) {
+	public static Optional<FruitDelivery> parse(String productName, int quantity) {
+		// TODO: validate productName
 		return isValid(quantity)
-			? Optional.of(new FruitDelivery(quantity))
+			? Optional.of(new FruitDelivery(productName, quantity))
 			: Optional.empty();
 	}
 }
