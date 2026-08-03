@@ -2,6 +2,7 @@ package com.example.hexademo.core.domain;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.exc.ValueInstantiationException;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -37,43 +38,32 @@ class FruitDeliveryTest {
 		assertThat(order).isEmpty();
 	}
 
-	@Test
-	void constructor_throws_forInvalidQuantity() {
-		assertThatThrownBy(() -> new FruitDelivery(-1))
-			.isInstanceOf(IllegalArgumentException.class)
-			.hasMessageContaining("quantity out parse range");
-	}
+	@Nested
+	class FruitDeliveryJacksonTest {
 
-	// --- Jackson serialization ---
+		private final ObjectMapper mapper = new ObjectMapper();
 
-	@Test
-	void jackson_serializesToExpectedJson() throws Exception {
-		ObjectMapper mapper = new ObjectMapper();
-		FruitDelivery order = FruitDelivery.parse(42).orElseThrow();
+		@Test
+		void serializesInterfaceTypedInstance() throws Exception {
+			FruitDelivery delivery = FruitDelivery.parse(42).orElseThrow();
 
-		String json = mapper.writeValueAsString(order);
+			String json = mapper.writeValueAsString(delivery);
 
-		assertThat(json).isEqualTo("{\"quantity\":42}");
-	}
+			assertThat(json).isEqualTo("{\"quantity\":42}");
+		}
 
-	// --- Jackson deserialization: valid case ---
+		@Test
+		void deserializesToInterfaceType() throws Exception {
+			FruitDelivery delivery = mapper.readValue("{\"quantity\":42}", FruitDelivery.class);
 
-	@Test
-	void jackson_deserializesValidJson() throws Exception {
-		ObjectMapper mapper = new ObjectMapper();
+			assertThat(delivery.quantity()).isEqualTo(42);
+			assertThat(delivery).isInstanceOf(FruitDelivery.class);
+		}
 
-		FruitDelivery order = mapper.readValue("{\"quantity\":42}", FruitDelivery.class);
-
-		assertThat(order.quantity()).isEqualTo(42);
-	}
-
-	// --- Jackson deserialization: invalid case ---
-
-	@Test
-	void jackson_deserializationFailsForInvalidQuantity() {
-		ObjectMapper mapper = new ObjectMapper();
-
-		assertThatThrownBy(() -> mapper.readValue("{\"quantity\":-5}", FruitDelivery.class))
-			.isInstanceOf(ValueInstantiationException.class);
+		@Test
+		void deserializationFailsForInvalidQuantity() {
+			assertThatThrownBy(() -> mapper.readValue("{\"quantity\":-5}", FruitDelivery.class))
+				.isInstanceOf(ValueInstantiationException.class);
+		}
 	}
 }
