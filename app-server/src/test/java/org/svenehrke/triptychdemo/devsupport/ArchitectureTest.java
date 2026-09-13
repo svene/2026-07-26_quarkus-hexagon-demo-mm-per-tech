@@ -1,7 +1,6 @@
 package org.svenehrke.triptychdemo.devsupport;
 
-import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
-import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices;
+import static org.svenehrke.triptychdemo.devsupport.TriptychArchitecture.triptychArchitecture;
 
 import com.tngtech.archunit.ArchConfiguration;
 import com.tngtech.archunit.core.domain.JavaClasses;
@@ -13,28 +12,23 @@ import org.junit.jupiter.api.Test;
 import java.util.Arrays;
 
 /**
- * One concern is checked here that module-per-technology cannot enforce by itself (see concepts.md
- * "Cons"): cross-feature access. Every restricted feature (fruit, vegetable, dairy, beverage, meat,
- * bakery, nonfood) lives under its own "..feature.&lt;name&gt;.." package, in every module that touches
- * it (core and every adapter module alike) - so an ArchUnit slices rule can check "no two features
- * depend on each other" directly from the package structure, with zero maintained list of feature names.
- * Anything cross-cutting (inventory, audit log, products, purchase, cashpoint, the admin/shop/json-api
- * aggregators) lives under "..cross.." instead, which never matches the "feature.(*)" slice pattern and
- * is therefore exempt from the check by construction - no explicit exception needed for e.g. AdminReceiver
- * reaching every commodity's ordering API.
+ * Checks this project's "Triptych" architecture (see {@link TriptychArchitecture} and concepts.md) -
+ * cross-feature access is the one concern module-per-technology cannot enforce by itself (see concepts.md
+ * "Cons"): the Maven module graph prevents violations of the hexagonal layering, but cannot see across
+ * features inside the shared core module, since all commodities share it. Every restricted feature (fruit,
+ * vegetable, dairy, beverage, meat, bakery, nonfood) lives under its own "feature.&lt;name&gt;" package in
+ * every module that touches it, so this comes down to a single package-based check, with zero maintained
+ * list of feature names. Cross-cutting concerns (inventory, audit log, products, purchase, cashpoint, the
+ * admin/shop/json-api aggregators) live under "cross" instead, exempt by construction.
  * <p>
- * Naming conventions are checked too, mostly belt-and-suspenders since the Maven module graph already
- * makes most violations of them uncompilable. The inward-only dependency direction of core is NOT
- * checked here: core's pom.xml has no dependency on any adapter module, so referencing an adapter class
- * from core is a compile error, not something ArchUnit needs to guard against.
+ * The inward-only dependency direction of core is NOT checked here: core's pom.xml has no dependency on
+ * any adapter module, so referencing an adapter class from core is a compile error already.
  * <p>
  * external-* modules simulate systems outside the hexagon entirely (see concepts.md) and are excluded
  * from the scan altogether, not just from individual rules.
  */
 class ArchitectureTest {
 	private static final String PKG_ROOT = "org.svenehrke.triptychdemo";
-	private static final String PKG_FEATURE = PKG_ROOT + ".feature";
-	private static final String PKG_CROSS = PKG_ROOT + ".cross";
 	private static final String PKG_EXTERNAL = PKG_ROOT + ".external";
 	private static final String GROUP_ID_REPO_PATH = "/org/svenehrke/";
 
@@ -81,29 +75,7 @@ class ArchitectureTest {
 	}
 
 	@Test
-	void classname_determines_package() {
-		classes().that().haveNameMatching(".*API").should().beInterfaces().check(importedClasses);
-		classes().that().haveNameMatching(".*API").should().bePublic().check(importedClasses);
-		classes().that().haveNameMatching(".*SPI").should().beInterfaces().check(importedClasses);
-		classes().that().haveNameMatching(".*SPI").should().bePublic().check(importedClasses);
-
-		// Every port, use-case and adapter class is filed under a restricted feature or a cross-cutting
-		// concern - nothing is left loose at some other, undeclared package.
-		classes().that().haveNameMatching(".*(API|SPI|Handler|Receiver|Service)")
-			.should().resideInAnyPackage(PKG_FEATURE + "..", PKG_CROSS + "..")
-			.check(importedClasses);
-	}
-
-	/**
-	 * The module-per-technology Maven cut (see concepts.md) prevents violations of the hexagonal
-	 * layering, but cannot see across features inside the shared core module: nothing stops a
-	 * fruit-only adapter class from injecting BeveragesAPI. This single slices rule closes that gap for
-	 * every restricted feature at once, purely from the package structure - see the class Javadoc.
-	 */
-	@Test
-	void features_do_not_depend_on_each_other() {
-		slices().matching(PKG_FEATURE + ".(*)..")
-			.should().notDependOnEachOther()
-			.check(importedClasses);
+	void triptych_architecture_is_respected() {
+		triptychArchitecture(PKG_ROOT).check(importedClasses);
 	}
 }
