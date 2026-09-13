@@ -1,7 +1,8 @@
 package org.svenehrke.triptychdemo.server;
 
-import org.svenehrke.triptychdemo.core.domain.ProductType;
-import org.svenehrke.triptychdemo.core.application.SPIs;
+import org.svenehrke.triptychdemo.cross.inventory.InventoryRepositorySPI;
+
+import org.svenehrke.triptychdemo.cross.products.ProductType;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
 import jakarta.inject.Inject;
@@ -18,7 +19,7 @@ class ProductApiReceiverTest {
 
     @Inject TestInventoryHelper helper;
     @Inject
-    SPIs.InventoryRepositorySPI inventory;
+    InventoryRepositorySPI inventory;
 
     @BeforeEach
     void setUp() {

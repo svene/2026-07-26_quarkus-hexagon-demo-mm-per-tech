@@ -1,6 +1,6 @@
 package org.svenehrke.triptychdemo.server;
 
-import org.svenehrke.triptychdemo.adapter.inbound.kafka.cashpoint.PurchaseMessage;
+import org.svenehrke.triptychdemo.cross.cashpoint.PurchaseMessage;
 import io.smallrye.reactive.messaging.annotations.Channel;
 import io.smallrye.reactive.messaging.annotations.Emitter;
 import jakarta.enterprise.context.ApplicationScoped;

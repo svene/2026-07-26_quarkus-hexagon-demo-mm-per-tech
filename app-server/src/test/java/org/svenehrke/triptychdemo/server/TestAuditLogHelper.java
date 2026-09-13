@@ -1,6 +1,6 @@
 package org.svenehrke.triptychdemo.server;
 
-import org.svenehrke.triptychdemo.adapter.outbound.mongodb.auditlog.AuditLogEntry;
+import org.svenehrke.triptychdemo.cross.auditlog.AuditLogEntryEntity;
 import jakarta.enterprise.context.ApplicationScoped;
 import java.util.List;
 
@@ -8,7 +8,7 @@ import java.util.List;
 public class TestAuditLogHelper {
 
     public List<String> findEventDetails(String event) {
-        return AuditLogEntry.<AuditLogEntry>find("event", event)
+        return AuditLogEntryEntity.<AuditLogEntryEntity>find("event", event)
             .list()
             .stream()
             .map(e -> e.details)
@@ -16,10 +16,10 @@ public class TestAuditLogHelper {
     }
 
     public void clearAuditLog() {
-        AuditLogEntry.deleteAll();
+        AuditLogEntryEntity.deleteAll();
     }
 
     public boolean isEmpty() {
-        return AuditLogEntry.count() == 0;
+        return AuditLogEntryEntity.count() == 0;
     }
 }

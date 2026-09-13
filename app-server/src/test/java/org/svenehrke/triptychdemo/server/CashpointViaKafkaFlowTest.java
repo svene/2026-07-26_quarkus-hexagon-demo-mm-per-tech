@@ -1,7 +1,7 @@
 package org.svenehrke.triptychdemo.server;
 
-import org.svenehrke.triptychdemo.adapter.inbound.kafka.cashpoint.PurchaseMessage;
-import org.svenehrke.triptychdemo.adapter.inbound.kafka.cashpoint.PurchaseMessageItem;
+import org.svenehrke.triptychdemo.cross.cashpoint.PurchaseMessage;
+import org.svenehrke.triptychdemo.cross.cashpoint.PurchaseMessageItem;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
 import jakarta.inject.Inject;
