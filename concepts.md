@@ -5,6 +5,34 @@ This document explains the conceptual decisions behind
 
 ---
 
+## Concepts / Aspects
+
+- Hexagonal architecture in the Triptych variant.
+- Single maven module for core
+- One maven module per [inbound|outbound]-technology combination. E.g.: inbound-kafka, outbound-webservice
+- Other modules which are not part of the system but needed to run the demo are named 'external-*'. Note \
+that they are NOT part of the system.
+
+## Pros
+
+- The usage of maven modules per hexagonal-technology makes it possible to prevent hexagonal architecture violations at compile time. \
+  Therefore usage of archunit is not nessary.
+- The number of modules does not explode: two for hexagonal architecture (inbound and outbound) and technology combination. 
+
+## Cons
+
+- It does not prevent cross feature access violations. Needs archunit for this. 
+
+## Recommendation
+
+This approach can be used for small to large sized and complex projects but especially when 
+they have a variety of technologies in use.
+
+## Other remarks
+
+This project already uses the Triptych naming conventions (API,SPI,Receiver,Service) as opposed to the
+ports and adapters naming conventions.
+
 ## Goal
 
 Show that **hexagonal architecture** (also called Ports & Adapters) maps cleanly
