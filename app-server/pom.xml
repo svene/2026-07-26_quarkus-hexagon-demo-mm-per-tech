@@ -5,7 +5,7 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>org.svenehrke.demo</groupId>
+    <groupId>org.svenehrke</groupId>
     <artifactId>quarkus-hexagon-demo-mm-per-tech</artifactId>
     <version>1.0.0-SNAPSHOT</version>
   </parent>
@@ -20,58 +20,58 @@
 
   <dependencies>
     <dependency>
-      <groupId>org.svenehrke.demo</groupId>
+      <groupId>org.svenehrke</groupId>
       <artifactId>core</artifactId>
     </dependency>
     <dependency>
-      <groupId>org.svenehrke.demo</groupId>
+      <groupId>org.svenehrke</groupId>
       <artifactId>inbound-http-html</artifactId>
     </dependency>
     <dependency>
-      <groupId>org.svenehrke.demo</groupId>
+      <groupId>org.svenehrke</groupId>
       <artifactId>inbound-http-jsonapi</artifactId>
     </dependency>
     <dependency>
-      <groupId>org.svenehrke.demo</groupId>
+      <groupId>org.svenehrke</groupId>
       <artifactId>inbound-kafka</artifactId>
     </dependency>
     <dependency>
-      <groupId>org.svenehrke.demo</groupId>
+      <groupId>org.svenehrke</groupId>
       <artifactId>outbound-postgres</artifactId>
     </dependency>
     <dependency>
-      <groupId>org.svenehrke.demo</groupId>
+      <groupId>org.svenehrke</groupId>
       <artifactId>outbound-mongodb</artifactId>
     </dependency>
     <dependency>
-      <groupId>org.svenehrke.demo</groupId>
+      <groupId>org.svenehrke</groupId>
       <artifactId>outbound-webservice</artifactId>
     </dependency>
     <dependency>
-      <groupId>org.svenehrke.demo</groupId>
+      <groupId>org.svenehrke</groupId>
       <artifactId>outbound-httpclient</artifactId>
     </dependency>
 
     <dependency>
-      <groupId>org.svenehrke.demo</groupId>
+      <groupId>org.svenehrke</groupId>
       <artifactId>outbound-kafka</artifactId>
     </dependency>
 
     <!-- Stubs that simulate external systems in dev/test -->
     <dependency>
-      <groupId>org.svenehrke.demo</groupId>
+      <groupId>org.svenehrke</groupId>
       <artifactId>external-outbound-rest</artifactId>
     </dependency>
     <dependency>
-      <groupId>org.svenehrke.demo</groupId>
+      <groupId>org.svenehrke</groupId>
       <artifactId>external-outbound-soap</artifactId>
     </dependency>
     <dependency>
-      <groupId>org.svenehrke.demo</groupId>
+      <groupId>org.svenehrke</groupId>
       <artifactId>external-outbound-kafka</artifactId>
     </dependency>
     <dependency>
-      <groupId>org.svenehrke.demo</groupId>
+      <groupId>org.svenehrke</groupId>
       <artifactId>external-inbound-kafka</artifactId>
     </dependency>
     <dependency>

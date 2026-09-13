@@ -30,7 +30,7 @@ Complete inventory of all classes participating in the system flows, organized b
 ## inbound-http-html
 
 **Purpose**: HTTP inbound adapter for HTML form-based user interfaces
-**Package**: `com.example.hexademo.adapter.inbound.http.html`
+**Package**: `org.svenehrke.triptychdemo.adapter.inbound.http.html`
 
 ### Receivers
 - `AdminReceiver` - Admin dashboard and ordering endpoints (GET /admin, POST /admin/order-*)
@@ -49,7 +49,7 @@ Complete inventory of all classes participating in the system flows, organized b
 ## inbound-http-jsonapi
 
 **Purpose**: HTTP inbound adapter for JSON REST API
-**Package**: `com.example.hexademo.adapter.inbound.http.jsonapi`
+**Package**: `org.svenehrke.triptychdemo.adapter.inbound.http.jsonapi`
 
 ### Receivers
 - `ProductApiReceiver` - REST API endpoints (GET /api/products, POST /api/products/order-*, POST /api/products/purchase)
@@ -79,7 +79,7 @@ Complete inventory of all classes participating in the system flows, organized b
 ## inbound-kafka
 
 **Purpose**: Kafka inbound adapters that consume events from Kafka topics
-**Package**: `com.example.hexademo.adapter.inbound.kafka`
+**Package**: `org.svenehrke.triptychdemo.adapter.inbound.kafka`
 
 ### Delivery Receivers (by product category)
 - `FruitDeliveryReceiver` - Consumes from `fruit-deliveries` topic
@@ -104,7 +104,7 @@ Complete inventory of all classes participating in the system flows, organized b
 ## core (application)
 
 **Purpose**: Core business logic - use case handlers implementing the system's application services
-**Package**: `com.example.hexademo.core.application`
+**Package**: `org.svenehrke.triptychdemo.core.application`
 
 ### Product Management Handlers
 - `ProductsHandler` - Lists all products (implements ProductsAPI)
@@ -137,7 +137,7 @@ Complete inventory of all classes participating in the system flows, organized b
 ## core (api)
 
 **Purpose**: Inbound ports (APIs) - interfaces that define the API contract for core services
-**Package**: `com.example.hexademo.core.api`
+**Package**: `org.svenehrke.triptychdemo.core.api`
 
 ### Product & Inventory APIs
 - `ProductsAPI` - Query all products
@@ -163,7 +163,7 @@ Complete inventory of all classes participating in the system flows, organized b
 ## core (spi)
 
 **Purpose**: Outbound ports (SPIs) - interfaces that define contracts for external integrations
-**Package**: `com.example.hexademo.core.spi`
+**Package**: `org.svenehrke.triptychdemo.core.spi`
 
 ### Data Persistence Ports
 - `InventoryRepositorySPI` - Interface for inventory data access (methods: findAll, addAmount, deductAmount)
@@ -185,7 +185,7 @@ Complete inventory of all classes participating in the system flows, organized b
 ## outbound-postgres
 
 **Purpose**: PostgreSQL persistence adapter - implements InventoryRepositorySPI
-**Package**: `com.example.hexademo.adapter.outbound.postgres.inventory`
+**Package**: `org.svenehrke.triptychdemo.adapter.outbound.postgres.inventory`
 
 ### Services
 - `InventoryService` - Implements InventoryRepositorySPI using Hibernate/Panache ORM
@@ -202,7 +202,7 @@ Complete inventory of all classes participating in the system flows, organized b
 ## outbound-mongodb
 
 **Purpose**: MongoDB persistence adapter - implements AuditLogSPI
-**Package**: `com.example.hexademo.adapter.outbound.mongodb.auditlog`
+**Package**: `org.svenehrke.triptychdemo.adapter.outbound.mongodb.auditlog`
 
 ### Services
 - `AuditLogService` - Implements AuditLogSPI using Panache MongoDB
@@ -221,7 +221,7 @@ Complete inventory of all classes participating in the system flows, organized b
 ## outbound-httpclient
 
 **Purpose**: REST HTTP client adapter - implements REST-based Supplier SPIs
-**Package**: `com.example.hexademo.adapter.outbound.httpclient`
+**Package**: `org.svenehrke.triptychdemo.adapter.outbound.httpclient`
 
 ### Services (by product category)
 - `FruitSupplierService` - Implements FruitSupplierSPI using REST client
@@ -242,7 +242,7 @@ Complete inventory of all classes participating in the system flows, organized b
 ## outbound-webservice
 
 **Purpose**: SOAP web service adapter - implements SOAP-based Supplier SPIs
-**Package**: `com.example.hexademo.adapter.outbound.webservice`
+**Package**: `org.svenehrke.triptychdemo.adapter.outbound.webservice`
 
 ### Services (by product category)
 - `BeverageSupplierService` - Implements BeverageSupplierSPI using SOAP client
@@ -264,7 +264,7 @@ Complete inventory of all classes participating in the system flows, organized b
 ## outbound-kafka
 
 **Purpose**: Kafka producer adapter - implements Kafka-based Supplier SPI
-**Package**: `com.example.hexademo.adapter.outbound.kafka.nonfood`
+**Package**: `org.svenehrke.triptychdemo.adapter.outbound.kafka.nonfood`
 
 ### Services
 - `NonFoodSupplierService` - Implements NonFoodSupplierSPI using Kafka emitter
@@ -280,7 +280,7 @@ Complete inventory of all classes participating in the system flows, organized b
 ## external-outbound-rest
 
 **Purpose**: Mock REST supplier stubs - simulates external REST APIs
-**Package**: `com.example.hexademo.external.outbound.rest`
+**Package**: `org.svenehrke.triptychdemo.external.outbound.rest`
 
 ### Supplier Stubs
 - `FruitSupplierStub` - Mock REST endpoint for fruit supplier
@@ -301,7 +301,7 @@ Complete inventory of all classes participating in the system flows, organized b
 ## external-outbound-soap
 
 **Purpose**: Mock SOAP supplier stubs - simulates external SOAP web services
-**Package**: `com.example.hexademo.external.outbound.soap`
+**Package**: `org.svenehrke.triptychdemo.external.outbound.soap`
 
 ### Supplier Stubs
 - `BeverageSupplierStub` - Mock SOAP endpoint for beverage supplier
@@ -323,7 +323,7 @@ Complete inventory of all classes participating in the system flows, organized b
 ## external-outbound-kafka
 
 **Purpose**: Mock Kafka supplier stub - simulates external Kafka-based order processor
-**Package**: `com.example.hexademo.external.outbound.kafka.nonfood`
+**Package**: `org.svenehrke.triptychdemo.external.outbound.kafka.nonfood`
 
 ### Supplier Stubs
 - `NonFoodSupplierStub` - Mock Kafka consumer/producer for non-food supplier
@@ -348,7 +348,7 @@ Complete inventory of all classes participating in the system flows, organized b
 ## external-inbound-kafka
 
 **Purpose**: External event sources - simulates external systems sending events into the system
-**Package**: `com.example.hexademo.external.inbound.kafka`
+**Package**: `org.svenehrke.triptychdemo.external.inbound.kafka`
 
 ### Mock Clients
 - `CashpointStub` - Mock checkout system that generates purchase events

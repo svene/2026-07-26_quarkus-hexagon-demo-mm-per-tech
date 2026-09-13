@@ -260,7 +260,7 @@ that have no relationship. A future change to one supplier's message format
 must not affect any other supplier — isolation at the package level enforces
 that.
 
-**Package root.** The package root is `com.example.hexademo.external.*`,
+**Package root.** The package root is `org.svenehrke.triptychdemo.external.*`,
 not `…adapter.external.*`. The word "adapter" is reserved for modules that
 implement or consume a hexagonal port; these stubs do neither.
 

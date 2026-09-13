@@ -1,0 +1,101 @@
+package org.svenehrke.triptychdemo.adapter.inbound.http.jsonapi;
+
+import org.svenehrke.triptychdemo.core.application.APIs;
+import org.svenehrke.triptychdemo.core.domain.Product;
+import org.svenehrke.triptychdemo.core.domain.PurchaseItem;
+import jakarta.inject.Inject;
+import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.GET;
+import jakarta.ws.rs.POST;
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.core.MediaType;
+import java.util.List;
+
+@Path("/api/products")
+public class ProductApiReceiver {
+
+    @Inject
+    APIs.ProductsAPI productsAPI;
+    @Inject
+    APIs.FruitsAPI fruitsAPI;
+    @Inject
+    APIs.VegetablesAPI vegetablesAPI;
+    @Inject
+    APIs.DairyAPI dairyAPI;
+    @Inject
+    APIs.BeveragesAPI beveragesAPI;
+    @Inject
+    APIs.MeatAPI meatAPI;
+    @Inject
+    APIs.BakeryAPI bakeryAPI;
+    @Inject
+    APIs.NonFoodAPI nonFoodAPI;
+    @Inject
+    APIs.PurchaseAPI purchaseAPI;
+
+    @GET
+    @Produces(MediaType.APPLICATION_JSON)
+    public List<Product> list() {
+        return productsAPI.listAll();
+    }
+
+    @POST
+    @Path("/order-fruits")
+    @Consumes(MediaType.APPLICATION_JSON)
+    public void orderFruits(Requests.FruitOrderRequest request) {
+        fruitsAPI.order(request.productName(), request.quantity());
+    }
+
+    @POST
+    @Path("/order-vegetables")
+    @Consumes(MediaType.APPLICATION_JSON)
+    public void orderVegetables(Requests.VegetableOrderRequest request) {
+        vegetablesAPI.order(request.productName(), request.quantity());
+    }
+
+    @POST
+    @Path("/order-dairy")
+    @Consumes(MediaType.APPLICATION_JSON)
+    public void orderDairy(Requests.DairyOrderRequest request) {
+        dairyAPI.order(request.productName(), request.quantity());
+    }
+
+    @POST
+    @Path("/order-beverages")
+    @Consumes(MediaType.APPLICATION_JSON)
+    public void orderBeverages(Requests.BeverageOrderRequest request) {
+        beveragesAPI.order(request.productName(), request.quantity());
+    }
+
+    @POST
+    @Path("/order-meat")
+    @Consumes(MediaType.APPLICATION_JSON)
+    public void orderMeat(Requests.MeatOrderRequest request) {
+        meatAPI.order(request.productName(), request.quantity());
+    }
+
+    @POST
+    @Path("/order-bakery")
+    @Consumes(MediaType.APPLICATION_JSON)
+    public void orderBakery(Requests.BakeryOrderRequest request) {
+        bakeryAPI.order(request.productName(), request.quantity());
+    }
+
+    @POST
+    @Path("/order-nonfood")
+    @Consumes(MediaType.APPLICATION_JSON)
+    public void orderNonFood(Requests.NonFoodOrderRequest request) {
+        nonFoodAPI.order(request.productName(), request.quantity());
+    }
+
+    @POST
+    @Path("/purchase")
+    @Consumes(MediaType.APPLICATION_JSON)
+    public void purchase(Requests.PurchaseRequest request) {
+        var items = request.items().stream()
+            .map(i -> new PurchaseItem(i.productName(), i.quantity()))
+            .toList();
+        purchaseAPI.purchase(items);
+    }
+}
