@@ -94,6 +94,14 @@
       <artifactId>archunit-junit5</artifactId>
       <scope>test</scope>
     </dependency>
+    <!-- Generates TriptychArchitectureConfigBuilder for the devsupport.TriptychArchitectureConfig
+         record (builder + wither methods), used only by TriptychArchitecture in tests. -->
+    <dependency>
+      <groupId>io.soabase.record-builder</groupId>
+      <artifactId>record-builder-core</artifactId>
+      <version>${record-builder.version}</version>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>
@@ -112,6 +120,25 @@
             </goals>
           </execution>
         </executions>
+      </plugin>
+
+      <!-- Runs the record-builder annotation processor over test sources, generating
+           TriptychArchitectureConfigBuilder from the @RecordBuilder-annotated
+           TriptychArchitectureConfig record. app-server has no other annotation processors
+           relying on classpath auto-discovery, so pinning this path explicitly is safe. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>${maven-compiler-plugin.version}</version>
+        <configuration>
+          <annotationProcessorPaths>
+            <path>
+              <groupId>io.soabase.record-builder</groupId>
+              <artifactId>record-builder-processor</artifactId>
+              <version>${record-builder.version}</version>
+            </path>
+          </annotationProcessorPaths>
+        </configuration>
       </plugin>
 
       <!-- Fails the build if two classes on the runtime classpath share the same fully qualified

@@ -28,101 +28,56 @@ import java.util.Optional;
  *       {@code *Handler}/{@code *Receiver}/{@code *Service} class resides under a feature or cross
  *       package - nothing is left outside the scheme.</li>
  * </ol>
- * The root package, the feature/cross segment names, and the five naming suffixes are all fluently
- * configurable, defaulting to this project's own convention.
+ * The root package, the feature/cross segment names, and the five naming suffixes all come from a
+ * {@link TriptychArchitectureConfig}, defaulting to this project's own convention via
+ * {@link TriptychArchitectureConfig#defaultsFor(String)}; pass a customized config to
+ * {@link #triptychArchitecture(TriptychArchitectureConfig)} for a non-default shape.
  */
 public final class TriptychArchitecture implements ArchRule {
 
-	private final String rootPackage;
-	private final String featureSegment;
-	private final String crossSegment;
-	private final String apiSuffix;
-	private final String spiSuffix;
-	private final String handlerSuffix;
-	private final String receiverSuffix;
-	private final String serviceSuffix;
-	private final Optional<Boolean> allowEmptyShould;
-	private final Optional<String> overriddenDescription;
+	private final TriptychArchitectureConfig config;
 
-	private TriptychArchitecture(String rootPackage, String featureSegment, String crossSegment,
-			String apiSuffix, String spiSuffix, String handlerSuffix, String receiverSuffix, String serviceSuffix,
-			Optional<Boolean> allowEmptyShould, Optional<String> overriddenDescription) {
-		this.rootPackage = rootPackage;
-		this.featureSegment = featureSegment;
-		this.crossSegment = crossSegment;
-		this.apiSuffix = apiSuffix;
-		this.spiSuffix = spiSuffix;
-		this.handlerSuffix = handlerSuffix;
-		this.receiverSuffix = receiverSuffix;
-		this.serviceSuffix = serviceSuffix;
-		this.allowEmptyShould = allowEmptyShould;
-		this.overriddenDescription = overriddenDescription;
+	private TriptychArchitecture(TriptychArchitectureConfig config) {
+		this.config = config;
 	}
 
 	public static TriptychArchitecture triptychArchitecture(String rootPackage) {
-		return new TriptychArchitecture(rootPackage, "feature", "cross",
-			"API", "SPI", "Handler", "Receiver", "Service", Optional.empty(), Optional.empty());
+		return triptychArchitecture(TriptychArchitectureConfig.defaultsFor(rootPackage));
 	}
 
-	public TriptychArchitecture featureSegment(String featureSegment) {
-		return new TriptychArchitecture(rootPackage, featureSegment, crossSegment,
-			apiSuffix, spiSuffix, handlerSuffix, receiverSuffix, serviceSuffix, allowEmptyShould, overriddenDescription);
-	}
-
-	public TriptychArchitecture crossSegment(String crossSegment) {
-		return new TriptychArchitecture(rootPackage, featureSegment, crossSegment,
-			apiSuffix, spiSuffix, handlerSuffix, receiverSuffix, serviceSuffix, allowEmptyShould, overriddenDescription);
-	}
-
-	public TriptychArchitecture apiSuffix(String apiSuffix) {
-		return new TriptychArchitecture(rootPackage, featureSegment, crossSegment,
-			apiSuffix, spiSuffix, handlerSuffix, receiverSuffix, serviceSuffix, allowEmptyShould, overriddenDescription);
-	}
-
-	public TriptychArchitecture spiSuffix(String spiSuffix) {
-		return new TriptychArchitecture(rootPackage, featureSegment, crossSegment,
-			apiSuffix, spiSuffix, handlerSuffix, receiverSuffix, serviceSuffix, allowEmptyShould, overriddenDescription);
-	}
-
-	public TriptychArchitecture handlerSuffix(String handlerSuffix) {
-		return new TriptychArchitecture(rootPackage, featureSegment, crossSegment,
-			apiSuffix, spiSuffix, handlerSuffix, receiverSuffix, serviceSuffix, allowEmptyShould, overriddenDescription);
-	}
-
-	public TriptychArchitecture receiverSuffix(String receiverSuffix) {
-		return new TriptychArchitecture(rootPackage, featureSegment, crossSegment,
-			apiSuffix, spiSuffix, handlerSuffix, receiverSuffix, serviceSuffix, allowEmptyShould, overriddenDescription);
-	}
-
-	public TriptychArchitecture serviceSuffix(String serviceSuffix) {
-		return new TriptychArchitecture(rootPackage, featureSegment, crossSegment,
-			apiSuffix, spiSuffix, handlerSuffix, receiverSuffix, serviceSuffix, allowEmptyShould, overriddenDescription);
+	/**
+	 * For a non-default shape: build a {@link TriptychArchitectureConfig} (e.g. starting from
+	 * {@link TriptychArchitectureConfig#defaultsFor(String)} and applying its generated
+	 * {@code withX(...)} methods) and pass it here.
+	 */
+	public static TriptychArchitecture triptychArchitecture(TriptychArchitectureConfig config) {
+		return new TriptychArchitecture(config);
 	}
 
 	private String featureBucketPackage() {
-		return rootPackage + "." + featureSegment + "..";
+		return config.rootPackage() + "." + config.featureSegment() + "..";
 	}
 
 	private String featureSlicePackage() {
-		return rootPackage + "." + featureSegment + ".(*)..";
+		return config.rootPackage() + "." + config.featureSegment() + ".(*)..";
 	}
 
 	private String crossBucketPackage() {
-		return rootPackage + "." + crossSegment + "..";
+		return config.rootPackage() + "." + config.crossSegment() + "..";
 	}
 
 	private List<ArchRule> rules() {
 		List<ArchRule> rules = List.of(
-			classes().that().haveNameMatching(".*" + apiSuffix).should().beInterfaces(),
-			classes().that().haveNameMatching(".*" + apiSuffix).should().bePublic(),
-			classes().that().haveNameMatching(".*" + spiSuffix).should().beInterfaces(),
-			classes().that().haveNameMatching(".*" + spiSuffix).should().bePublic(),
-			classes().that().haveNameMatching(
-					".*(" + apiSuffix + "|" + spiSuffix + "|" + handlerSuffix + "|" + receiverSuffix + "|" + serviceSuffix + ")")
+			classes().that().haveNameMatching(".*" + config.apiSuffix()).should().beInterfaces(),
+			classes().that().haveNameMatching(".*" + config.apiSuffix()).should().bePublic(),
+			classes().that().haveNameMatching(".*" + config.spiSuffix()).should().beInterfaces(),
+			classes().that().haveNameMatching(".*" + config.spiSuffix()).should().bePublic(),
+			classes().that().haveNameMatching(".*(" + config.apiSuffix() + "|" + config.spiSuffix() + "|"
+					+ config.handlerSuffix() + "|" + config.receiverSuffix() + "|" + config.serviceSuffix() + ")")
 				.should().resideInAnyPackage(featureBucketPackage(), crossBucketPackage()),
 			slices().matching(featureSlicePackage()).should().notDependOnEachOther()
 		);
-		return allowEmptyShould.map(allow -> rules.stream().map(rule -> rule.allowEmptyShould(allow)).toList())
+		return config.allowEmptyShould().map(allow -> rules.stream().map(rule -> rule.allowEmptyShould(allow)).toList())
 			.orElse(rules);
 	}
 
@@ -147,23 +102,22 @@ public final class TriptychArchitecture implements ArchRule {
 
 	@Override
 	public TriptychArchitecture allowEmptyShould(boolean allowEmptyShould) {
-		return new TriptychArchitecture(rootPackage, featureSegment, crossSegment,
-			apiSuffix, spiSuffix, handlerSuffix, receiverSuffix, serviceSuffix, Optional.of(allowEmptyShould), overriddenDescription);
+		return new TriptychArchitecture(config.withAllowEmptyShould(Optional.of(allowEmptyShould)));
 	}
 
 	@Override
 	public TriptychArchitecture as(String newDescription) {
-		return new TriptychArchitecture(rootPackage, featureSegment, crossSegment,
-			apiSuffix, spiSuffix, handlerSuffix, receiverSuffix, serviceSuffix, allowEmptyShould, Optional.of(newDescription));
+		return new TriptychArchitecture(config.withOverriddenDescription(Optional.of(newDescription)));
 	}
 
 	@Override
 	public String getDescription() {
-		return overriddenDescription.orElseGet(() -> "Triptych architecture rooted at '" + rootPackage + "': "
-			+ "no two '" + featureSegment + ".*' slices depend on each other; "
-			+ "'*" + apiSuffix + "'/'*" + spiSuffix + "' are public interfaces; "
-			+ "every '*" + apiSuffix + "|*" + spiSuffix + "|*" + handlerSuffix + "|*" + receiverSuffix + "|*" + serviceSuffix + "' class "
-			+ "resides under '" + featureSegment + "' or '" + crossSegment + "'");
+		return config.overriddenDescription().orElseGet(() -> "Triptych architecture rooted at '" + config.rootPackage() + "': "
+			+ "no two '" + config.featureSegment() + ".*' slices depend on each other; "
+			+ "'*" + config.apiSuffix() + "'/'*" + config.spiSuffix() + "' are public interfaces; "
+			+ "every '*" + config.apiSuffix() + "|*" + config.spiSuffix() + "|*" + config.handlerSuffix()
+			+ "|*" + config.receiverSuffix() + "|*" + config.serviceSuffix() + "' class "
+			+ "resides under '" + config.featureSegment() + "' or '" + config.crossSegment() + "'");
 	}
 
 	@Override
