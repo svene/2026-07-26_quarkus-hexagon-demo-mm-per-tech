@@ -113,6 +113,44 @@
           </execution>
         </executions>
       </plugin>
+
+      <!-- Fails the build if two classes on the runtime classpath share the same fully qualified
+           name (e.g. from two different reactor modules). Bound here because app-server is the only
+           module that assembles every other module into one classpath - see
+           [[archunit-cannot-detect-duplicate-classes]] for why ArchUnit cannot catch this instead. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-enforcer-plugin</artifactId>
+        <version>${maven-enforcer-plugin.version}</version>
+        <dependencies>
+          <dependency>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>extra-enforcer-rules</artifactId>
+            <version>${extra-enforcer-rules.version}</version>
+          </dependency>
+        </dependencies>
+        <executions>
+          <execution>
+            <id>ban-duplicate-classes</id>
+            <phase>verify</phase>
+            <goals>
+              <goal>enforce</goal>
+            </goals>
+            <configuration>
+              <rules>
+                <banDuplicateClasses>
+                  <scopes>
+                    <scope>compile</scope>
+                    <scope>runtime</scope>
+                  </scopes>
+                  <findAllDuplicates>true</findAllDuplicates>
+                </banDuplicateClasses>
+              </rules>
+              <fail>true</fail>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
     </plugins>
   </build>
 </project>
