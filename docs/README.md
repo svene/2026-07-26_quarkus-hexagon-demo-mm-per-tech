@@ -101,9 +101,12 @@ Complete architecture documentation for the supermarket inventory system. All fi
 - Add new sequence diagram for new flows
 - Still incremental—don't regenerate unaffected sections
 
+**Medium/large changes, one section at a time** (new endpoint, new handler, new Kafka topic, new module):
+- Use the `update-architecture-docs` Claude Code skill (`.claude/skills/update-architecture-docs/`) - it makes the surgical single-section edit for you
+
 **Large changes** (major refactoring, new architecture):
 - Full regeneration needed
-- Follow `recreate-architecture-docs.md` guide
+- Use the `recreate-architecture-docs` Claude Code skill (`.claude/skills/recreate-architecture-docs/`) - invoke it with `/recreate-architecture-docs`
 - Validate all files afterward
 
 ### Update Checklist
@@ -133,17 +136,15 @@ grep "ClassName" docs/*.md | sort | uniq -c  # Should show consistent usage
 
 ---
 
-## Regeneration Guide
+## Regeneration and Update Skills
 
-**Read this first** when major changes need full documentation regeneration:
-
-**`recreate-architecture-docs.md`**
-- Step-by-step instructions for regenerating all files
-- Code scanning procedures to extract accurate information
-- File structure templates
+**`recreate-architecture-docs`** (Claude Code skill, `.claude/skills/recreate-architecture-docs/`) - use when major changes need full documentation regeneration:
+- Step-by-step instructions for regenerating all files, with a "diff what actually changed first" step that often shrinks the job well below a full rewrite (see the 2026-09-13 feature/cross restructuring for an example: only one file needed a real rewrite)
+- File structure templates in the skill's `TEMPLATES.md`
 - Validation checklist
-- Debugging tips
-- **Time estimate**: 2-3 hours for full regeneration
+- User-invoked only (`/recreate-architecture-docs`) - it will not fire on its own
+
+**`update-architecture-docs`** (Claude Code skill, `.claude/skills/update-architecture-docs/`) - a smaller, autonomous companion for one-section edits after a single endpoint/handler/topic/module change, so the docs don't silently drift between full regenerations.
 
 ---
 
@@ -207,7 +208,7 @@ architecture-flow-kafka-reference.md (technical details)
 
 ## Documentation Maintenance Notes
 
-**Last Updated**: 2026-07-31
+**Last Updated**: 2026-09-13 (feature/cross package restructuring; regeneration process moved into two Claude Code skills)
 
 **By**: Claude (session analysis)
 
@@ -216,10 +217,11 @@ architecture-flow-kafka-reference.md (technical details)
 - `architecture-flow-kafka-reference.md` - Technical reference
 - `architecture-module-participants.md` - Module inventory with summary table
 - `flows/` - Sequence diagrams (12 diagrams + README)
-- `recreate-architecture-docs.md` - Regeneration guide
 - `README.md` - This file
+- `../.claude/skills/recreate-architecture-docs/` - full-regeneration skill (was `recreate-architecture-docs.md`, converted to a skill on 2026-09-13)
+- `../.claude/skills/update-architecture-docs/` - single-section update skill (new on 2026-09-13)
 
-**Total documentation**: ~1500 lines (4 MD files + 12 PUML files)
+**Total documentation**: ~1500 lines (4 MD files + 12 PUML files) + 2 skills
 
 **Synchronization status**: ✅ All files synchronized
 
@@ -227,12 +229,6 @@ architecture-flow-kafka-reference.md (technical details)
 
 ## For Future Sessions
 
-**If you need to regenerate this documentation:**
+**If you need to regenerate this documentation:** invoke the `recreate-architecture-docs` skill (`/recreate-architecture-docs`) - it contains all the instructions, including a first step that diffs what actually changed so you don't over-rewrite files whose content (class/method/topic names) survived the change intact.
 
-1. Read `recreate-architecture-docs.md` - it contains all the instructions
-2. Follow the step-by-step process for extracting data from code
-3. Regenerate each file in order (flows → participants → flow reference → architecture flow)
-4. Run validation checks
-5. Update memory system if process changed
-
-**You don't need to ask Claude to explain the system again** - just point Claude to `recreate-architecture-docs.md` and it will know exactly what to do.
+**If you just changed one endpoint, handler, API/SPI, service, topic, or module:** the `update-architecture-docs` skill can fire on its own for this - or invoke it directly - to make the single-section edit without touching the rest of the file.
