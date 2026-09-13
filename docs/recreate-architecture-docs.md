@@ -48,21 +48,23 @@ find . -name pom.xml -type f | grep -v target | sort
 
 ### 1.2 Verify Key Source Files Exist
 
+Package layout as of 2026-09-13: every module (core included) uses `org.svenehrke.triptychdemo.feature.<commodity>` / `org.svenehrke.triptychdemo.cross(.<concern>)` packages - there is no `core.application`/`core.api`/`core.spi`/`adapter.inbound.*`/`adapter.outbound.*` scheme anymore. `external-*` modules keep their own `external.*` root.
+
 ```bash
-# Inbound adapters (entry points)
-find . -path "**/adapter/inbound/*Receiver.java" -type f | wc -l
+# Receivers (HTTP/Kafka entry points, in feature.* or cross.* packages)
+find . -name "*Receiver.java" -not -path "*/external/*" -not -path "*/target/*" | wc -l
 
-# Core business logic
-find . -path "**/core/application/*Handler.java" -type f | wc -l
+# Core business logic (Handlers, in core's feature.* or cross.* packages)
+find core -name "*Handler.java" -not -path "*/target/*" | wc -l
 
-# Inbound ports (APIs)
-find . -path "**/core/api/*API.java" -type f | wc -l
+# Inbound ports (APIs, in core's feature.* or cross.* packages)
+find core -name "*API.java" -not -path "*/target/*" | wc -l
 
-# Outbound ports (SPIs)
-find . -path "**/core/spi/*SPI.java" -type f | wc -l
+# Outbound ports (SPIs, in core's feature.* or cross.* packages)
+find core -name "*SPI.java" -not -path "*/target/*" | wc -l
 
-# Outbound adapters (services)
-find . -path "**/adapter/outbound/*Service.java" -type f | wc -l
+# Outbound adapters (services, in feature.* or cross.* packages)
+find . -name "*Service.java" -not -path "*/external/*" -not -path "*/target/*" | wc -l
 ```
 
 ### 1.3 Check Configuration
@@ -112,9 +114,9 @@ For each receiver:
 
 ### 2.2 List All Handler Classes (Core Business Logic)
 
-Read each handler in `core/src/main/java/com/example/hexademo/core/application/`:
+Read each handler in `core/src/main/java/org/svenehrke/triptychdemo/{feature/<commodity>,cross(/<concern>)}/`:
 ```bash
-ls core/src/main/java/com/example/hexademo/core/application/
+find core/src/main/java -name "*Handler.java"
 ```
 
 For each handler:
@@ -125,9 +127,9 @@ For each handler:
 
 ### 2.3 List All API Interfaces (Inbound Ports)
 
-Read `core/src/main/java/com/example/hexademo/core/api/`:
+Each port is now a standalone top-level interface (no more `APIs.java`/`SPIs.java` containers), filed directly into its `feature.<commodity>` or `cross.<concern>` package:
 ```bash
-ls core/src/main/java/com/example/hexademo/core/api/
+find core/src/main/java -name "*API.java"
 ```
 
 For each API:
@@ -137,11 +139,8 @@ For each API:
 
 ### 2.4 List All SPI Interfaces (Outbound Ports)
 
-Read `core/src/main/java/com/example/hexademo/core/spi/` (or `core/src/main/java/com/example/hexademo/core/port/out/`):
 ```bash
-ls core/src/main/java/com/example/hexademo/core/spi/
-# or
-ls core/src/main/java/com/example/hexademo/core/port/out/
+find core/src/main/java -name "*SPI.java"
 ```
 
 For each SPI:

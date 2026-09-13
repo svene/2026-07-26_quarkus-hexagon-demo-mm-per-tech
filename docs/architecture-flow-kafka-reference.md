@@ -23,9 +23,11 @@ Technical reference for understanding the Kafka-based integration patterns and t
 
 **Key files to check when maintaining these documents:**
 - `app-server/src/main/resources/application.properties` - Kafka topic configuration
-- `**/src/main/java/**/adapter/inbound/**Receiver.java` - HTTP/Kafka entry points
-- `**/src/main/java/**/core/application/**Handler.java` - Business logic
-- `**/src/main/java/**/adapter/outbound/**Service.java` - Outbound integrations
+- `**/src/main/java/**/feature/<name>/**Receiver.java` and `**/src/main/java/**/cross/**Receiver.java` - HTTP/Kafka entry points
+- `core/src/main/java/**/feature/<name>/**Handler.java` and `core/src/main/java/**/cross/**Handler.java` - Business logic
+- `**/src/main/java/**/feature/<name>/**Service.java` and `**/src/main/java/**/cross/**Service.java` - Outbound integrations
+
+(Package layout as of 2026-09-13: every module, `core` included, uses `feature.<commodity>` / `cross(.<concern>)` packages - see `architecture-module-participants.md` for the full mapping. `external-*` modules keep their own `external.*` root, untouched by this scheme.)
 
 ---
 
@@ -42,7 +44,7 @@ Technical reference for understanding the Kafka-based integration patterns and t
 - **AuditLogService**: Logs all system events
   - `log()`: Called by handlers to record operations
   - `findRecent()`: Called by audit-log endpoints
-  - Storage: AuditLogEntry collection
+  - Storage: `audit_log` collection (Panache entity: `AuditLogEntryEntity`, distinct from core's `AuditLogEntry` domain record)
 
 ## External System Integrations (Outbound)
 

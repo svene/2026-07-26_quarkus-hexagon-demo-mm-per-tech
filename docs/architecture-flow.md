@@ -51,7 +51,7 @@ AdminReceiver.auditFragment()
    └─ AuditLogHandler.recent()
       └─ AuditLogSPI.findRecent()
          └─ AuditLogService (outbound-mongodb)
-            └─ MongoDB (AuditLogEntry)
+            └─ MongoDB (audit_log collection, AuditLogEntryEntity)
 ```
 
 #### POST /admin/order-fruits - HTML Form → REST Client → Kafka Delivery Topic
