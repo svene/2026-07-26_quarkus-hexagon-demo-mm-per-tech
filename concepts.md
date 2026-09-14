@@ -132,7 +132,7 @@ them. The contract is the wire protocol:
 - REST stubs: same HTTP path and JSON structure.
 - SOAP stubs: same WSDL `targetNamespace` and operation name. The SEI interface
   is duplicated — one copy in `outbound-webservice`, one in
-  `external-beverage-supplier-stub`. That is intentional: in production
+  `external-outbound-soap`. That is intentional: in production
   the stub would not exist in the same JVM at all.
 - Kafka stubs: same topic name and JSON message structure.
 
@@ -278,7 +278,7 @@ same core ports:
   trip) that fills in random quantities so testers don't have to type values
   by hand.
 
-Both pages are thin `Templates`-based Qute receivers in `inbound-rest`; neither
+Both pages are thin `Templates`-based Qute receivers in `inbound-http-html`; neither
 contains business logic, they only translate form submissions into calls on
 core API interfaces.
 

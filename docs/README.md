@@ -208,7 +208,7 @@ architecture-flow-kafka-reference.md (technical details)
 
 ## Documentation Maintenance Notes
 
-**Last Updated**: 2026-09-13 (feature/cross package restructuring; regeneration process moved into two Claude Code skills)
+**Last Updated**: 2026-09-14 (`ArchitectureTest` refactored into reusable `TriptychArchitecture`/`TriptychArchitectureConfig` devsupport classes; no flow/module/topic changes, just two reference updates in `architecture-module-participants.md`)
 
 **By**: Claude (session analysis)
 

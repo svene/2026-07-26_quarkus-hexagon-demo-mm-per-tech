@@ -247,7 +247,7 @@ Complete inventory of all classes participating in the system flows, organized b
 ## outbound-kafka
 
 **Purpose**: Kafka producer adapter - implements Kafka-based Supplier SPI
-**Package**: `org.svenehrke.triptychdemo.feature.nonfood` (named even though it's the only feature in this module, so the ArchitectureTest's package-based slices rule stays fully automatic - see `concepts.md`)
+**Package**: `org.svenehrke.triptychdemo.feature.nonfood` (named even though it's the only feature in this module, so the `TriptychArchitecture` slices rule (checked by `ArchitectureTest` in `app-server`) stays fully automatic - see `concepts.md`)
 
 ### Services
 - `NonFoodSupplierService` - Implements NonFoodSupplierSPI using Kafka emitter
@@ -421,7 +421,7 @@ Complete inventory of all classes participating in the system flows, organized b
    - SOAP: `external-outbound-soap/<Name>Stub`
    - Kafka: `external-outbound-kafka/<Name>Stub`
 5. Create a `feature.<name>` package in `inbound-kafka` with `<Name>DeliveryReceiver` if needed
-6. Add the `ArchitectureTest.RESTRICTED_FEATURE_PACKAGES` entry (or equivalent) so the cross-feature-isolation check covers the new commodity - actually as of the slices-based rewrite, this is automatic once the `feature.<name>` package exists, no test change needed
+6. No test change needed for the cross-feature-isolation check: `ArchitectureTest` (in `app-server`) delegates to the reusable `TriptychArchitecture` ArchRule (`app-server/src/test/java/.../devsupport/`), whose slices rule covers any `feature.<name>` package automatically once it exists
 7. Update this file and architecture-flow.md
 
 **When refactoring class names:**

@@ -101,7 +101,7 @@ developing.
 Both `/admin` and `/shop` use [Bulma](https://bulma.io) for styling and
 [htmx](https://htmx.org) for the periodic polling described above. Both
 libraries are served locally — no CDN, no build step — from
-`inbound-rest/src/main/resources/META-INF/resources/{css,js}`, which Quarkus
+`inbound-http-html/src/main/resources/META-INF/resources/{css,js}`, which Quarkus
 serves automatically at the web root (`/css/bulma.min.css`,
 `/js/htmx.org/2.0.8/htmx.js`).
 
@@ -113,7 +113,8 @@ serves automatically at the web root (`/css/bulma.min.css`,
 
 ```
 core/                       Domain model, use-case interfaces (API), SPI
-inbound-rest/               JAX-RS — HTML UI + JSON API
+inbound-http-html/          JAX-RS + Qute — HTML UI (/admin, /shop)
+inbound-http-jsonapi/       JAX-RS — JSON API (/api/products)
 inbound-kafka/              Kafka @Incoming — delivery events + purchase events
 outbound-postgres/          Hibernate ORM / Panache — inventory persistence
 outbound-mongodb/           MongoDB / Panache — audit log
@@ -137,7 +138,8 @@ stubs.
 | Module | Role | Technology |
 |---|---|---|
 | `core` | Domain + application (use cases + ports) | plain Java + CDI |
-| `inbound-rest` | Inbound adapter | JAX-RS + Qute templates |
+| `inbound-http-html` | Inbound adapter | JAX-RS + Qute templates |
+| `inbound-http-jsonapi` | Inbound adapter | JAX-RS (JSON) |
 | `inbound-kafka` | Inbound adapter | SmallRye Reactive Messaging |
 | `outbound-postgres` | Outbound adapter | Hibernate ORM / Panache |
 | `outbound-mongodb` | Outbound adapter | MongoDB / Panache |
@@ -173,15 +175,26 @@ to be ready, then runs the browser tests. Requires Docker/Podman for Dev Service
 
 ### Adding a new product category
 
-1. Add a `ProductType` constant to `core/.../domain/ProductType.java`.
-2. Add an API interface in `core/.../port/in/` (e.g. `SnacksAPI`).
-3. Add an SPI interface in `core/.../port/out/` for the chosen supplier technology.
-4. Implement a Handler in `core/.../application/` that calls the SPI.
-5. Implement the outbound adapter in the matching `outbound-*` module.
-6. Add a delivery receiver in `inbound-kafka`.
-7. Add an external stub (or extend an existing one).
-8. Wire Kafka channel names and REST/SOAP client keys in `app-server/application.properties`.
-9. Add a form to `inbound-rest/templates/AdminReceiver/admin.html`.
+Core (and every adapter module) is organized by `feature.<commodity>` package,
+not by port/application/domain layer — see [concepts.md](concepts.md) and
+`docs/architecture-module-participants.md`'s Maintenance Guide for the full
+picture. In short:
+
+1. Create a new `feature.<name>` package in `core` with `<Name>API`,
+   `<Name>SupplierSPI`, `<Name>Delivery`, `<Name>Handler` as standalone
+   top-level types.
+2. Add the corresponding case to `InventoryAPI`/`InventoryHandler` in
+   `core/.../cross/inventory/` and to `ProductType` in
+   `core/.../cross/products/`.
+3. Implement the outbound adapter in the matching `outbound-*` module's new
+   `feature.<name>` package.
+4. Add a delivery receiver in `inbound-kafka`'s `feature.<name>` package, if
+   needed.
+5. Add an external stub (or extend an existing one).
+6. Wire Kafka channel names and REST/SOAP client keys in
+   `app-server/application.properties`.
+7. Add a form to
+   `inbound-http-html/src/main/resources/templates/AdminReceiver/admin.html`.
 
 ### Adding a new adapter technology
 
@@ -189,5 +202,6 @@ to be ready, then runs the browser tests. Requires Docker/Podman for Dev Service
 2. Add the module to the root `pom.xml` `<modules>` list and
    `<dependencyManagement>`.
 3. Declare the dependency in `app-server/pom.xml`.
-4. Add an SPI interface in `core/.../port/out/` (or reuse an existing one).
+4. Reuse the existing SPI interface for the commodity (in `core/.../feature/<name>/`
+   or `core/.../cross/<concern>/`) rather than declaring a new one.
 5. Implement the SPI in the new module.
