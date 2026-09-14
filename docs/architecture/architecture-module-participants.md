@@ -3,7 +3,7 @@
 Complete inventory of all classes participating in the system flows, organized by Maven module.
 
 **Source**: Derived from architecture-flow.md with module mappings from actual code structure.
-**Maintenance**: When new classes are added or refactored, update both this file and architecture-flow.md.
+**Maintenance**: see `../ai/maintaining-module-participants.md`.
 
 **Package scheme (as of 2026-09-13)**: every module — `core` included — is organized as `org.svenehrke.triptychdemo.feature.<commodity>` (fruit, vegetable, dairy, beverage, meat, bakery, nonfood) or `org.svenehrke.triptychdemo.cross(.<concern>)` for cross-cutting concerns (inventory, auditlog, products, purchase, cashpoint, and the admin/shop/json-api aggregator receivers). There is no `core.application`/`core.api`/`core.spi`/`adapter.inbound.*`/`adapter.outbound.*` package scheme anymore — `core`'s previous `APIs.java`/`SPIs.java` container classes were split into standalone top-level interfaces, one per port, each moved into its feature or cross package. `external-*` modules are untouched by this and keep their own `org.svenehrke.triptychdemo.external.*` root (they are not part of the hexagonal architecture — see `concepts.md`).
 
@@ -406,27 +406,4 @@ Complete inventory of all classes participating in the system flows, organized b
 
 ---
 
-## Maintenance Guide
-
-**When adding a new commodity:**
-
-1. Create a new `feature.<name>` package in `core` with `<Name>API`, `<Name>SupplierSPI`, `<Name>Delivery`, `<Name>Handler` as standalone top-level types (no more `APIs.java`/`SPIs.java` containers to extend)
-2. Add the corresponding case to `InventoryAPI`/`InventoryHandler` in `cross.inventory` and to `ProductType` in `cross.products`
-3. Create a `feature.<name>` package in the appropriate outbound module based on integration type:
-   - REST: `outbound-httpclient/feature/<name>/<Name>SupplierService` + REST client
-   - SOAP: `outbound-webservice/feature/<name>/<Name>SupplierService` + SOAP client
-   - Kafka: `outbound-kafka/feature/<name>/<Name>SupplierService`
-4. Create a mock supplier stub (package unchanged, `external.outbound.<tech>`):
-   - REST: `external-outbound-rest/<Name>Stub`
-   - SOAP: `external-outbound-soap/<Name>Stub`
-   - Kafka: `external-outbound-kafka/<Name>Stub`
-5. Create a `feature.<name>` package in `inbound-kafka` with `<Name>DeliveryReceiver` if needed
-6. No test change needed for the cross-feature-isolation check: `ArchitectureTest` (in `app-server`) delegates to the reusable `TriptychArchitecture` ArchRule (`app-server/src/test/java/.../devsupport/`), whose slices rule covers any `feature.<name>` package automatically once it exists
-7. Update this file and architecture-flow.md
-
-**When refactoring class names:**
-- Update all references in this file (module → participants)
-- Update architecture-flow.md
-- Update sequence diagrams in flows/ directory
-- Update any memory/reference files
-- Watch for fully-qualified-name collisions across modules when moving a class into `cross` or a shared `feature.<name>` package - two different classes with the same simple name in the same package, in different module jars, will silently shadow each other at runtime with no compile error (see the `AuditLogEntry`/`AuditLogEntryEntity` case above). `maven-enforcer-plugin`'s `banDuplicateClasses` rule (bound to `verify` in `app-server/pom.xml`) catches this at build time.
+**For instructions on adding a new commodity, adding a new adapter technology, or otherwise keeping this file in sync with code changes**, see `../ai/maintaining-module-participants.md`.

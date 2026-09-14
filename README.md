@@ -177,8 +177,7 @@ to be ready, then runs the browser tests. Requires Docker/Podman for Dev Service
 
 Core (and every adapter module) is organized by `feature.<commodity>` package,
 not by port/application/domain layer — see [concepts.md](concepts.md) and
-`docs/architecture-module-participants.md`'s Maintenance Guide for the full
-picture. In short:
+`docs/ai/maintaining-module-participants.md` for the full picture. In short:
 
 1. Create a new `feature.<name>` package in `core` with `<Name>API`,
    `<Name>SupplierSPI`, `<Name>Delivery`, `<Name>Handler` as standalone

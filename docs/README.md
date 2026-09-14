@@ -2,26 +2,25 @@
 
 Complete architecture documentation for the supermarket inventory system. All files are maintained together and derived from the actual codebase.
 
-**All documentation files in this directory must be kept synchronized. When code changes, update the relevant files using the regeneration guide.**
+**This documentation is split by audience**: `docs/architecture/` describes what the system *is* (flows, modules, Kafka topics, diagrams) for anyone — developers, architects, product owners — who wants to understand the system. `docs/ai/` holds the maintenance instructions for keeping these docs in sync with the code, written for whoever (today: Claude) performs that maintenance.
 
 ---
 
-## Documentation Files
+## Documentation Files (`docs/architecture/`)
 
 ### Primary Flow Documentation
 
-**`architecture-flow.md`** (human-readable)
+**`architecture/architecture-flow.md`** (human-readable)
 - Shows all primary flows originating from external sources (HTTP requests)
 - Describes the complete path from receiver → handler → persistence/integrations
 - Includes technology stack for each flow (REST, SOAP, Kafka)
 - Shows Kafka delivery cycles for orders
 - **Audience**: Product owners, architects, new developers
 - **Size**: ~280 lines
-- **Update frequency**: When HTTP endpoints change, handlers added/removed, or flow logic changes
 
 ### Technical Reference
 
-**`architecture-flow-kafka-reference.md`** (technical deep-dive)
+**`architecture/architecture-flow-kafka-reference.md`** (technical deep-dive)
 - Documents Kafka topic mappings and configurations
 - Lists producer/consumer pairs for each topic
 - References application.properties configuration
@@ -29,11 +28,10 @@ Complete architecture documentation for the supermarket inventory system. All fi
 - Complete endpoint summary table (including indirect flows)
 - **Audience**: Backend engineers, integration specialists
 - **Size**: ~180 lines
-- **Update frequency**: When Kafka topics change, suppliers added/removed, or external integrations change
 
 ### Module Inventory
 
-**`architecture-module-participants.md`** (class-to-module mapping)
+**`architecture/architecture-module-participants.md`** (class-to-module mapping)
 - Organizes all classes by Maven module
 - Quick reference table at the top
 - Detailed module sections with responsibilities
@@ -41,24 +39,21 @@ Complete architecture documentation for the supermarket inventory system. All fi
 - Participant counts and summaries by layer
 - **Audience**: All developers (quick lookup)
 - **Size**: ~400 lines
-- **Update frequency**: When classes refactored, renamed, or new modules created
 
 ### Flow Sequence Diagrams
 
-**`flows/` directory**
+**`architecture/flows/` directory**
 - PlantUML sequence diagrams for each unique flow
 - One file per flow (e.g., `admin-order-fruits.puml`)
 - Shows detailed message sequences between all participants
 - Includes databases, async paths, and error handling
 - **Files**: ~12 diagrams covering all flow types
 - **Audience**: All developers (visual understanding)
-- **Update frequency**: When flows change significantly
 
-**`flows/README.md`**
+**`architecture/flows/README.md`**
 - Index of all sequence diagrams
 - Explains common patterns (REST, SOAP, Kafka)
 - Provides rendering instructions
-- Maintenance guidance for adding new flows
 
 ---
 
@@ -66,85 +61,24 @@ Complete architecture documentation for the supermarket inventory system. All fi
 
 ### For Understanding the System
 
-1. **Start here**: Read `architecture-flow.md` for an overview of all flows
-2. **Then**: Look at specific sequence diagrams in `flows/` that match your use case
-3. **Deep dive**: Read `architecture-module-participants.md` to understand which classes implement each flow
-4. **Technical details**: Consult `architecture-flow-kafka-reference.md` for Kafka topic mappings and external integrations
+1. **Start here**: Read `architecture/architecture-flow.md` for an overview of all flows
+2. **Then**: Look at specific sequence diagrams in `architecture/flows/` that match your use case
+3. **Deep dive**: Read `architecture/architecture-module-participants.md` to understand which classes implement each flow
+4. **Technical details**: Consult `architecture/architecture-flow-kafka-reference.md` for Kafka topic mappings and external integrations
 
 ### For Adding a New Feature
 
-1. Check `architecture-module-participants.md` to find the right modules
-2. Review related sequence diagrams in `flows/`
-3. Read the relevant sections in `architecture-flow.md` and `architecture-flow-kafka-reference.md`
-4. **Update all documentation** after making code changes (see guide below)
+1. Check `architecture/architecture-module-participants.md` to find the right modules
+2. Review related sequence diagrams in `architecture/flows/`
+3. Read the relevant sections in `architecture/architecture-flow.md` and `architecture/architecture-flow-kafka-reference.md`
+4. **Update the documentation** after making code changes — see `ai/README.md` for how
 
 ### For Troubleshooting
 
-1. Use `architecture-module-participants.md` to find which classes are involved
-2. Look up the flow in `architecture-flow.md` to understand the sequence
-3. Check the sequence diagram in `flows/` for exact message passing
-4. Consult `architecture-flow-kafka-reference.md` for Kafka/persistence details
-
----
-
-## Maintaining This Documentation
-
-### When Code Changes
-
-**Small changes** (one endpoint, one class):
-- Update only the affected section in the relevant file
-- No need to regenerate everything
-- Example: if `FruitsHandler` logic changes, update just that handler in `architecture-module-participants.md` and its flow in `architecture-flow.md`
-
-**Medium changes** (new supplier, new module):
-- Update all four files with the new additions
-- Add new sequence diagram for new flows
-- Still incremental—don't regenerate unaffected sections
-
-**Medium/large changes, one section at a time** (new endpoint, new handler, new Kafka topic, new module):
-- Use the `update-architecture-docs` Claude Code skill (`.claude/skills/update-architecture-docs/`) - it makes the surgical single-section edit for you
-
-**Large changes** (major refactoring, new architecture):
-- Full regeneration needed
-- Use the `recreate-architecture-docs` Claude Code skill (`.claude/skills/recreate-architecture-docs/`) - invoke it with `/recreate-architecture-docs`
-- Validate all files afterward
-
-### Update Checklist
-
-When making code changes, check which files need updating:
-
-- [ ] **HTTP endpoint added/removed** → Update `architecture-flow.md`, create flow diagram
-- [ ] **Handler added/renamed** → Update `architecture-module-participants.md`, `architecture-flow.md`, flow diagrams
-- [ ] **API interface added** → Update `architecture-module-participants.md`
-- [ ] **SPI interface added** → Update `architecture-module-participants.md`
-- [ ] **Service added/renamed** → Update `architecture-module-participants.md`, flow diagrams
-- [ ] **Maven module added** → Add section to `architecture-module-participants.md`, update summary table
-- [ ] **Kafka topic added** → Update `architecture-flow-kafka-reference.md`, flow diagrams, `application.properties` reference
-- [ ] **Supplier added/removed** → Update `architecture-flow.md`, `architecture-module-participants.md`, flow diagrams
-
-### Validation
-
-After updating:
-
-```bash
-# Validate PlantUML syntax
-plantuml -checkonly docs/flows/*.puml
-
-# Check for obvious inconsistencies
-grep "ClassName" docs/*.md | sort | uniq -c  # Should show consistent usage
-```
-
----
-
-## Regeneration and Update Skills
-
-**`recreate-architecture-docs`** (Claude Code skill, `.claude/skills/recreate-architecture-docs/`) - use when major changes need full documentation regeneration:
-- Step-by-step instructions for regenerating all files, with a "diff what actually changed first" step that often shrinks the job well below a full rewrite (see the 2026-09-13 feature/cross restructuring for an example: only one file needed a real rewrite)
-- File structure templates in the skill's `TEMPLATES.md`
-- Validation checklist
-- User-invoked only (`/recreate-architecture-docs`) - it will not fire on its own
-
-**`update-architecture-docs`** (Claude Code skill, `.claude/skills/update-architecture-docs/`) - a smaller, autonomous companion for one-section edits after a single endpoint/handler/topic/module change, so the docs don't silently drift between full regenerations.
+1. Use `architecture/architecture-module-participants.md` to find which classes are involved
+2. Look up the flow in `architecture/architecture-flow.md` to understand the sequence
+3. Check the sequence diagram in `architecture/flows/` for exact message passing
+4. Consult `architecture/architecture-flow-kafka-reference.md` for Kafka/persistence details
 
 ---
 
@@ -154,7 +88,7 @@ grep "ClassName" docs/*.md | sort | uniq -c  # Should show consistent usage
 2. **Kafka cycles are explicit** - Every order endpoint shows its async delivery cycle
 3. **Module ownership is clear** - Every class belongs to exactly one module
 4. **Flows are complete** - Each flow shows HTTP → handlers → persistence/integrations
-5. **Documentation is synchronized** - All four files describe the same system from different angles
+5. **Documentation is synchronized** - All files describe the same system from different angles
 6. **Incremental updates only** - Don't regenerate files when small changes suffice
 
 ---
@@ -164,21 +98,21 @@ grep "ClassName" docs/*.md | sort | uniq -c  # Should show consistent usage
 ```
 Source Code (actual implementation)
     ↓
-architecture-flow.md (describes flows)
+architecture/architecture-flow.md (describes flows)
     ↓
-flows/*.puml (visualizes flows)
+architecture/flows/*.puml (visualizes flows)
     ├─ Shows same flows as architecture-flow.md but in sequence diagram format
     └─ Used for quick visual understanding
 
 Source Code (class inventory)
     ↓
-architecture-module-participants.md (maps classes to modules)
+architecture/architecture-module-participants.md (maps classes to modules)
     ├─ Shows which class lives in which module
     └─ Used for finding classes and understanding structure
 
 Source Code (Kafka & external integrations)
     ↓
-architecture-flow-kafka-reference.md (technical details)
+architecture/architecture-flow-kafka-reference.md (technical details)
     ├─ Documents topic configurations
     ├─ Shows producer/consumer relationships
     └─ Used for integration work and troubleshooting
@@ -189,48 +123,20 @@ architecture-flow-kafka-reference.md (technical details)
 ## Questions About the Documentation?
 
 **"Which file should I read to understand flow X?"**
-- Start with `architecture-flow.md` for the text description
-- Then look at the corresponding `.puml` file in `flows/` for the sequence diagram
+- Start with `architecture/architecture-flow.md` for the text description
+- Then look at the corresponding `.puml` file in `architecture/flows/` for the sequence diagram
 
 **"Where is class X defined?"**
-- Check `architecture-module-participants.md` - find the module, then the class section
+- Check `architecture/architecture-module-participants.md` - find the module, then the class section
 
 **"How does Kafka topic Y get used?"**
-- Check `architecture-flow-kafka-reference.md` - find the topic section with producer/consumer info
+- Check `architecture/architecture-flow-kafka-reference.md` - find the topic section with producer/consumer info
 
 **"I need to add a new feature. Where do I start?"**
-- Read `architecture-flow.md` for similar existing flows
-- Check `architecture-module-participants.md` to understand the module structure
-- Create/update the sequence diagram in `flows/`
-- Update the relevant `.md` files after coding
+- Read `architecture/architecture-flow.md` for similar existing flows
+- Check `architecture/architecture-module-participants.md` to understand the module structure
+- Create/update the sequence diagram in `architecture/flows/`
+- Update the relevant docs after coding — see `ai/README.md`
 
----
-
-## Documentation Maintenance Notes
-
-**Last Updated**: 2026-09-14, commit `cafd818` (`ArchitectureTest` refactored into reusable `TriptychArchitecture`/`TriptychArchitectureConfig` devsupport classes; stale `port.in`/`port.out`/`domain`/`application`/`inbound-rest` references fixed in `README.md` and `concepts.md`; two reference updates in `architecture-module-participants.md`)
-
-**Diff baseline for the next update**: `git diff cafd818 HEAD -- . ':(exclude)docs'` to see what changed in code since this doc pass, before deciding which doc section(s) need a surgical edit.
-
-**By**: Claude (session analysis)
-
-**Files**:
-- `architecture-flow.md` - Primary flow documentation
-- `architecture-flow-kafka-reference.md` - Technical reference
-- `architecture-module-participants.md` - Module inventory with summary table
-- `flows/` - Sequence diagrams (12 diagrams + README)
-- `README.md` - This file
-- `../.claude/skills/recreate-architecture-docs/` - full-regeneration skill (was `recreate-architecture-docs.md`, converted to a skill on 2026-09-13)
-- `../.claude/skills/update-architecture-docs/` - single-section update skill (new on 2026-09-13)
-
-**Total documentation**: ~1500 lines (4 MD files + 12 PUML files) + 2 skills
-
-**Synchronization status**: ✅ All files synchronized
-
----
-
-## For Future Sessions
-
-**If you need to regenerate this documentation:** invoke the `recreate-architecture-docs` skill (`/recreate-architecture-docs`) - it contains all the instructions, including a first step that diffs what actually changed so you don't over-rewrite files whose content (class/method/topic names) survived the change intact.
-
-**If you just changed one endpoint, handler, API/SPI, service, topic, or module:** the `update-architecture-docs` skill can fire on its own for this - or invoke it directly - to make the single-section edit without touching the rest of the file.
+**"Who keeps this documentation up to date, and how?"**
+- See `ai/README.md` — that's the Claude-facing maintenance process, deliberately kept separate from this human-facing index.

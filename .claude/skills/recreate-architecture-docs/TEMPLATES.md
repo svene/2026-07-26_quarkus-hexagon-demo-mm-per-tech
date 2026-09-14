@@ -21,17 +21,17 @@ Extract from: `@Path`/`@GET`/`@POST` annotations and `@Inject` fields on each `*
 
 ## architecture-flow-kafka-reference.md
 
-Sections: maintenance notes (which files to re-read when updating), "Data Persistence" (one entry per outbound-postgres/outbound-mongodb service), "External System Integrations" (one entry per outbound-httpclient/webservice/kafka service), "Kafka Topic Cycles" (one block per topic: producer, consumer, trigger, exact `mp.messaging.*` config lines), and a "Summary of All Endpoints" table (columns: Receiver | Route | Method | Flow Type | Kafka Topic Connection | Data Sinks) covering every endpoint including indirect Kafka-triggered ones.
+Sections: a pointer to `docs/ai/maintaining-architecture-flow.md` (which files to re-read when updating - that content lives there, not inline), "Data Persistence" (one entry per outbound-postgres/outbound-mongodb service), "External System Integrations" (one entry per outbound-httpclient/webservice/kafka service), "Kafka Topic Cycles" (one block per topic: producer, consumer, trigger, exact `mp.messaging.*` config lines), and a "Summary of All Endpoints" table (columns: Receiver | Route | Method | Flow Type | Kafka Topic Connection | Data Sinks) covering every endpoint including indirect Kafka-triggered ones.
 
 Extract from: `app-server/src/main/resources/application.properties` (`mp.messaging.*` lines are the source of truth for topic names and channel wiring - never invent a topic name); each `*Receiver.java`'s `@Incoming` topic; each outbound `*Service.java`'s emitter/client target.
 
 ## architecture-module-participants.md
 
-Sections: a "Quick Reference" table (one row per Maven module, participant class names), then one section per module with Purpose, Package (the actual `feature.<name>` / `cross(.<concern>)` / `external.*` path - grep the real source, never assume), a class list grouped by role, Responsibilities, Technology, then closing "Summary by Layer", "Participant Count by Module", and "Maintenance Guide" sections.
+Sections: a "Quick Reference" table (one row per Maven module, participant class names), then one section per module with Purpose, Package (the actual `feature.<name>` / `cross(.<concern>)` / `external.*` path - grep the real source, never assume), a class list grouped by role, Responsibilities, Technology, then closing "Summary by Layer" and "Participant Count by Module" sections, and a pointer to `docs/ai/maintaining-module-participants.md` for the maintenance guide (that content lives there, not inline - see the human/AI split explained in `docs/README.md`).
 
 Extract from: `find <module>/src/main/java -name "*.java"` per module, reading each file's package declaration and top-level Javadoc/class comment; `pom.xml` per module for the Maven artifact list.
 
-## docs/flows/*.puml
+## docs/architecture/flows/*.puml
 
 One file per unique flow (query flows, order flows per commodity/technology, purchase flows, event-driven Kafka-inbound flows). PlantUML sequence diagram syntax:
 
@@ -59,4 +59,4 @@ receiver --> user: HTTP Response
 @enduml
 ```
 
-Show: actors, Receivers, Handlers, Services, databases, Kafka topics (for order flows), audit logging where it happens, and where an asynchronous path takes over. Add a matching entry to `docs/flows/README.md` (file name, trigger, technology path, participants, databases, key patterns).
+Show: actors, Receivers, Handlers, Services, databases, Kafka topics (for order flows), audit logging where it happens, and where an asynchronous path takes over. Add a matching entry to `docs/architecture/flows/README.md` (file name, trigger, technology path, participants, databases, key patterns).

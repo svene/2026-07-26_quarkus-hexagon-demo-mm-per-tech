@@ -2,7 +2,7 @@
 
 PlantUML sequence diagrams for all primary flows in the supermarket inventory system. Each diagram shows the sequence of method calls, message passing, and database operations for a specific user action or event.
 
-**Diagrams are derived from `architecture-flow.md` - keep both files synchronized when flows change.**
+**Diagrams are derived from `../architecture-flow.md` - keep both files synchronized when flows change.**
 
 ## Query Flows (Read-Only)
 
@@ -198,15 +198,4 @@ plantuml flows/*.puml -o flows/ -tpng
 Requires: `plantuml` CLI tool installed
 Format: SVG (default) or PNG (-tpng flag)
 
-## Maintenance
-
-**When flows change:**
-1. Update the relevant `.puml` file with new sequence
-2. Update `architecture-flow.md` with corresponding text description
-3. Keep both files synchronized (they document the same flows)
-4. Do NOT regenerate from code—update sequences based on actual code review
-
-**Flows to update when adding new suppliers/receivers:**
-- For new product category ordered via REST: add `admin-order-[category].puml` and `api-order-[category].puml`
-- For new Kafka topic: add sequence diagram showing producer/consumer cycle
-- For new HTTP endpoint: add diagram showing request flow and participants
+**For instructions on keeping these diagrams in sync with code changes**, see `../../ai/maintaining-flows.md`.
