@@ -208,7 +208,9 @@ architecture-flow-kafka-reference.md (technical details)
 
 ## Documentation Maintenance Notes
 
-**Last Updated**: 2026-09-14 (`ArchitectureTest` refactored into reusable `TriptychArchitecture`/`TriptychArchitectureConfig` devsupport classes; no flow/module/topic changes, just two reference updates in `architecture-module-participants.md`)
+**Last Updated**: 2026-09-14, commit `cafd818` (`ArchitectureTest` refactored into reusable `TriptychArchitecture`/`TriptychArchitectureConfig` devsupport classes; stale `port.in`/`port.out`/`domain`/`application`/`inbound-rest` references fixed in `README.md` and `concepts.md`; two reference updates in `architecture-module-participants.md`)
+
+**Diff baseline for the next update**: `git diff cafd818 HEAD -- . ':(exclude)docs'` to see what changed in code since this doc pass, before deciding which doc section(s) need a surgical edit.
 
 **By**: Claude (session analysis)
 
