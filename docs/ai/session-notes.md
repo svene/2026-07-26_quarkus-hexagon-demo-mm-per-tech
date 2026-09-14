@@ -3,9 +3,9 @@
 Session-to-session bookkeeping for the `docs/architecture/` doc set. See [README.md](README.md)
 for the actual maintenance process.
 
-**Last Updated**: 2026-09-14, commit `cafd818` + uncommitted restructuring (split `docs/` into `docs/architecture/` (human-facing) and `docs/ai/` (Claude-facing maintenance instructions); moved `architecture-flow.md`, `architecture-flow-kafka-reference.md`, `architecture-module-participants.md`, and `flows/` under `architecture/`; extracted each file's maintenance/update-checklist content into `docs/ai/`)
+**Last Updated**: 2026-09-14, commit `982b169` (split `docs/` into `docs/architecture/` (human-facing) and `docs/ai/` (Claude-facing maintenance instructions); moved `architecture-flow.md`, `architecture-flow-kafka-reference.md`, `architecture-module-participants.md`, and `flows/` under `architecture/`; extracted each file's maintenance/update-checklist content into `docs/ai/`)
 
-**Diff baseline for the next update**: `git diff cafd818 HEAD -- . ':(exclude)docs'` to see what changed in code since the last content pass (the restructuring above moved doc files but changed no doc content, so this baseline is still valid), before deciding which doc section(s) need a surgical edit.
+**Diff baseline for the next update**: `git diff 982b169 HEAD -- . ':(exclude)docs'` to see what changed in code since the last content pass (the restructuring above moved doc files but changed no doc content, so this baseline is still valid), before deciding which doc section(s) need a surgical edit.
 
 **By**: Claude (session analysis)
 
