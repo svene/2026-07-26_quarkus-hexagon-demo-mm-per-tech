@@ -1,8 +1,9 @@
 package org.svenehrke.triptychdemo.feature.fruit;
 
+import java.util.List;
 import java.util.Optional;
 
-public record FruitDelivery(String productName, int quantity) {
+public record FruitDelivery(String productName, int quantity) implements ParsedFruitDelivery {
 
 	static final int MAX_QUANTITY = 10_000;
 
@@ -20,6 +21,14 @@ public record FruitDelivery(String productName, int quantity) {
 
 	static boolean isValid(int quantity) {
 		return quantity > 0 && quantity <= MAX_QUANTITY;
+	}
+
+	public static ParsedFruitDelivery parse(String productName, int quantity) {
+		// TODO: validate productName
+		return isValid(quantity)
+			? new FruitDelivery(productName, quantity)
+			: new ParsedFruitDelivery.Invalid(List.of(
+				"%s: invalid quantity %d (valid range: ]0,%d])".formatted(productName, quantity, MAX_QUANTITY)));
 	}
 
 }

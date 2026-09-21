@@ -8,8 +8,6 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.reactive.messaging.Incoming;
 
-import static org.svenehrke.triptychdemo.feature.fruit.ParsedFruitDelivery.*;
-
 @ApplicationScoped
 public class FruitDeliveryReceiver {
 
@@ -22,12 +20,12 @@ public class FruitDeliveryReceiver {
     @Blocking
     public void receive(RawFruitDelivery message) {
         // Mapping: RawFruitDelivery -> FruitDelivery:
-        switch (parse(message.productName(), message.quantity())) {
-            case InvalidFruitDelivery fd: {
-                auditLog.log("FruitDeliveryReceiver: FRUIT_DELIVERY_RECEIVED", "INVALID: %s, %d: %s".formatted(fd.productName(), fd.quantity(), String.join(",", fd.errors())));
+        switch (FruitDelivery.parse(message.productName(), message.quantity())) {
+            case ParsedFruitDelivery.Invalid invalid: {
+                auditLog.log("FruitDeliveryReceiver: FRUIT_DELIVERY_RECEIVED", "INVALID: " + String.join(",", invalid.errors()));
                 break;
             }
-            case ValidFruitDelivery(FruitDelivery fruitDelivery): {
+            case FruitDelivery fruitDelivery: {
                 auditLog.log("FruitDeliveryReceiver: FRUIT_DELIVERY_RECEIVED", fruitDelivery.productName() + " qty=" + fruitDelivery.quantity());
                 inventoryAPI.updateFruitAmount(fruitDelivery);
                 auditLog.log("FruitDeliveryReceiver: FRUIT_INVENTORY_UPDATED", fruitDelivery.productName() + " +" + fruitDelivery.quantity());

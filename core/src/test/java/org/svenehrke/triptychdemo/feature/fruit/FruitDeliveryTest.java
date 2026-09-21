@@ -17,10 +17,10 @@ class FruitDeliveryTest {
 	@ParameterizedTest
 	@ValueSource(ints = {1, 500, 10_000})
 	void parse_returnsValidFruitDelivery_forValidQuantities(int quantity) {
-		ParsedFruitDelivery result = ParsedFruitDelivery.parse("productName", quantity);
+		ParsedFruitDelivery result = FruitDelivery.parse("productName", quantity);
 
-		assertThat(result).isInstanceOf(ParsedFruitDelivery.ValidFruitDelivery.class);
-		assertThat(((ParsedFruitDelivery.ValidFruitDelivery) result).fruitDelivery().quantity())
+		assertThat(result).isInstanceOf(FruitDelivery.class);
+		assertThat(((FruitDelivery) result).quantity())
 			.isEqualTo(quantity);
 	}
 
@@ -29,9 +29,9 @@ class FruitDeliveryTest {
 	@ParameterizedTest
 	@ValueSource(ints = {0, -1, -100, 10_001, Integer.MAX_VALUE})
 	void parse_returnsInvalidFruitDelivery_forInvalidQuantities(int quantity) {
-		ParsedFruitDelivery result = ParsedFruitDelivery.parse("productName", quantity);
+		ParsedFruitDelivery result = FruitDelivery.parse("productName", quantity);
 
-		assertThat(result).isInstanceOf(ParsedFruitDelivery.InvalidFruitDelivery.class);
+		assertThat(result).isInstanceOf(ParsedFruitDelivery.Invalid.class);
 	}
 
 	@Nested
