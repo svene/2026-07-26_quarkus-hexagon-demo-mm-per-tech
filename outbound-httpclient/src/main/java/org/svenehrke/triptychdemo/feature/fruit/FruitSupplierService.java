@@ -12,7 +12,7 @@ public class FruitSupplierService implements FruitSupplierSPI {
     FruitSupplierClient client;
 
     @Override
-    public void placeOrder(String productName, int quantity) {
-        client.placeOrder(new OrderRequest(productName, quantity));
+    public void placeOrder(FruitOrder fruitOrder) {
+        client.placeOrder(new OrderRequest(fruitOrder.productName(), fruitOrder.quantity()));
     }
 }
