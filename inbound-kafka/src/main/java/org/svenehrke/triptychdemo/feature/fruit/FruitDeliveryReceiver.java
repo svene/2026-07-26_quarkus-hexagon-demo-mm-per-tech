@@ -8,6 +8,8 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.reactive.messaging.Incoming;
 
+import static org.svenehrke.triptychdemo.feature.fruit.ParsedFruitDelivery.*;
+
 @ApplicationScoped
 public class FruitDeliveryReceiver {
 
@@ -20,12 +22,17 @@ public class FruitDeliveryReceiver {
     @Blocking
     public void receive(RawFruitDelivery message) {
         // Mapping: RawFruitDelivery -> FruitDelivery:
-        var x = FruitDelivery.parse(message.productName(), message.quantity());
-        // Validation:
-        if (x.isEmpty()) return;
-        // Processing:
-        auditLog.log("FruitDeliveryReceiver: FRUIT_DELIVERY_RECEIVED", x.get().productName() + " qty=" + x.get().quantity());
-        inventoryAPI.updateFruitAmount(x.get());
-        auditLog.log("FruitDeliveryReceiver: FRUIT_INVENTORY_UPDATED", x.get().productName() + " +" + x.get().quantity());
+        switch (parse(message.productName(), message.quantity())) {
+            case InvalidFruitDelivery fd: {
+                auditLog.log("FruitDeliveryReceiver: FRUIT_DELIVERY_RECEIVED", "INVALID: %s, %d: %s".formatted(fd.productName(), fd.quantity(), String.join(",", fd.errors())));
+                break;
+            }
+            case ValidFruitDelivery(FruitDelivery fruitDelivery): {
+                auditLog.log("FruitDeliveryReceiver: FRUIT_DELIVERY_RECEIVED", fruitDelivery.productName() + " qty=" + fruitDelivery.quantity());
+                inventoryAPI.updateFruitAmount(fruitDelivery);
+                auditLog.log("FruitDeliveryReceiver: FRUIT_INVENTORY_UPDATED", fruitDelivery.productName() + " +" + fruitDelivery.quantity());
+                break;
+            }
+        }
     }
 }

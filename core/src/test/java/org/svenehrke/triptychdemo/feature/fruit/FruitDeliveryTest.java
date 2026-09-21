@@ -7,8 +7,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
-import java.util.Optional;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -18,13 +16,11 @@ class FruitDeliveryTest {
 
 	@ParameterizedTest
 	@ValueSource(ints = {1, 500, 10_000})
-	void parse_returnsPresentOptional_forValidQuantities(int quantity) {
-		Optional<FruitDelivery> order = FruitDelivery.parse("productName", quantity);
+	void parse_returnsValidFruitDelivery_forValidQuantities(int quantity) {
+		ParsedFruitDelivery result = ParsedFruitDelivery.parse("productName", quantity);
 
-		assertThat(order)
-			.isPresent()
-			.get()
-			.extracting(FruitDelivery::quantity)
+		assertThat(result).isInstanceOf(ParsedFruitDelivery.ValidFruitDelivery.class);
+		assertThat(((ParsedFruitDelivery.ValidFruitDelivery) result).fruitDelivery().quantity())
 			.isEqualTo(quantity);
 	}
 
@@ -32,10 +28,10 @@ class FruitDeliveryTest {
 
 	@ParameterizedTest
 	@ValueSource(ints = {0, -1, -100, 10_001, Integer.MAX_VALUE})
-	void parse_returnsEmptyOptional_forInvalidQuantities(int quantity) {
-		Optional<FruitDelivery> order = FruitDelivery.parse("productName", quantity);
+	void parse_returnsInvalidFruitDelivery_forInvalidQuantities(int quantity) {
+		ParsedFruitDelivery result = ParsedFruitDelivery.parse("productName", quantity);
 
-		assertThat(order).isEmpty();
+		assertThat(result).isInstanceOf(ParsedFruitDelivery.InvalidFruitDelivery.class);
 	}
 
 	@Nested
@@ -45,7 +41,7 @@ class FruitDeliveryTest {
 
 		@Test
 		void serializesInterfaceTypedInstance() throws Exception {
-			FruitDelivery delivery = FruitDelivery.parse("productName", 42).orElseThrow();
+			FruitDelivery delivery = new FruitDelivery("productName", 42);
 
 			String json = mapper.writeValueAsString(delivery);
 
@@ -65,7 +61,10 @@ class FruitDeliveryTest {
 		@Test
 		void deserializationFailsForInvalidQuantity() {
 			assertThatThrownBy(() -> mapper.readValue("{\"quantity\":-5}", FruitDelivery.class))
-				.isInstanceOf(ValueInstantiationException.class);
+				.isInstanceOf(ValueInstantiationException.class)
+				.hasCauseInstanceOf(IllegalArgumentException.class)
+				.cause()
+				.hasMessage("quantity out parse range: -5");
 		}
 	}
 }
