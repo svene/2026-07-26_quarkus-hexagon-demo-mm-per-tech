@@ -32,6 +32,7 @@ class FruitDeliveryTest {
 		ParsedFruitDelivery result = FruitDelivery.parse("productName", quantity);
 
 		assertThat(result).isInstanceOf(ParsedFruitDelivery.Invalid.class);
+		assertThat(((ParsedFruitDelivery.Invalid) result).violations()).isNotEmpty();
 	}
 
 	@Nested
@@ -64,7 +65,7 @@ class FruitDeliveryTest {
 				.isInstanceOf(ValueInstantiationException.class)
 				.hasCauseInstanceOf(IllegalArgumentException.class)
 				.cause()
-				.hasMessage("quantity out parse range: -5");
+				.hasMessage("must be greater than or equal to 1");
 		}
 	}
 }

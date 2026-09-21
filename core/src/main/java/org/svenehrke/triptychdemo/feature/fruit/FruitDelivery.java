@@ -1,11 +1,19 @@
 package org.svenehrke.triptychdemo.feature.fruit;
 
-import java.util.List;
-import java.util.Optional;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validation;
+import jakarta.validation.Validator;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 
-public record FruitDelivery(String productName, int quantity) implements ParsedFruitDelivery {
+import java.util.Optional;
+import java.util.Set;
+
+public record FruitDelivery(String productName, @Min(1) @Max(MAX_QUANTITY) int quantity) implements ParsedFruitDelivery {
 
 	static final int MAX_QUANTITY = 10_000;
+
+	private static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();
 
 	/**
 	 * @deprecated Use {@link #parse(int)} instead, which returns an
@@ -14,21 +22,22 @@ public record FruitDelivery(String productName, int quantity) implements ParsedF
 	 */
 	@Deprecated
 	public FruitDelivery {
-		if (!isValid(quantity)) {
-			throw new IllegalArgumentException("quantity out parse range: " + quantity);
+		Set<ConstraintViolation<FruitDelivery>> violations = validate(quantity);
+		if (!violations.isEmpty()) {
+			throw new IllegalArgumentException(violations.iterator().next().getMessage());
 		}
-	}
-
-	static boolean isValid(int quantity) {
-		return quantity > 0 && quantity <= MAX_QUANTITY;
 	}
 
 	public static ParsedFruitDelivery parse(String productName, int quantity) {
 		// TODO: validate productName
-		return isValid(quantity)
+		Set<ConstraintViolation<FruitDelivery>> violations = validate(quantity);
+		return violations.isEmpty()
 			? new FruitDelivery(productName, quantity)
-			: new ParsedFruitDelivery.Invalid(List.of(
-				"%s: invalid quantity %d (valid range: ]0,%d])".formatted(productName, quantity, MAX_QUANTITY)));
+			: new ParsedFruitDelivery.Invalid(violations);
+	}
+
+	private static Set<ConstraintViolation<FruitDelivery>> validate(int quantity) {
+		return VALIDATOR.validateValue(FruitDelivery.class, "quantity", quantity);
 	}
 
 }

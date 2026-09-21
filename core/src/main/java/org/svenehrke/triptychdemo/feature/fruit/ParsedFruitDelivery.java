@@ -1,6 +1,8 @@
 package org.svenehrke.triptychdemo.feature.fruit;
 
-import java.util.List;
+import jakarta.validation.ConstraintViolation;
+
+import java.util.Set;
 
 /**
  * No separate "Valid" wrapper is needed: {@link FruitDelivery}'s own canonical constructor already
@@ -8,5 +10,5 @@ import java.util.List;
  * construction. Only the failure case needs a dedicated type to carry error messages.
  */
 public sealed interface ParsedFruitDelivery permits FruitDelivery, ParsedFruitDelivery.Invalid {
-	record Invalid(List<String> errors) implements ParsedFruitDelivery {}
+	record Invalid(Set<ConstraintViolation<FruitDelivery>> violations) implements ParsedFruitDelivery {}
 }

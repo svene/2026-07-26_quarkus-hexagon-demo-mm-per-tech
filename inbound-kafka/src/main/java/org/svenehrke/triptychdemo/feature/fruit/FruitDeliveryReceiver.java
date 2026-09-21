@@ -6,7 +6,10 @@ import org.svenehrke.triptychdemo.cross.inventory.InventoryAPI;
 import io.smallrye.reactive.messaging.annotations.Blocking;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.validation.ConstraintViolation;
 import org.eclipse.microprofile.reactive.messaging.Incoming;
+
+import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class FruitDeliveryReceiver {
@@ -22,7 +25,11 @@ public class FruitDeliveryReceiver {
         // Mapping: RawFruitDelivery -> FruitDelivery:
         switch (FruitDelivery.parse(message.productName(), message.quantity())) {
             case ParsedFruitDelivery.Invalid invalid: {
-                auditLog.log("FruitDeliveryReceiver: FRUIT_DELIVERY_RECEIVED", "INVALID: " + String.join(",", invalid.errors()));
+                String errors = invalid.violations().stream()
+                    .map(ConstraintViolation::getMessage)
+                    .collect(Collectors.joining(", "));
+                auditLog.log("FruitDeliveryReceiver: FRUIT_DELIVERY_RECEIVED",
+                    "INVALID: %s, %d: %s".formatted(message.productName(), message.quantity(), errors));
                 break;
             }
             case FruitDelivery fruitDelivery: {
