@@ -77,6 +77,38 @@ class ProductApiReceiverTest {
     }
 
     @Test
+    void order_fruits_with_blank_product_name_returns_400() {
+        var response = given()
+            .contentType(ContentType.JSON)
+            .body("""
+                {
+                  "productName": " ",
+                  "quantity": 5
+                }
+                """)
+            .post("/api/products/order-fruits");
+
+        assertThat(response.statusCode()).isEqualTo(400);
+        assertThat(response.jsonPath().<String>getList("$")).containsExactly("must not be blank");
+    }
+
+    @Test
+    void order_fruits_with_non_positive_quantity_returns_400() {
+        var response = given()
+            .contentType(ContentType.JSON)
+            .body("""
+                {
+                  "productName": "Mango",
+                  "quantity": 0
+                }
+                """)
+            .post("/api/products/order-fruits");
+
+        assertThat(response.statusCode()).isEqualTo(400);
+        assertThat(response.jsonPath().<String>getList("$")).containsExactly("must be greater than or equal to 1");
+    }
+
+    @Test
     void order_beverages_calls_supplier_and_returns_204() {
         var response = given()
             .contentType(ContentType.JSON)

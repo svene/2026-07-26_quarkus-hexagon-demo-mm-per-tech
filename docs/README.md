@@ -40,6 +40,14 @@ Complete architecture documentation for the supermarket inventory system. All fi
 - **Audience**: All developers (quick lookup)
 - **Size**: ~400 lines
 
+### Validation Conventions
+
+**`architecture/validation.md`** (convention guide, not a flow/state snapshot)
+- Which input-validation pattern to use at which inbound boundary (Kafka consumer vs. HTTP/REST
+  endpoint) and why they differ
+- Reference examples (currently: fruit only) plus known trade-offs and rollout status
+- **Audience**: Developers adding or reviewing validation on any inbound boundary
+
 ### Flow Sequence Diagrams
 
 **`architecture/flows/` directory**

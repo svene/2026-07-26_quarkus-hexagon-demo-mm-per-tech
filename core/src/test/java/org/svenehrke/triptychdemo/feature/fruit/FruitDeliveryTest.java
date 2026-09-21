@@ -35,6 +35,23 @@ class FruitDeliveryTest {
 		assertThat(((ParsedFruitDelivery.Invalid) result).violations()).isNotEmpty();
 	}
 
+	@ParameterizedTest
+	@ValueSource(strings = {"", " "})
+	void parse_returnsInvalidFruitDelivery_forBlankProductName(String productName) {
+		ParsedFruitDelivery result = FruitDelivery.parse(productName, 42);
+
+		assertThat(result).isInstanceOf(ParsedFruitDelivery.Invalid.class);
+		assertThat(((ParsedFruitDelivery.Invalid) result).violations()).isNotEmpty();
+	}
+
+	@Test
+	void parse_returnsInvalidFruitDelivery_forNullProductName() {
+		ParsedFruitDelivery result = FruitDelivery.parse(null, 42);
+
+		assertThat(result).isInstanceOf(ParsedFruitDelivery.Invalid.class);
+		assertThat(((ParsedFruitDelivery.Invalid) result).violations()).isNotEmpty();
+	}
+
 	@Nested
 	class FruitDeliveryJacksonTest {
 
@@ -53,7 +70,7 @@ class FruitDeliveryTest {
 
 		@Test
 		void deserializesToInterfaceType() throws Exception {
-			FruitDelivery delivery = mapper.readValue("{\"quantity\":42}", FruitDelivery.class);
+			FruitDelivery delivery = mapper.readValue("{\"productName\":\"productName\",\"quantity\":42}", FruitDelivery.class);
 
 			assertThat(delivery.quantity()).isEqualTo(42);
 			assertThat(delivery).isInstanceOf(FruitDelivery.class);
@@ -61,11 +78,20 @@ class FruitDeliveryTest {
 
 		@Test
 		void deserializationFailsForInvalidQuantity() {
-			assertThatThrownBy(() -> mapper.readValue("{\"quantity\":-5}", FruitDelivery.class))
+			assertThatThrownBy(() -> mapper.readValue("{\"productName\":\"productName\",\"quantity\":-5}", FruitDelivery.class))
 				.isInstanceOf(ValueInstantiationException.class)
 				.hasCauseInstanceOf(IllegalArgumentException.class)
 				.cause()
 				.hasMessage("must be greater than or equal to 1");
+		}
+
+		@Test
+		void deserializationFailsForBlankProductName() {
+			assertThatThrownBy(() -> mapper.readValue("{\"quantity\":42}", FruitDelivery.class))
+				.isInstanceOf(ValueInstantiationException.class)
+				.hasCauseInstanceOf(IllegalArgumentException.class)
+				.cause()
+				.hasMessage("must not be blank");
 		}
 	}
 }

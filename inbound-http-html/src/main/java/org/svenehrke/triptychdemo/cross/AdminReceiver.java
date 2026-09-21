@@ -5,6 +5,7 @@ import org.svenehrke.triptychdemo.cross.products.ProductsAPI;
 import org.svenehrke.triptychdemo.feature.bakery.BakeryAPI;
 import org.svenehrke.triptychdemo.feature.beverage.BeveragesAPI;
 import org.svenehrke.triptychdemo.feature.dairy.DairyAPI;
+import org.svenehrke.triptychdemo.feature.fruit.FruitOrder;
 import org.svenehrke.triptychdemo.feature.fruit.FruitsAPI;
 import org.svenehrke.triptychdemo.feature.meat.MeatAPI;
 import org.svenehrke.triptychdemo.feature.nonfood.NonFoodAPI;
@@ -84,7 +85,7 @@ public class AdminReceiver {
     public Response orderFruits(@FormParam("productName") String productName,
                                 @FormParam("quantity") int quantity,
                                 @HeaderParam("HX-Request") String hxRequest) {
-        fruitsAPI.order(productName, quantity);
+        fruitsAPI.order(new FruitOrder(productName, quantity));
         return orderResponse(hxRequest);
     }
 

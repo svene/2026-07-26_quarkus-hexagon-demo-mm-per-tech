@@ -5,7 +5,9 @@ import org.svenehrke.triptychdemo.cross.purchase.PurchaseAPI;
 import org.svenehrke.triptychdemo.feature.bakery.BakeryAPI;
 import org.svenehrke.triptychdemo.feature.beverage.BeveragesAPI;
 import org.svenehrke.triptychdemo.feature.dairy.DairyAPI;
+import org.svenehrke.triptychdemo.feature.fruit.FruitOrder;
 import org.svenehrke.triptychdemo.feature.fruit.FruitsAPI;
+import org.svenehrke.triptychdemo.feature.fruit.ParsedFruitOrder;
 import org.svenehrke.triptychdemo.feature.meat.MeatAPI;
 import org.svenehrke.triptychdemo.feature.nonfood.NonFoodAPI;
 import org.svenehrke.triptychdemo.feature.vegetable.VegetablesAPI;
@@ -13,12 +15,14 @@ import org.svenehrke.triptychdemo.feature.vegetable.VegetablesAPI;
 import org.svenehrke.triptychdemo.cross.products.Product;
 import org.svenehrke.triptychdemo.cross.purchase.PurchaseItem;
 import jakarta.inject.Inject;
+import jakarta.validation.ConstraintViolation;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
 import java.util.List;
 
 @Path("/api/products")
@@ -52,8 +56,17 @@ public class ProductApiReceiver {
     @POST
     @Path("/order-fruits")
     @Consumes(MediaType.APPLICATION_JSON)
-    public void orderFruits(Requests.FruitOrderRequest request) {
-        fruitsAPI.order(request.productName(), request.quantity());
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response orderFruits(Requests.FruitOrderRequest request) {
+        return switch (FruitOrder.parse(request.productName(), request.quantity())) {
+            case ParsedFruitOrder.Invalid invalid -> Response.status(Response.Status.BAD_REQUEST)
+                .entity(invalid.violations().stream().map(ConstraintViolation::getMessage).toList())
+                .build();
+            case FruitOrder fruitOrder -> {
+                fruitsAPI.order(fruitOrder);
+                yield Response.noContent().build();
+            }
+        };
     }
 
     @POST
