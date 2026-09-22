@@ -3,9 +3,16 @@
 How untrusted input is validated at this system's inbound boundaries, and the one pattern used to
 do it everywhere. Unlike `architecture-flow.md`/`architecture-module-participants.md`, this file
 describes a **convention to follow**, not just the current state of every endpoint — most
-endpoints have not adopted it yet (see "Rollout status" below).
+endpoints have not adopted it yet (see [`wip_validation.md`](wip_validation.md) for rollout
+status).
+
+This document has two parts: **Part 1 — Usage** describes the mechanism as it stands, and how to
+use it. **Part 2 — Background & Reasoning** explains why it was built this way and what
+alternatives were rejected.
 
 ---
+
+# Part 1 — Usage
 
 ## The shared building block: "parse, don't validate"
 
@@ -13,95 +20,24 @@ Every validated boundary in this codebase (Kafka consumer or HTTP endpoint) uses
 mechanism for a domain type `Xxx`:
 
 - `Xxx` is a record whose components carry Jakarta Bean Validation constraint annotations
-  (`@NotBlank`, `@Min`, `@Max`, …) — the single source of truth for the rule, declared exactly
-  once.
+  (`@NotBlank`, `@Min`, `@Max`, …), declared exactly once.
 - `Xxx` implements a sibling sealed interface `ParsedXxx` **directly** — there is no separate
-  `Valid` wrapper type. `Xxx`'s own compact constructor already throws on invalid input, so any
-  `Xxx` instance that exists anywhere is valid by construction; a wrapper promising "this is a
-  validated `Xxx`" would be redundant with a guarantee the record already gives for free. Only the
-  failure case needs a dedicated type: `ParsedXxx.Invalid`, holding
-  `Set<ConstraintViolation<Xxx>>` (not `List<String>` — this keeps the property path, message, and
-  invalid value available to whoever ends up handling it, rather than baking a message format into
-  the domain type).
-- `ParsedXxx` has to be a **separate top-level file**, not nested inside `Xxx` itself —
-  `record Xxx(...) implements Xxx.ParsedXxx` (a type implementing its own inner interface) hits a
-  real javac limitation ("cyclic inheritance"), even though the reverse (`Invalid` implementing
-  its enclosing `ParsedXxx`) is fine.
+  `Valid` wrapper type. The failure case has its own type, `ParsedXxx.Invalid`, holding
+  `Set<ConstraintViolation<Xxx>>`.
 - A private `validate(...)` helper calls `Validator.validateValue(Xxx.class, "<property>", value)`
-  for each constrained property and merges the results — this validates a raw value against a
-  property's declared constraints **without needing an instance**, which is what makes it possible
-  to validate *before* construction (a plain `validator.validate(instance)` can't be used here,
-  since the compact constructor already throws before an "invalid instance" could ever exist to
-  hand to it). This helper is used by **both**:
-  - the compact constructor (`@Deprecated` — a backstop for callers with no graceful way to react
-    to a violation, e.g. Jackson deserialization or an HTML form with no upstream check of its
-    own — throws `IllegalArgumentException` on violation), and
+  for each constrained property and merges the results. This helper is used by **both**:
+  - the compact constructor (`@Deprecated` — throws `IllegalArgumentException` on violation), and
   - `parse(...)` (the normal entry point — returns `ParsedXxx.Invalid` on violation instead of
     throwing).
-- Callers `switch` exhaustively over the sealed result. Because the interface is `sealed`, the
-  compiler enforces that both cases are handled — there's no way to silently forget the invalid
-  branch. **What happens in the invalid branch is the only thing that differs by boundary** — see
-  below.
-
-### Known trade-off
-
-`Xxx implements ParsedXxx` gives a plain domain record a role in its own "parse result" plumbing,
-which can look a little unusual for a domain class — a purist might expect the domain type to know
-nothing about how its own parsing outcome is represented. This shape was reached only after three
-iterations that tried to avoid it, for the Kafka case (`FruitDelivery`) first:
-
-1. A generic `Parsed<T>` (`Valid<T>`/`Invalid<T>`) shared across commodities — rejected because
-   Java can't give a `public` record a constructor more restrictive than the record itself, so
-   there was no way to stop other code calling `new Parsed.Valid<>(unvalidatedValue)` while
-   keeping `Valid` visible for pattern matching outside its package.
-2. A non-generic `FruitDelivery.Valid`/`FruitDelivery.Invalid`, with `Valid`/`Invalid` as plain
-   classes with private constructors reachable only from `FruitDelivery.parse()` — technically
-   sound (Java's private-access rule is scoped to the whole enclosing top-level type, not just
-   the immediate class), but too much boilerplate to repeat across seven commodities for no
-   benefit beyond what the record's own constructor already gives.
-3. **Landed here**: no wrapper at all, accepting that the domain record plays double duty as its
-   own "valid" case. `FruitOrder` (the HTTP-side example below) reuses this exact shape.
-
-If this pattern is applied further (the other six commodities, or the other six `order-*`
-endpoints — see "Rollout status"), replicate step 3's shape directly. Don't reintroduce a generic
-`Parsed<T>` or a private-constructor wrapper class; both were explicitly tried and rejected for
-this codebase.
-
----
+- Callers `switch` exhaustively over the sealed result. **What happens in the invalid branch is
+  the only thing that differs by boundary** — see below.
 
 ## The decision: what the invalid branch does, by boundary
-
-The `parse()`/sealed-result mechanism above is identical everywhere. What differs is **only** the
-reaction to `Invalid`, and the deciding question is: **is there a synchronous caller waiting for a
-response?**
 
 | Boundary | Synchronous caller? | Invalid branch does |
 |---|---|---|
 | HTTP/REST endpoint (`inbound-http-jsonapi`, `inbound-http-html`) | Yes — the HTTP client | Build a `400 Response` from the violations, right there in the resource method |
-| Kafka consumer (`@Incoming`, `inbound-kafka`) | No — nobody to reject a message to | Log to the audit trail and keep consuming — invalid input is a normal, handled outcome, never an exception |
-
-A REST endpoint can hand an error straight back to whoever made the request — `400 Bad Request` is
-exactly the right response. A Kafka consumer has no such caller: throwing there is risky (depending
-on the failure strategy it can stall the consumer or endlessly retry a poison message), and "this
-message is invalid, log it and move on" is a **normal business outcome**, not an error condition —
-exactly what the sealed result models.
-
-**On Quarkus's declarative `@Valid`**: an earlier version of the HTTP pattern used Jakarta Bean
-Validation's `@Valid` directly on a JSON request DTO, letting `quarkus-rest`/`quarkus-hibernate-validator`
-auto-reject with `400` — no hand-written code at all. That's still a perfectly good, simpler choice
-**when there's no existing domain type whose constraints would otherwise be duplicated**. It was
-dropped here specifically because `FruitOrder` (the domain type `fruitsAPI.order(...)` needs
-anyway — see below) already had to carry the same `@NotBlank`/`@Min` constraints for its own
-construction guarantee; keeping `@Valid` on a second, separate request-DTO record would have meant
-declaring the same rule twice. Reusing `FruitOrder.parse()` at the HTTP boundary removes that
-duplication entirely.
-
-This also isn't just a design preference: Quarkus's Bean Validation is explicitly **not** wired up
-for reactive-messaging `@Incoming` consumers, so it was never an option on the Kafka side to begin
-with. From the Quarkus team, discussing combining Hibernate Validator with reactive code paths:
-
-> "it's complicated, and Hibernate Validator/Bean Validation was not built for this."
-> — [quarkusio/quarkus discussion #32275](https://github.com/quarkusio/quarkus/discussions/32275)
+| Kafka consumer (`@Incoming`, `inbound-kafka`) | No — nobody to reject a message to | Log to the audit trail and keep consuming |
 
 ---
 
@@ -166,22 +102,7 @@ public Response orderFruits(Requests.FruitOrderRequest request) {
 }
 ```
 
-A `400` response body is a plain JSON array of violation messages, e.g. `["must not be blank"]` —
-less structured than Hibernate Validator's own violation report, but sufficient here, and it keeps
-the mapping from `Invalid` → HTTP response fully explicit and local to this one method rather than
-depending on framework-wired exception handling.
-
-### Why not just deserialize the JSON body directly into `FruitOrder`?
-
-This looks tempting — it would let Jackson call `FruitOrder`'s constructor straight from the
-request body, skipping `Requests.FruitOrderRequest` entirely. It was rejected: a validation failure
-there happens *during deserialization*, as a Jackson `ValueInstantiationException` wrapping the
-constructor's `IllegalArgumentException` — and Quarkus's `rest-jackson` extension only ships a
-built-in `400` mapper for `MismatchedInputException` (structurally malformed JSON), not for
-`ValueInstantiationException`. Without a bespoke `ExceptionMapper`, this would silently fall
-through to a generic, unhelpful `500`. Keeping a separate (bare) `FruitOrderRequest` and calling
-`FruitOrder.parse()` explicitly avoids needing any new exception-handling infrastructure at all —
-the `switch` above handles both outcomes directly, so there's nothing for a mapper to catch.
+A `400` response body is a plain JSON array of violation messages, e.g. `["must not be blank"]`.
 
 ### Verified behavior
 
@@ -195,13 +116,7 @@ the `switch` above handles both outcomes directly, so there's nothing for a mapp
 
 ## `FruitsAPI`: the same construction guarantee as `InventoryAPI`
 
-Before this pattern existed, `FruitsAPI.order(String productName, int quantity)` took raw
-primitives — nothing stopped any caller, validated or not, from passing bad data straight through.
-This was the asymmetry that prompted the whole design: on the Kafka side,
-`InventoryAPI.updateFruitAmount(FruitDelivery fruitDelivery)` can only ever be called with an
-already-guaranteed-valid `FruitDelivery`, because there's no way to construct an invalid one.
-
-`FruitsAPI.order` now takes `FruitOrder` instead:
+`FruitsAPI.order` takes `FruitOrder` instead of raw primitives:
 
 ```java
 public interface FruitsAPI {
@@ -209,37 +124,29 @@ public interface FruitsAPI {
 }
 ```
 
-So `FruitsHandler.order(FruitOrder fruitOrder)` has the identical guarantee now: it's impossible
-to call it with an invalid product name or quantity. The guarantee moved from "whoever remembers
-to check" to "the type system won't let you construct the argument otherwise."
+`FruitsHandler.order(FruitOrder fruitOrder)` can only ever be called with an
+already-guaranteed-valid `FruitOrder`, since there's no way to construct an invalid one — the same
+guarantee `InventoryAPI.updateFruitAmount(FruitDelivery fruitDelivery)` already had on the Kafka
+side.
 
-Since `FruitSupplierSPI` (the *outbound* port to the external supplier) is also defined in `core`,
-it gets the same treatment: `FruitSupplierSPI.placeOrder(FruitOrder fruitOrder)` — `FruitsHandler`
-now passes the already-validated `FruitOrder` straight through instead of re-unpacking it into
-primitives. Only the adapter implementing it (`FruitSupplierService` in `outbound-httpclient`)
-unpacks `productName`/`quantity` at the very last step, to build the REST client's own
-`OrderRequest` wire type. So `FruitOrder` now guards the entire path from `ProductApiReceiver`
-through both the inbound and outbound ports — every intermediate call is type-guaranteed valid;
-only the final hop across the hexagon's boundary to an external system deals in primitives again,
-which is unavoidable since that wire format is what the (simulated) external supplier expects.
+`FruitSupplierSPI` (the outbound port to the external supplier, also defined in `core`) gets the
+same treatment: `FruitSupplierSPI.placeOrder(FruitOrder fruitOrder)` — `FruitsHandler` passes the
+already-validated `FruitOrder` straight through instead of re-unpacking it into primitives. Only
+the adapter implementing it (`FruitSupplierService` in `outbound-httpclient`) unpacks
+`productName`/`quantity` at the very last step, to build the REST client's own `OrderRequest` wire
+type.
 
-One asymmetry worth noting: `AdminReceiver`'s HTML form (`@FormParam` inputs) still constructs
-`FruitOrder` via the `@Deprecated` throwing constructor directly, since it has no `parse()`-based
-pre-check of its own yet. This is strictly better than before (bad input used to flow straight
-through to the supplier call; now it throws instead), but a violation surfaces as an unhandled
-exception (no custom `ExceptionMapper` exists in this project) rather than a friendly HTML error.
-Giving the admin form its own `parse()`-based handling, matching `orderFruits` above, is a possible
-future improvement, not yet done.
+`AdminReceiver`'s HTML form (`@FormParam` inputs) still constructs `FruitOrder` via the
+`@Deprecated` throwing constructor directly, rather than its own `parse()`-based check — a
+violation surfaces as an unhandled exception (no custom `ExceptionMapper` exists in this project)
+rather than a friendly HTML error.
 
 ---
 
 ## Where `quarkus-hibernate-validator` is declared
 
-Following this project's existing "declare what you use" convention (already visible with
-`quarkus-rest-jackson`, which appears in both `core` and `inbound-http-jsonapi` even though the
-latter could get it transitively) — any module whose own classes reference `jakarta.validation.*`
-directly declares `quarkus-hibernate-validator` explicitly in its `pom.xml`, rather than relying on
-it arriving transitively through `core`:
+Any module whose own classes reference `jakarta.validation.*` directly declares
+`quarkus-hibernate-validator` explicitly in its `pom.xml`:
 
 - `core/pom.xml` — needed by `FruitDelivery`/`ParsedFruitDelivery`/`FruitOrder`/`ParsedFruitOrder`
   (`Validator`, `ConstraintViolation`, `@NotBlank`/`@Min`/`@Max`).
@@ -248,39 +155,110 @@ it arriving transitively through `core`:
   its DTOs carry no constraint annotations.
 
 Both entries are plain (non-test-scoped) dependencies: `FruitDelivery.parse()`/`FruitOrder.parse()`
-call `Validation.buildDefaultValidatorFactory()` at real application runtime, not just from tests,
-so the actual Hibernate Validator implementation (not just the `jakarta.validation-api`
-annotations) needs to be on the runtime classpath of every module that calls it directly.
+call `Validation.buildDefaultValidatorFactory()` at real application runtime, not just from tests.
 
 ---
 
-## Rollout status
+# Part 2 — Background & Reasoning
 
-**Kafka boundary**: implemented for `feature.fruit` only. Not yet applied to
-`feature.meat`/`dairy`/`bakery`/`vegetable`/`beverage`/`nonfood`, which still use their older,
-unvalidated or `Optional`-returning `parse()` style (see e.g. `MeatDelivery.parse()`).
+## Why no `Valid` wrapper type
 
-**HTTP boundary**: implemented for `POST /api/products/order-fruits` only (`FruitOrder`/
-`ParsedFruitOrder`). `AdminReceiver`'s `/admin/order-fruits` HTML form also now constructs a
-`FruitOrder` (so it can't reach `FruitsHandler` with invalid data either), but via the throwing
-constructor rather than its own `parse()`-based handling — see above. Not yet applied to the other
-six `order-*` endpoints on `ProductApiReceiver`/`AdminReceiver`, the `/purchase` endpoint, or
-`ShopReceiver`, all of which still accept unvalidated quantities.
+`Xxx`'s own compact constructor already throws on invalid input, so any `Xxx` instance that exists
+anywhere is valid by construction; a wrapper promising "this is a validated `Xxx`" would be
+redundant with a guarantee the record already gives for free. That's why only the failure case
+gets a dedicated type (`ParsedXxx.Invalid`). It holds `Set<ConstraintViolation<Xxx>>` rather than
+`List<String>` to keep the property path, message, and invalid value available to whoever ends up
+handling it, instead of baking a message format into the domain type.
+
+## Why `validate(...)` uses `validateValue`, not `validate`
+
+`Validator.validateValue(Xxx.class, "<property>", value)` validates a raw value against a
+property's declared constraints **without needing an instance**, which is what makes it possible
+to validate *before* construction. A plain `validator.validate(instance)` can't be used here, since
+the compact constructor already throws before an "invalid instance" could ever exist to hand to
+it.
+
+## Why `ParsedXxx` must be a separate top-level file
+
+`ParsedXxx` has to be a separate top-level file, not nested inside `Xxx` itself —
+`record Xxx(...) implements Xxx.ParsedXxx` (a type implementing its own inner interface) hits a
+real javac limitation ("cyclic inheritance"), even though the reverse (`Invalid` implementing its
+enclosing `ParsedXxx`) is fine.
+
+## Known trade-off: `Xxx implements ParsedXxx`
+
+Giving a plain domain record a role in its own "parse result" plumbing can look a little unusual —
+a purist might expect the domain type to know nothing about how its own parsing outcome is
+represented. This shape was reached only after three iterations that tried to avoid it, for the
+Kafka case (`FruitDelivery`) first:
+
+1. A generic `Parsed<T>` (`Valid<T>`/`Invalid<T>`) shared across commodities — rejected because
+   Java can't give a `public` record a constructor more restrictive than the record itself, so
+   there was no way to stop other code calling `new Parsed.Valid<>(unvalidatedValue)` while
+   keeping `Valid` visible for pattern matching outside its package.
+2. A non-generic `FruitDelivery.Valid`/`FruitDelivery.Invalid`, with `Valid`/`Invalid` as plain
+   classes with private constructors reachable only from `FruitDelivery.parse()` — technically
+   sound (Java's private-access rule is scoped to the whole enclosing top-level type, not just
+   the immediate class), but too much boilerplate to repeat across seven commodities for no
+   benefit beyond what the record's own constructor already gives.
+3. **Landed here**: no wrapper at all, accepting that the domain record plays double duty as its
+   own "valid" case. `FruitOrder` (the HTTP-side example) reuses this exact shape.
+
+See [`wip_validation.md`](wip_validation.md) for what to do when extending this pattern further.
+
+## Why the invalid-branch decision hinges on "synchronous caller?"
+
+A REST endpoint can hand an error straight back to whoever made the request — `400 Bad Request` is
+exactly the right response. A Kafka consumer has no such caller: throwing there is risky (depending
+on the failure strategy it can stall the consumer or endlessly retry a poison message), and "this
+message is invalid, log it and move on" is a **normal business outcome**, not an error condition —
+exactly what the sealed result models.
+
+## Why not Quarkus's declarative `@Valid`
+
+An earlier version of the HTTP pattern used Jakarta Bean Validation's `@Valid` directly on a JSON
+request DTO, letting `quarkus-rest`/`quarkus-hibernate-validator` auto-reject with `400` — no
+hand-written code at all. That's still a perfectly good, simpler choice **when there's no existing
+domain type whose constraints would otherwise be duplicated**. It was dropped here specifically
+because `FruitOrder` (the domain type `fruitsAPI.order(...)` needs anyway) already had to carry the
+same `@NotBlank`/`@Min` constraints for its own construction guarantee; keeping `@Valid` on a
+second, separate request-DTO record would have meant declaring the same rule twice. Reusing
+`FruitOrder.parse()` at the HTTP boundary removes that duplication entirely.
+
+This also isn't just a design preference: Quarkus's Bean Validation is explicitly **not** wired up
+for reactive-messaging `@Incoming` consumers, so it was never an option on the Kafka side to begin
+with. From the Quarkus team, discussing combining Hibernate Validator with reactive code paths:
+
+> "it's complicated, and Hibernate Validator/Bean Validation was not built for this."
+> — [quarkusio/quarkus discussion #32275](https://github.com/quarkusio/quarkus/discussions/32275)
+
+## Why the `400` body is a plain array, not a structured report
+
+Less structured than Hibernate Validator's own violation report, but sufficient here, and it keeps
+the mapping from `Invalid` → HTTP response fully explicit and local to this one method rather than
+depending on framework-wired exception handling.
+
+## Why not just deserialize the JSON body directly into `FruitOrder`?
+
+This looks tempting — it would let Jackson call `FruitOrder`'s constructor straight from the
+request body, skipping `Requests.FruitOrderRequest` entirely. It was rejected: a validation failure
+there happens *during deserialization*, as a Jackson `ValueInstantiationException` wrapping the
+constructor's `IllegalArgumentException` — and Quarkus's `rest-jackson` extension only ships a
+built-in `400` mapper for `MismatchedInputException` (structurally malformed JSON), not for
+`ValueInstantiationException`. Without a bespoke `ExceptionMapper`, this would silently fall
+through to a generic, unhelpful `500`. Keeping a separate (bare) `FruitOrderRequest` and calling
+`FruitOrder.parse()` explicitly avoids needing any new exception-handling infrastructure at all —
+the `switch` handles both outcomes directly, so there's nothing for a mapper to catch.
+
+## Why `quarkus-hibernate-validator` is declared per-module instead of relying on transitivity
+
+This follows this project's existing "declare what you use" convention, already visible with
+`quarkus-rest-jackson`, which appears in both `core` and `inbound-http-jsonapi` even though the
+latter could get it transitively.
 
 ---
 
 ## References
 
-- [`FruitDelivery.java`](../../core/src/main/java/org/svenehrke/triptychdemo/feature/fruit/FruitDelivery.java)
-- [`ParsedFruitDelivery.java`](../../core/src/main/java/org/svenehrke/triptychdemo/feature/fruit/ParsedFruitDelivery.java)
-- [`FruitDeliveryReceiver.java`](../../inbound-kafka/src/main/java/org/svenehrke/triptychdemo/feature/fruit/FruitDeliveryReceiver.java)
-- [`FruitOrder.java`](../../core/src/main/java/org/svenehrke/triptychdemo/feature/fruit/FruitOrder.java)
-- [`ParsedFruitOrder.java`](../../core/src/main/java/org/svenehrke/triptychdemo/feature/fruit/ParsedFruitOrder.java)
-- [`FruitsAPI.java`](../../core/src/main/java/org/svenehrke/triptychdemo/feature/fruit/FruitsAPI.java)
-- [`FruitSupplierSPI.java`](../../core/src/main/java/org/svenehrke/triptychdemo/feature/fruit/FruitSupplierSPI.java)
-- [`FruitSupplierService.java`](../../outbound-httpclient/src/main/java/org/svenehrke/triptychdemo/feature/fruit/FruitSupplierService.java)
-- [`Requests.java`](../../inbound-http-jsonapi/src/main/java/org/svenehrke/triptychdemo/cross/Requests.java)
-- [`ProductApiReceiver.java`](../../inbound-http-jsonapi/src/main/java/org/svenehrke/triptychdemo/cross/ProductApiReceiver.java)
-- [`AdminReceiver.java`](../../inbound-http-html/src/main/java/org/svenehrke/triptychdemo/cross/AdminReceiver.java)
 - [Quarkus – Validation with Hibernate Validator](https://quarkus.io/guides/validation)
 - [quarkusio/quarkus discussion #32275 — Hibernate Validator and reactive](https://github.com/quarkusio/quarkus/discussions/32275)
