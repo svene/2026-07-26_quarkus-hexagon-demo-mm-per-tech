@@ -19,7 +19,7 @@ public record FruitDelivery(@NotBlank String productName, @Min(1) @Max(MAX_QUANT
 	private static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();
 
 	/**
-	 * @deprecated Use {@link #parse(int)} instead, which returns an
+	 * @deprecated Use {@link #parse(String, int)} instead, which returns an
 	 * {@link Optional} rather than throwing on invalid input.
 	 * Only intended to be used by deserialization tools like Jackson
 	 */
