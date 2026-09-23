@@ -17,9 +17,10 @@ silently dropping them the way the pre-rollout `Optional`-returning `parse()` di
 Implemented for all seven `order-*` endpoints on `ProductApiReceiver` (`FruitOrder`, `MeatOrder`,
 `DairyOrder`, `BakeryOrder`, `VegetableOrder`, `BeverageOrder`, `NonFoodOrder`, each with a sibling
 `ParsedXxxOrder`) — each builds a `400` from the violation messages directly, no `@Valid`, no
-exception mapper. `AdminReceiver`'s HTML forms for all seven commodities construct their `XxxOrder`
-via the throwing `@Deprecated` constructor (consistent with `orderFruits`, not yet upgraded — see
-known gap below).
+exception mapper. `AdminReceiver`'s HTML forms (`inbound-http-html`) do the same for all seven
+commodities, returning the violation messages as a `text/plain` `400`. An ArchUnit rule
+(`ArchitectureTest.receivers_construct_domain_values_only_via_parse`) keeps any `*Receiver` from
+calling the throwing constructor directly.
 
 Not yet applied: the `/purchase` endpoint (`PurchaseRequest`/`PurchaseRequestItem`/`PurchaseItem`)
 and `ShopReceiver`'s `/shop/checkout` flow, both still entirely unvalidated — no `ParsedPurchaseItem`
@@ -30,6 +31,5 @@ equivalent exists yet.
 - Design and apply the pattern to `/purchase` and `ShopReceiver`'s `/shop/checkout` — no
   `ParsedPurchaseItem`-equivalent exists yet; this is a new design, not a replication of the
   landed shape.
-- Give `AdminReceiver`'s HTML forms (all seven commodities) their own `parse()`-based handling
-  instead of relying on the throwing constructor, so a violation produces a proper HTML error
-  instead of an unhandled exception. Explicitly deferred, not an oversight.
+- Show `AdminReceiver`'s `400` violation messages in the admin page — the forms use
+  `hx-swap="none"`, so under htmx the error response is currently not rendered anywhere.

@@ -8,7 +8,6 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 
 import java.lang.reflect.Constructor;
-import java.util.Optional;
 import java.util.Set;
 
 public record BeverageDelivery(@NotBlank String productName, @Min(1) @Max(MAX_QUANTITY) int quantity) implements ParsedBeverageDelivery {
@@ -22,11 +21,10 @@ public record BeverageDelivery(@NotBlank String productName, @Min(1) @Max(MAX_QU
 		(Constructor<BeverageDelivery>) BeverageDelivery.class.getDeclaredConstructors()[0];
 
 	/**
-	 * @deprecated Use {@link #parse(String, int)} instead, which returns an
-	 * {@link Optional} rather than throwing on invalid input.
-	 * Only intended to be used by deserialization tools like Jackson
+	 * For trusted data only - throws {@link IllegalArgumentException} on a violation.
+	 * Untrusted input (anything an inbound adapter receives) must go through {@link #parse(String, int)};
+	 * enforced by {@code ArchitectureTest}.
 	 */
-	@Deprecated
 	public BeverageDelivery {
 		Set<ConstraintViolation<BeverageDelivery>> violations = validate(productName, quantity);
 		if (!violations.isEmpty()) {

@@ -18,12 +18,10 @@ public record VegetableOrder(@NotBlank String productName, @Min(1) int quantity)
 		(Constructor<VegetableOrder>) VegetableOrder.class.getDeclaredConstructors()[0];
 
 	/**
-	 * @deprecated Use {@link #parse(String, int)} instead, which returns a
-	 * {@link ParsedVegetableOrder} rather than throwing on invalid input.
-	 * Only intended to be used by trusted callers that have no graceful way to react to a violation
-	 * (e.g. the HTML admin form, which has no upstream validation step of its own yet).
+	 * For trusted data only - throws {@link IllegalArgumentException} on a violation.
+	 * Untrusted input (anything an inbound adapter receives) must go through {@link #parse(String, int)};
+	 * enforced by {@code ArchitectureTest}.
 	 */
-	@Deprecated
 	public VegetableOrder {
 		Set<ConstraintViolation<VegetableOrder>> violations = validate(productName, quantity);
 		if (!violations.isEmpty()) {

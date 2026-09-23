@@ -66,6 +66,19 @@ class AdminReceiverTest {
     }
 
     @Test
+    void order_fruits_with_invalid_quantity_returns_400() {
+        var response = given()
+            .contentType("application/x-www-form-urlencoded")
+            .formParam("productName", "Banana")
+            .formParam("quantity", 0)
+            .redirects().follow(false)
+            .post("/admin/order-fruits");
+
+        assertThat(response.statusCode()).isEqualTo(400);
+        assertThat(response.asString()).contains("must be greater than or equal to 1");
+    }
+
+    @Test
     void admin_page_shows_no_audit_entries_message_when_empty() {
         var response = given().get("/admin");
 

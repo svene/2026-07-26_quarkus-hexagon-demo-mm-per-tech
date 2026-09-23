@@ -1,9 +1,13 @@
 package org.svenehrke.triptychdemo.devsupport;
 
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static org.svenehrke.triptychdemo.devsupport.TriptychArchitecture.triptychArchitecture;
 
 import com.tngtech.archunit.ArchConfiguration;
+import com.tngtech.archunit.base.DescribedPredicate;
+import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaClasses;
+import com.tngtech.archunit.core.domain.JavaConstructorCall;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
 import org.junit.jupiter.api.BeforeEach;
@@ -77,5 +81,27 @@ class ArchitectureTest {
 	@Test
 	void triptych_architecture_is_respected() {
 		triptychArchitecture(PKG_ROOT).check(importedClasses);
+	}
+
+	/**
+	 * Untrusted input must enter the domain via {@code XxxOrder.parse()}/{@code XxxDelivery.parse()}, never via
+	 * the throwing constructor (see validation.md). Domain values are recognized by implementing their sealed
+	 * {@code Parsed*} interface, so there is no maintained list of the commodity types.
+	 */
+	@Test
+	void receivers_construct_domain_values_only_via_parse() {
+		DescribedPredicate<JavaConstructorCall> constructsParsedDomainValue = DescribedPredicate.describe(
+			"a constructor of a Parsed* domain value",
+			call -> implementsParsedInterface(call.getTargetOwner())
+		);
+		noClasses().that().haveSimpleNameEndingWith("Receiver")
+			.should().callConstructorWhere(constructsParsedDomainValue)
+			.because("untrusted input must go through parse(), see validation.md")
+			.check(importedClasses);
+	}
+
+	private static boolean implementsParsedInterface(JavaClass javaClass) {
+		return javaClass.getAllRawInterfaces().stream()
+			.anyMatch(i -> i.getSimpleName().startsWith("Parsed"));
 	}
 }

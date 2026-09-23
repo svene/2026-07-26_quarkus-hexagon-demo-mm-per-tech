@@ -31,7 +31,8 @@ mechanism for a domain type `Xxx`:
   validates every constrained component in one call, driven entirely by reflection over the actual
   constructor's annotations — there is no per-property name to keep in sync with the record's
   components. This helper is used by **both**:
-  - the compact constructor (`@Deprecated` — throws `IllegalArgumentException` on violation), and
+  - the compact constructor (throws `IllegalArgumentException` on violation — for trusted data
+    only, see "Constructor vs. `parse()`" below), and
   - `parse(...)` (the normal entry point — returns `ParsedXxx.Invalid` on violation instead of
     throwing).
 - Callers `switch` exhaustively over the sealed result. **What happens in the invalid branch is
@@ -54,7 +55,7 @@ all in `core`/`inbound-kafka`).
 ```java
 public record FruitDelivery(@NotBlank String productName, @Min(1) @Max(MAX_QUANTITY) int quantity)
         implements ParsedFruitDelivery {
-    // ... validate() helper, @Deprecated compact constructor, parse() — see "shared building block" above
+    // ... validate() helper, throwing compact constructor, parse() — see "shared building block" above
 }
 ```
 
@@ -76,7 +77,7 @@ switch (FruitDelivery.parse(message.productName(), message.quantity())) {
 
 ```java
 public record FruitOrder(@NotBlank String productName, @Min(1) int quantity) implements ParsedFruitOrder {
-    // ... same validate()/@Deprecated constructor/parse() shape as FruitDelivery
+    // ... same validate()/throwing constructor/parse() shape as FruitDelivery
 }
 ```
 
@@ -141,10 +142,26 @@ the adapter implementing it (`FruitSupplierService` in `outbound-httpclient`) un
 `productName`/`quantity` at the very last step, to build the REST client's own `OrderRequest` wire
 type.
 
-`AdminReceiver`'s HTML form (`@FormParam` inputs) still constructs `FruitOrder` via the
-`@Deprecated` throwing constructor directly, rather than its own `parse()`-based check — a
-violation surfaces as an unhandled exception (no custom `ExceptionMapper` exists in this project)
-rather than a friendly HTML error.
+`AdminReceiver`'s HTML forms (`@FormParam` inputs, `inbound-http-html`) use the same `switch` over
+`XxxOrder.parse(...)`; the `Invalid` branch returns a `400` with the violation messages as
+`text/plain`.
+
+## Constructor vs. `parse()`
+
+A record's canonical constructor must be as accessible as the record itself, so the throwing
+constructor of every `XxxOrder`/`XxxDelivery` is necessarily `public`. The rule for which one to
+call is about **where the data comes from**, not about the constructor itself:
+
+- **Untrusted input** — anything an inbound adapter receives (Kafka message, JSON body, HTML form)
+  — must go through `parse(...)`.
+- **Trusted data** — tests, or core code rebuilding a value it has already validated — may call the
+  constructor directly. It still enforces the same constraints, so an invalid instance can never
+  exist; it just reports a violation as an exception instead of an `Invalid` value.
+
+The first rule is enforced by `ArchitectureTest.receivers_construct_domain_values_only_via_parse`
+(`app-server`): no `*Receiver` class may call the constructor of any type implementing a
+`Parsed*` interface. Deliberately not `@Deprecated` — nothing about the constructor is deprecated,
+and a compiler warning would not fail the build.
 
 ---
 
