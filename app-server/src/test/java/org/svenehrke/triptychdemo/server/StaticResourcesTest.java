@@ -19,7 +19,7 @@ class StaticResourcesTest {
 
     @Test
     void htmx_js_is_served() {
-        var response = given().get("/js/htmx.org/2.0.8/htmx.js");
+        var response = given().get("/js/htmx.org/4.0.0/htmx.js");
 
         assertThat(response.statusCode()).isEqualTo(200);
     }

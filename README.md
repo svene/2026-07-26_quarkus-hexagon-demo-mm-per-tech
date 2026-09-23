@@ -103,7 +103,7 @@ Both `/admin` and `/shop` use [Bulma](https://bulma.io) for styling and
 libraries are served locally — no CDN, no build step — from
 `inbound-http-html/src/main/resources/META-INF/resources/{css,js}`, which Quarkus
 serves automatically at the web root (`/css/bulma.min.css`,
-`/js/htmx.org/2.0.8/htmx.js`).
+`/js/htmx.org/4.0.0/htmx.js`).
 
 ---
 

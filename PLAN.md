@@ -34,7 +34,7 @@ Once `/admin` and `/shop` existed, `/products` (`ProductReceiver`) had nothing l
 Replaced the hand-rolled inline `<style>` blocks with Bulma, and made both pages update their
 inventory/audit numbers live instead of relying on manual refresh.
 
-- **Static assets**: Bulma (`css/bulma.min.css`) and htmx (`js/htmx.org/2.0.8/htmx.js`) are vendored
+- **Static assets**: Bulma (`css/bulma.min.css`) and htmx (`js/htmx.org/4.0.0/htmx.js`) are vendored
   locally (no CDN, no build step). They were originally placed under `resources/static`, which Quarkus
   does **not** auto-serve — moved to `inbound-rest/src/main/resources/META-INF/resources/` (the
   directory Quarkus does serve from the classpath root), confirmed by a new `StaticResourcesTest`.
