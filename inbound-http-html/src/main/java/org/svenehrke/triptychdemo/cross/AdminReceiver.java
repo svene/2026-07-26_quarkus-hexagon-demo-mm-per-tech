@@ -42,7 +42,6 @@ import jakarta.ws.rs.core.Response;
 import java.net.URI;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 @Path("/admin")
 public class AdminReceiver {
@@ -73,6 +72,7 @@ public class AdminReceiver {
         public static native TemplateInstance admin(List<Product> products, List<AuditLogEntry> auditEntries);
         public static native TemplateInstance inventoryFragment(List<Product> products);
         public static native TemplateInstance auditFragment(List<AuditLogEntry> auditEntries);
+        public static native TemplateInstance orderErrors(List<String> messages);
     }
 
     @GET
@@ -202,14 +202,15 @@ public class AdminReceiver {
 
     private static Response badRequest(Set<? extends ConstraintViolation<?>> violations) {
         return Response.status(Response.Status.BAD_REQUEST)
-            .type(MediaType.TEXT_PLAIN)
-            .entity(violations.stream().map(ConstraintViolation::getMessage).collect(Collectors.joining("\n")))
+            .type(MediaType.TEXT_HTML)
+            .entity(Templates.orderErrors(violations.stream().map(ConstraintViolation::getMessage).toList()))
             .build();
     }
 
     private Response orderResponse(String hxRequest) {
         if ("true".equals(hxRequest)) {
-            return Response.noContent().build();
+            // 200 with an empty body (not 204, which htmx never swaps) clears a previous error below the form
+            return Response.ok("", MediaType.TEXT_HTML).build();
         }
         return Response.seeOther(URI.create("/admin")).build();
     }

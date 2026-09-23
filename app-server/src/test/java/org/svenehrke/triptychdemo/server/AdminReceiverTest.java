@@ -75,7 +75,22 @@ class AdminReceiverTest {
             .post("/admin/order-fruits");
 
         assertThat(response.statusCode()).isEqualTo(400);
+        assertThat(response.contentType()).contains("text/html");
         assertThat(response.asString()).contains("must be greater than or equal to 1");
+    }
+
+    @Test
+    void order_fruits_htmx_post_returns_200_with_empty_body() {
+        var response = given()
+            .contentType("application/x-www-form-urlencoded")
+            .header("HX-Request", "true")
+            .formParam("productName", "Banana")
+            .formParam("quantity", 20)
+            .post("/admin/order-fruits");
+
+        // not 204: htmx never swaps a 204, and the empty swap is what clears a previous error below the form
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(response.asString()).isEmpty();
     }
 
     @Test

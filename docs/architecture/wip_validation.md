@@ -18,7 +18,7 @@ Implemented for all seven `order-*` endpoints on `ProductApiReceiver` (`FruitOrd
 `DairyOrder`, `BakeryOrder`, `VegetableOrder`, `BeverageOrder`, `NonFoodOrder`, each with a sibling
 `ParsedXxxOrder`) — each builds a `400` from the violation messages directly, no `@Valid`, no
 exception mapper. `AdminReceiver`'s HTML forms (`inbound-http-html`) do the same for all seven
-commodities, returning the violation messages as a `text/plain` `400`. An ArchUnit rule
+commodities, returning the violation messages as a `400` HTML fragment shown below the form. An ArchUnit rule
 (`ArchitectureTest.receivers_construct_domain_values_only_via_parse`) keeps any `*Receiver` from
 calling the throwing constructor directly.
 
@@ -32,6 +32,4 @@ re-rendered with `400` and errors). This also closed a bug: a negative purchase 
 
 ## Next steps
 
-- Show `AdminReceiver`'s `400` violation messages in the admin page — the forms use
-  `hx-swap="none"`, so under htmx the error response is currently not rendered anywhere.
-  Deferred until after the htmx 4 upgrade.
+None — every inbound boundary that accepts untrusted input now goes through `parse()`.

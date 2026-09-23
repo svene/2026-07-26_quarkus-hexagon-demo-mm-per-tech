@@ -142,8 +142,11 @@ the adapter implementing it (`FruitSupplierService` in `outbound-httpclient`) un
 type.
 
 `AdminReceiver`'s HTML forms (`@FormParam` inputs, `inbound-http-html`) use the same `switch` over
-`XxxOrder.parse(...)`; the `Invalid` branch returns a `400` with the violation messages as
-`text/plain`.
+`XxxOrder.parse(...)`; the `Invalid` branch returns a `400` HTML fragment (`orderErrors.html`, one
+line per violation message). Each form targets the `<p class="order-error">` right below it
+(`hx-target="next .order-error"`), and htmx 4 swaps `4xx` responses by default, so the message
+appears under the form that caused it. A successful htmx order returns `200` with an empty body
+rather than `204` — htmx never swaps a `204`, and the empty swap is what clears a previous error.
 
 ## Multi-item input: `Purchase`
 
