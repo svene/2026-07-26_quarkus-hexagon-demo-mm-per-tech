@@ -109,6 +109,12 @@ public Response orderFruits(Requests.FruitOrderRequest request) {
 
 A `400` response body is a plain JSON array of violation messages, e.g. `["must not be blank"]`.
 
+The request's *structure* is checked before `parse()`, since `parse()` only sees values: an empty
+body (Quarkus passes `request == null`) is a `400` `["request body is required"]` on every endpoint,
+and `/purchase` additionally rejects a missing list (`["items is required"]`) and `null` entries
+(`["items[1]: must not be null"]`). An explicit empty list `{"items": []}` is not an error — see
+"Multi-item input" below.
+
 ### Verified behavior
 
 `ProductApiReceiverTest` (`app-server`) covers the accept and both reject paths:

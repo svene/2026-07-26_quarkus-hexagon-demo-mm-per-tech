@@ -32,4 +32,23 @@ re-rendered with `400` and errors). This also closed a bug: a negative purchase 
 
 ## Next steps
 
-None — every inbound boundary that accepts untrusted input now goes through `parse()`.
+Every inbound boundary now sends its *values* through `parse()`. What's left are gaps where input
+fails before `parse()` is ever reached, plus two business-rule decisions:
+
+- **Kafka: malformed messages are not handled (unverified).** Invalid JSON or a wrongly typed field
+  (`"quantity": "abc"`) fails in `DeliveryMessageDeserializer`/`PurchaseMessageDeserializer`, before
+  any receiver runs. There is no deserialization failure handler and no
+  `fail-on-deserialization-failure` setting, so under SmallRye's defaults this may stop the channel
+  rather than log-and-skip. A tombstone (`null` value) would reach the receivers as `null` and throw
+  an NPE; so would a cashpoint message with `"items": null` or a `null` entry (the JSON API
+  handles both since the "request structure" check, see `validation.md`). Affects all 8 consumers. First step: a
+  test that publishes a raw invalid message, to see what actually happens.
+- **Admin form: non-numeric quantity.** `@FormParam("quantity") int` fails in JAX-RS before
+  `parse()`, so the `400` is Quarkus's default body rather than the `orderErrors` fragment. The
+  browser's `type="number"` makes this hard to hit.
+- **ArchUnit rule scope.** `receivers_construct_domain_values_only_via_parse` only checks `*Receiver`
+  classes; a receiver delegating to a helper class that calls the constructor would slip through.
+  Nothing does this today. Closing it means checking every non-`core` class in the inbound modules.
+- **Business rules (decisions, not validation):** purchasing more than is in stock is silently
+  capped at `0` by `InventoryService.deductAmount` — should it be rejected? Orders and purchases have
+  no upper quantity limit, while deliveries have `@Max(10_000)`.

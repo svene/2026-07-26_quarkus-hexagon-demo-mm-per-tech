@@ -389,4 +389,50 @@ class ProductApiReceiverTest {
         assertThat(response.statusCode()).isEqualTo(400);
         assertThat(response.jsonPath().<String>getList("$")).containsExactly("must be greater than or equal to 1");
     }
+
+    // --- Request structure (checked before parse()) ---
+
+    @Test
+    void order_fruits_with_empty_body_returns_400() {
+        var response = given()
+            .contentType(ContentType.JSON)
+            .post("/api/products/order-fruits");
+
+        assertThat(response.statusCode()).isEqualTo(400);
+        assertThat(response.jsonPath().<String>getList("$")).containsExactly("request body is required");
+    }
+
+    @Test
+    void purchase_with_empty_body_returns_400() {
+        var response = given()
+            .contentType(ContentType.JSON)
+            .post("/api/products/purchase");
+
+        assertThat(response.statusCode()).isEqualTo(400);
+        assertThat(response.jsonPath().<String>getList("$")).containsExactly("request body is required");
+    }
+
+    @Test
+    void purchase_without_items_returns_400() {
+        var response = given()
+            .contentType(ContentType.JSON)
+            .body("{}")
+            .post("/api/products/purchase");
+
+        assertThat(response.statusCode()).isEqualTo(400);
+        assertThat(response.jsonPath().<String>getList("$")).containsExactly("items is required");
+    }
+
+    @Test
+    void purchase_with_null_item_returns_400() {
+        var response = given()
+            .contentType(ContentType.JSON)
+            .body("""
+                {"items":[{"productName":"Apple","quantity":1},null]}
+                """)
+            .post("/api/products/purchase");
+
+        assertThat(response.statusCode()).isEqualTo(400);
+        assertThat(response.jsonPath().<String>getList("$")).containsExactly("items[1]: must not be null");
+    }
 }

@@ -38,6 +38,7 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.util.List;
+import java.util.stream.IntStream;
 
 @Path("/api/products")
 public class ProductApiReceiver {
@@ -72,10 +73,9 @@ public class ProductApiReceiver {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public Response orderFruits(Requests.FruitOrderRequest request) {
+        if (request == null) return badRequest(List.of("request body is required"));
         return switch (FruitOrder.parse(request.productName(), request.quantity())) {
-            case ParsedFruitOrder.Invalid invalid -> Response.status(Response.Status.BAD_REQUEST)
-                .entity(invalid.violations().stream().map(ConstraintViolation::getMessage).toList())
-                .build();
+            case ParsedFruitOrder.Invalid invalid -> badRequest(invalid.violations().stream().map(ConstraintViolation::getMessage).toList());
             case FruitOrder fruitOrder -> {
                 fruitsAPI.order(fruitOrder);
                 yield Response.noContent().build();
@@ -88,10 +88,9 @@ public class ProductApiReceiver {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public Response orderVegetables(Requests.VegetableOrderRequest request) {
+        if (request == null) return badRequest(List.of("request body is required"));
         return switch (VegetableOrder.parse(request.productName(), request.quantity())) {
-            case ParsedVegetableOrder.Invalid invalid -> Response.status(Response.Status.BAD_REQUEST)
-                .entity(invalid.violations().stream().map(ConstraintViolation::getMessage).toList())
-                .build();
+            case ParsedVegetableOrder.Invalid invalid -> badRequest(invalid.violations().stream().map(ConstraintViolation::getMessage).toList());
             case VegetableOrder vegetableOrder -> {
                 vegetablesAPI.order(vegetableOrder);
                 yield Response.noContent().build();
@@ -104,10 +103,9 @@ public class ProductApiReceiver {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public Response orderDairy(Requests.DairyOrderRequest request) {
+        if (request == null) return badRequest(List.of("request body is required"));
         return switch (DairyOrder.parse(request.productName(), request.quantity())) {
-            case ParsedDairyOrder.Invalid invalid -> Response.status(Response.Status.BAD_REQUEST)
-                .entity(invalid.violations().stream().map(ConstraintViolation::getMessage).toList())
-                .build();
+            case ParsedDairyOrder.Invalid invalid -> badRequest(invalid.violations().stream().map(ConstraintViolation::getMessage).toList());
             case DairyOrder dairyOrder -> {
                 dairyAPI.order(dairyOrder);
                 yield Response.noContent().build();
@@ -120,10 +118,9 @@ public class ProductApiReceiver {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public Response orderBeverages(Requests.BeverageOrderRequest request) {
+        if (request == null) return badRequest(List.of("request body is required"));
         return switch (BeverageOrder.parse(request.productName(), request.quantity())) {
-            case ParsedBeverageOrder.Invalid invalid -> Response.status(Response.Status.BAD_REQUEST)
-                .entity(invalid.violations().stream().map(ConstraintViolation::getMessage).toList())
-                .build();
+            case ParsedBeverageOrder.Invalid invalid -> badRequest(invalid.violations().stream().map(ConstraintViolation::getMessage).toList());
             case BeverageOrder beverageOrder -> {
                 beveragesAPI.order(beverageOrder);
                 yield Response.noContent().build();
@@ -136,10 +133,9 @@ public class ProductApiReceiver {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public Response orderMeat(Requests.MeatOrderRequest request) {
+        if (request == null) return badRequest(List.of("request body is required"));
         return switch (MeatOrder.parse(request.productName(), request.quantity())) {
-            case ParsedMeatOrder.Invalid invalid -> Response.status(Response.Status.BAD_REQUEST)
-                .entity(invalid.violations().stream().map(ConstraintViolation::getMessage).toList())
-                .build();
+            case ParsedMeatOrder.Invalid invalid -> badRequest(invalid.violations().stream().map(ConstraintViolation::getMessage).toList());
             case MeatOrder meatOrder -> {
                 meatAPI.order(meatOrder);
                 yield Response.noContent().build();
@@ -152,10 +148,9 @@ public class ProductApiReceiver {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public Response orderBakery(Requests.BakeryOrderRequest request) {
+        if (request == null) return badRequest(List.of("request body is required"));
         return switch (BakeryOrder.parse(request.productName(), request.quantity())) {
-            case ParsedBakeryOrder.Invalid invalid -> Response.status(Response.Status.BAD_REQUEST)
-                .entity(invalid.violations().stream().map(ConstraintViolation::getMessage).toList())
-                .build();
+            case ParsedBakeryOrder.Invalid invalid -> badRequest(invalid.violations().stream().map(ConstraintViolation::getMessage).toList());
             case BakeryOrder bakeryOrder -> {
                 bakeryAPI.order(bakeryOrder);
                 yield Response.noContent().build();
@@ -168,10 +163,9 @@ public class ProductApiReceiver {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public Response orderNonFood(Requests.NonFoodOrderRequest request) {
+        if (request == null) return badRequest(List.of("request body is required"));
         return switch (NonFoodOrder.parse(request.productName(), request.quantity())) {
-            case ParsedNonFoodOrder.Invalid invalid -> Response.status(Response.Status.BAD_REQUEST)
-                .entity(invalid.violations().stream().map(ConstraintViolation::getMessage).toList())
-                .build();
+            case ParsedNonFoodOrder.Invalid invalid -> badRequest(invalid.violations().stream().map(ConstraintViolation::getMessage).toList());
             case NonFoodOrder nonFoodOrder -> {
                 nonFoodAPI.order(nonFoodOrder);
                 yield Response.noContent().build();
@@ -184,17 +178,28 @@ public class ProductApiReceiver {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public Response purchase(Requests.PurchaseRequest request) {
+        // Request structure first - a missing body/list/entry is a malformed request, not an invalid value
+        if (request == null) return badRequest(List.of("request body is required"));
+        if (request.items() == null) return badRequest(List.of("items is required"));
+        var nullEntries = IntStream.range(0, request.items().size())
+            .filter(i -> request.items().get(i) == null)
+            .mapToObj(i -> "items[" + i + "]: must not be null")
+            .toList();
+        if (!nullEntries.isEmpty()) return badRequest(nullEntries);
+
         var parsedItems = request.items().stream()
             .map(i -> PurchaseItem.parse(i.productName(), i.quantity()))
             .toList();
         return switch (Purchase.parse(parsedItems)) {
-            case ParsedPurchase.Invalid invalid -> Response.status(Response.Status.BAD_REQUEST)
-                .entity(invalid.messages())
-                .build();
+            case ParsedPurchase.Invalid invalid -> badRequest(invalid.messages());
             case Purchase purchase -> {
                 purchaseAPI.purchase(purchase);
                 yield Response.noContent().build();
             }
         };
+    }
+
+    private static Response badRequest(List<String> messages) {
+        return Response.status(Response.Status.BAD_REQUEST).entity(messages).build();
     }
 }
