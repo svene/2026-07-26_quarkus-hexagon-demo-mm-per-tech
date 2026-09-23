@@ -6,13 +6,16 @@ import jakarta.validation.Validator;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 
+import java.lang.reflect.Constructor;
 import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public record FruitOrder(@NotBlank String productName, @Min(1) int quantity) implements ParsedFruitOrder {
 
 	private static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();
+
+	@SuppressWarnings("unchecked")
+	private static final Constructor<FruitOrder> CANONICAL_CONSTRUCTOR =
+		(Constructor<FruitOrder>) FruitOrder.class.getDeclaredConstructors()[0];
 
 	/**
 	 * @deprecated Use {@link #parse(String, int)} instead, which returns a
@@ -36,10 +39,8 @@ public record FruitOrder(@NotBlank String productName, @Min(1) int quantity) imp
 	}
 
 	private static Set<ConstraintViolation<FruitOrder>> validate(String productName, int quantity) {
-		return Stream.concat(
-				VALIDATOR.validateValue(FruitOrder.class, "productName", productName).stream(),
-				VALIDATOR.validateValue(FruitOrder.class, "quantity", quantity).stream())
-			.collect(Collectors.toSet());
+		return VALIDATOR.forExecutables()
+			.validateConstructorParameters(CANONICAL_CONSTRUCTOR, new Object[]{productName, quantity});
 	}
 
 }

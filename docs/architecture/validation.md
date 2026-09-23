@@ -24,8 +24,13 @@ mechanism for a domain type `Xxx`:
 - `Xxx` implements a sibling sealed interface `ParsedXxx` **directly** — there is no separate
   `Valid` wrapper type. The failure case has its own type, `ParsedXxx.Invalid`, holding
   `Set<ConstraintViolation<Xxx>>`.
-- A private `validate(...)` helper calls `Validator.validateValue(Xxx.class, "<property>", value)`
-  for each constrained property and merges the results. This helper is used by **both**:
+- A private `validate(...)` helper calls
+  `Validator.forExecutables().validateConstructorParameters(canonicalConstructor, args)` against the
+  record's own canonical constructor (found once via
+  `Class.getDeclaredConstructors()[0]`, cached in a `static final Constructor<Xxx>` field). This
+  validates every constrained component in one call, driven entirely by reflection over the actual
+  constructor's annotations — there is no per-property name to keep in sync with the record's
+  components. This helper is used by **both**:
   - the compact constructor (`@Deprecated` — throws `IllegalArgumentException` on violation), and
   - `parse(...)` (the normal entry point — returns `ParsedXxx.Invalid` on violation instead of
     throwing).
@@ -170,13 +175,26 @@ gets a dedicated type (`ParsedXxx.Invalid`). It holds `Set<ConstraintViolation<X
 `List<String>` to keep the property path, message, and invalid value available to whoever ends up
 handling it, instead of baking a message format into the domain type.
 
-## Why `validate(...)` uses `validateValue`, not `validate`
+## Why `validate(...)` uses `validateConstructorParameters`, not `validate`
 
-`Validator.validateValue(Xxx.class, "<property>", value)` validates a raw value against a
-property's declared constraints **without needing an instance**, which is what makes it possible
-to validate *before* construction. A plain `validator.validate(instance)` can't be used here, since
-the compact constructor already throws before an "invalid instance" could ever exist to hand to
-it.
+A plain `validator.validate(instance)` can't be used here, since the compact constructor already
+throws before an "invalid instance" could ever exist to hand to it — validation has to happen
+*before* construction. `ExecutableValidator.validateConstructorParameters(constructor, args)` is
+Jakarta Bean Validation's purpose-built answer for exactly that: it validates candidate constructor
+arguments against the constraints declared on that constructor's parameters, without ever invoking
+the constructor or needing an instance.
+
+An earlier version of `validate(...)` used `Validator.validateValue(Xxx.class, "<property>",
+value)` instead — which also validates without an instance, but only one *named* property per call.
+That meant `validate(...)` had to repeat every component's name as a string (`"productName"`,
+`"quantity"`, …), duplicated against the record's own component list: add, rename, or remove a
+constrained component and `validate(...)` silently stopped checking it unless someone remembered to
+update the string list too. `validateConstructorParameters` reads the constraint annotations
+directly off the constructor's parameters via reflection, so `validate(...)` needs no per-property
+list at all — nothing to fall out of sync when the record's components change. This depends on
+`-parameters` being enabled on the compiler (it is, project-wide, in the root `pom.xml`), so
+constructor parameter names resolve to real component names (`productName`) rather than `arg0`,
+`arg1`, … in violation property paths.
 
 ## Why `ParsedXxx` must be a separate top-level file
 

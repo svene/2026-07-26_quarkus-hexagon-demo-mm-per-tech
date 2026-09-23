@@ -7,16 +7,19 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 
+import java.lang.reflect.Constructor;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public record FruitDelivery(@NotBlank String productName, @Min(1) @Max(MAX_QUANTITY) int quantity) implements ParsedFruitDelivery {
 
 	static final int MAX_QUANTITY = 10_000;
 
 	private static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();
+
+	@SuppressWarnings("unchecked")
+	private static final Constructor<FruitDelivery> CANONICAL_CONSTRUCTOR =
+		(Constructor<FruitDelivery>) FruitDelivery.class.getDeclaredConstructors()[0];
 
 	/**
 	 * @deprecated Use {@link #parse(String, int)} instead, which returns an
@@ -39,10 +42,8 @@ public record FruitDelivery(@NotBlank String productName, @Min(1) @Max(MAX_QUANT
 	}
 
 	private static Set<ConstraintViolation<FruitDelivery>> validate(String productName, int quantity) {
-		return Stream.concat(
-				VALIDATOR.validateValue(FruitDelivery.class, "productName", productName).stream(),
-				VALIDATOR.validateValue(FruitDelivery.class, "quantity", quantity).stream())
-			.collect(Collectors.toSet());
+		return VALIDATOR.forExecutables()
+			.validateConstructorParameters(CANONICAL_CONSTRUCTOR, new Object[]{productName, quantity});
 	}
 
 }
