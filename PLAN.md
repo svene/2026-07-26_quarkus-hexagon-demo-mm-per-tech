@@ -51,13 +51,13 @@ inventory/audit numbers live instead of relying on manual refresh.
 - **htmx polling for shop inventory numbers** — `/shop`'s quantity `<input>`s must survive polling
   (a full swap would wipe what the customer is typing), so each "Available" cell has an id
   (`avail-{name}`) and a hidden poller (`hx-swap="none"`) fetches `GET /shop/inventory-fragment`,
-  which returns only out-of-band `<td id="avail-...">` snippets — htmx merges them in by id without
+  which returns only `<hx-partial id="avail-...">` snippets — htmx swaps each number into its cell by id without
   touching the inputs.
 - **Real bug found during Playwright verification**: merging the audit log onto `/admin` means the
   audit "Details" column also contains product names, so `page.getByRole('row').filter({ hasText:
   productName })` in `admin.spec.ts` started matching audit rows too. Fixed by scoping all row/cell
   lookups to `page.locator('#inventory-body')`.
-- Covered by: `AdminReceiverTest` (fragment endpoints), `ShopReceiverTest` (OOB fragment),
+- Covered by: `AdminReceiverTest` (fragment endpoints), `ShopReceiverTest` (partials fragment),
   `StaticResourcesTest` (asset serving), and the full Playwright suite (all 10 tests, run live against
   `mvn quarkus:dev` with real Postgres/MongoDB/Kafka).
 - `architecture.puml` and `README.md` updated with the new routes and htmx/Bulma details.

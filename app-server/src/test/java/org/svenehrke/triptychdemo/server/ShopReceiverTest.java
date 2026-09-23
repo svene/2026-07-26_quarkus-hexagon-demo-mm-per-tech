@@ -125,7 +125,7 @@ class ShopReceiverTest {
     }
 
     @Test
-    void inventory_fragment_returns_an_out_of_band_cell_per_product() {
+    void inventory_fragment_returns_a_partial_per_product() {
         inventory.addAmount("Apple", ProductType.FRUIT, 10);
 
         var response = given().get("/shop/inventory-fragment");
@@ -133,8 +133,7 @@ class ShopReceiverTest {
         assertThat(response.statusCode()).isEqualTo(200);
         assertThat(response.contentType()).contains("text/html");
         assertThat(response.asString())
-            .contains("id=\"avail-Apple\"")
-            .contains("hx-swap-oob=\"true\"")
+            .contains("<hx-partial id=\"avail-Apple\"")
             .contains(">10<");
     }
 }
