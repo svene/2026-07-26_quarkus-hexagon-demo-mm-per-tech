@@ -122,4 +122,271 @@ class ProductApiReceiverTest {
 
         assertThat(response.statusCode()).isEqualTo(204);
     }
+
+    @Test
+    void order_beverages_with_blank_product_name_returns_400() {
+        var response = given()
+            .contentType(ContentType.JSON)
+            .body("""
+                {
+                  "productName": " ",
+                  "quantity": 3
+                }
+                """)
+            .post("/api/products/order-beverages");
+
+        assertThat(response.statusCode()).isEqualTo(400);
+        assertThat(response.jsonPath().<String>getList("$")).containsExactly("must not be blank");
+    }
+
+    @Test
+    void order_beverages_with_non_positive_quantity_returns_400() {
+        var response = given()
+            .contentType(ContentType.JSON)
+            .body("""
+                {
+                  "productName": "Coffee",
+                  "quantity": 0
+                }
+                """)
+            .post("/api/products/order-beverages");
+
+        assertThat(response.statusCode()).isEqualTo(400);
+        assertThat(response.jsonPath().<String>getList("$")).containsExactly("must be greater than or equal to 1");
+    }
+
+    @Test
+    void order_vegetables_calls_supplier_and_returns_204() {
+        var response = given()
+            .contentType(ContentType.JSON)
+            .body("""
+                {
+                  "productName": "Carrot",
+                  "quantity": 8
+                }
+                """)
+            .post("/api/products/order-vegetables");
+
+        assertThat(response.statusCode()).isEqualTo(204);
+    }
+
+    @Test
+    void order_vegetables_with_blank_product_name_returns_400() {
+        var response = given()
+            .contentType(ContentType.JSON)
+            .body("""
+                {
+                  "productName": " ",
+                  "quantity": 8
+                }
+                """)
+            .post("/api/products/order-vegetables");
+
+        assertThat(response.statusCode()).isEqualTo(400);
+        assertThat(response.jsonPath().<String>getList("$")).containsExactly("must not be blank");
+    }
+
+    @Test
+    void order_vegetables_with_non_positive_quantity_returns_400() {
+        var response = given()
+            .contentType(ContentType.JSON)
+            .body("""
+                {
+                  "productName": "Carrot",
+                  "quantity": 0
+                }
+                """)
+            .post("/api/products/order-vegetables");
+
+        assertThat(response.statusCode()).isEqualTo(400);
+        assertThat(response.jsonPath().<String>getList("$")).containsExactly("must be greater than or equal to 1");
+    }
+
+    @Test
+    void order_dairy_calls_supplier_and_returns_204() {
+        var response = given()
+            .contentType(ContentType.JSON)
+            .body("""
+                {
+                  "productName": "Milk",
+                  "quantity": 6
+                }
+                """)
+            .post("/api/products/order-dairy");
+
+        assertThat(response.statusCode()).isEqualTo(204);
+    }
+
+    @Test
+    void order_dairy_with_blank_product_name_returns_400() {
+        var response = given()
+            .contentType(ContentType.JSON)
+            .body("""
+                {
+                  "productName": " ",
+                  "quantity": 6
+                }
+                """)
+            .post("/api/products/order-dairy");
+
+        assertThat(response.statusCode()).isEqualTo(400);
+        assertThat(response.jsonPath().<String>getList("$")).containsExactly("must not be blank");
+    }
+
+    @Test
+    void order_dairy_with_non_positive_quantity_returns_400() {
+        var response = given()
+            .contentType(ContentType.JSON)
+            .body("""
+                {
+                  "productName": "Milk",
+                  "quantity": 0
+                }
+                """)
+            .post("/api/products/order-dairy");
+
+        assertThat(response.statusCode()).isEqualTo(400);
+        assertThat(response.jsonPath().<String>getList("$")).containsExactly("must be greater than or equal to 1");
+    }
+
+    @Test
+    void order_meat_calls_supplier_and_returns_204() {
+        var response = given()
+            .contentType(ContentType.JSON)
+            .body("""
+                {
+                  "productName": "Steak",
+                  "quantity": 4
+                }
+                """)
+            .post("/api/products/order-meat");
+
+        assertThat(response.statusCode()).isEqualTo(204);
+    }
+
+    @Test
+    void order_meat_with_blank_product_name_returns_400() {
+        var response = given()
+            .contentType(ContentType.JSON)
+            .body("""
+                {
+                  "productName": " ",
+                  "quantity": 4
+                }
+                """)
+            .post("/api/products/order-meat");
+
+        assertThat(response.statusCode()).isEqualTo(400);
+        assertThat(response.jsonPath().<String>getList("$")).containsExactly("must not be blank");
+    }
+
+    @Test
+    void order_meat_with_non_positive_quantity_returns_400() {
+        var response = given()
+            .contentType(ContentType.JSON)
+            .body("""
+                {
+                  "productName": "Steak",
+                  "quantity": 0
+                }
+                """)
+            .post("/api/products/order-meat");
+
+        assertThat(response.statusCode()).isEqualTo(400);
+        assertThat(response.jsonPath().<String>getList("$")).containsExactly("must be greater than or equal to 1");
+    }
+
+    @Test
+    void order_bakery_calls_supplier_and_returns_204() {
+        var response = given()
+            .contentType(ContentType.JSON)
+            .body("""
+                {
+                  "productName": "Bread",
+                  "quantity": 2
+                }
+                """)
+            .post("/api/products/order-bakery");
+
+        assertThat(response.statusCode()).isEqualTo(204);
+    }
+
+    @Test
+    void order_bakery_with_blank_product_name_returns_400() {
+        var response = given()
+            .contentType(ContentType.JSON)
+            .body("""
+                {
+                  "productName": " ",
+                  "quantity": 2
+                }
+                """)
+            .post("/api/products/order-bakery");
+
+        assertThat(response.statusCode()).isEqualTo(400);
+        assertThat(response.jsonPath().<String>getList("$")).containsExactly("must not be blank");
+    }
+
+    @Test
+    void order_bakery_with_non_positive_quantity_returns_400() {
+        var response = given()
+            .contentType(ContentType.JSON)
+            .body("""
+                {
+                  "productName": "Bread",
+                  "quantity": 0
+                }
+                """)
+            .post("/api/products/order-bakery");
+
+        assertThat(response.statusCode()).isEqualTo(400);
+        assertThat(response.jsonPath().<String>getList("$")).containsExactly("must be greater than or equal to 1");
+    }
+
+    @Test
+    void order_nonfood_calls_supplier_and_returns_204() {
+        var response = given()
+            .contentType(ContentType.JSON)
+            .body("""
+                {
+                  "productName": "Detergent",
+                  "quantity": 9
+                }
+                """)
+            .post("/api/products/order-nonfood");
+
+        assertThat(response.statusCode()).isEqualTo(204);
+    }
+
+    @Test
+    void order_nonfood_with_blank_product_name_returns_400() {
+        var response = given()
+            .contentType(ContentType.JSON)
+            .body("""
+                {
+                  "productName": " ",
+                  "quantity": 9
+                }
+                """)
+            .post("/api/products/order-nonfood");
+
+        assertThat(response.statusCode()).isEqualTo(400);
+        assertThat(response.jsonPath().<String>getList("$")).containsExactly("must not be blank");
+    }
+
+    @Test
+    void order_nonfood_with_non_positive_quantity_returns_400() {
+        var response = given()
+            .contentType(ContentType.JSON)
+            .body("""
+                {
+                  "productName": "Detergent",
+                  "quantity": 0
+                }
+                """)
+            .post("/api/products/order-nonfood");
+
+        assertThat(response.statusCode()).isEqualTo(400);
+        assertThat(response.jsonPath().<String>getList("$")).containsExactly("must be greater than or equal to 1");
+    }
 }

@@ -1,10 +1,25 @@
 package org.svenehrke.triptychdemo.feature.meat;
 
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validation;
+import jakarta.validation.Validator;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+
+import java.lang.reflect.Constructor;
 import java.util.Optional;
+import java.util.Set;
 
-public record MeatDelivery(String productName, int quantity) {
+public record MeatDelivery(@NotBlank String productName, @Min(1) @Max(MAX_QUANTITY) int quantity) implements ParsedMeatDelivery {
 
-	private static final int MAX_QUANTITY = 10_000;
+	static final int MAX_QUANTITY = 10_000;
+
+	private static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();
+
+	@SuppressWarnings("unchecked")
+	private static final Constructor<MeatDelivery> CANONICAL_CONSTRUCTOR =
+		(Constructor<MeatDelivery>) MeatDelivery.class.getDeclaredConstructors()[0];
 
 	/**
 	 * @deprecated Use {@link #parse(String, int)} instead, which returns an
@@ -13,19 +28,22 @@ public record MeatDelivery(String productName, int quantity) {
 	 */
 	@Deprecated
 	public MeatDelivery {
-		if (!isValid(quantity)) {
-			throw new IllegalArgumentException("quantity out parse range: " + quantity);
+		Set<ConstraintViolation<MeatDelivery>> violations = validate(productName, quantity);
+		if (!violations.isEmpty()) {
+			throw new IllegalArgumentException(violations.iterator().next().getMessage());
 		}
 	}
 
-	private static boolean isValid(int quantity) {
-		return quantity > 0 && quantity <= MAX_QUANTITY;
+	public static ParsedMeatDelivery parse(String productName, int quantity) {
+		Set<ConstraintViolation<MeatDelivery>> violations = validate(productName, quantity);
+		return violations.isEmpty()
+			? new MeatDelivery(productName, quantity)
+			: new ParsedMeatDelivery.Invalid(violations);
 	}
 
-	public static Optional<MeatDelivery> parse(String productName, int quantity) {
-		// TODO: validate productName
-		return isValid(quantity)
-			? Optional.of(new MeatDelivery(productName, quantity))
-			: Optional.empty();
+	private static Set<ConstraintViolation<MeatDelivery>> validate(String productName, int quantity) {
+		return VALIDATOR.forExecutables()
+			.validateConstructorParameters(CANONICAL_CONSTRUCTOR, new Object[]{productName, quantity});
 	}
+
 }

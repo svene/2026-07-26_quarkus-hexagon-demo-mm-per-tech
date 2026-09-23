@@ -12,7 +12,7 @@ public class BakerySupplierService implements BakerySupplierSPI {
     BakeryOrderService client;
 
     @Override
-    public void placeOrder(String productName, int quantity) {
-        client.placeOrder(productName, quantity);
+    public void placeOrder(BakeryOrder bakeryOrder) {
+        client.placeOrder(bakeryOrder.productName(), bakeryOrder.quantity());
     }
 }

@@ -6,7 +6,10 @@ import org.svenehrke.triptychdemo.cross.inventory.InventoryAPI;
 import io.smallrye.reactive.messaging.annotations.Blocking;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.validation.ConstraintViolation;
 import org.eclipse.microprofile.reactive.messaging.Incoming;
+
+import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class DairyDeliveryReceiver {
@@ -20,12 +23,21 @@ public class DairyDeliveryReceiver {
     @Blocking
     public void receive(RawDairyDelivery message) {
         // Mapping: RawDairyDelivery -> DairyDelivery:
-        var x = DairyDelivery.parse(message.productName(), message.quantity());
-        // Validation:
-        if (x.isEmpty()) return;
-        // Processing:
-        auditLog.log("DairyDeliveryReceiver: DAIRY_DELIVERY_RECEIVED", x.get().productName() + " qty=" + x.get().quantity());
-        inventoryAPI.updateDairyAmount(x.get());
-        auditLog.log("DairyDeliveryReceiver: DAIRY_INVENTORY_UPDATED", x.get().productName() + " +" + x.get().quantity());
+        switch (DairyDelivery.parse(message.productName(), message.quantity())) {
+            case ParsedDairyDelivery.Invalid invalid: {
+                String errors = invalid.violations().stream()
+                    .map(ConstraintViolation::getMessage)
+                    .collect(Collectors.joining(", "));
+                auditLog.log("DairyDeliveryReceiver: DAIRY_DELIVERY_RECEIVED",
+                    "INVALID: %s, %d: %s".formatted(message.productName(), message.quantity(), errors));
+                break;
+            }
+            case DairyDelivery dairyDelivery: {
+                auditLog.log("DairyDeliveryReceiver: DAIRY_DELIVERY_RECEIVED", dairyDelivery.productName() + " qty=" + dairyDelivery.quantity());
+                inventoryAPI.updateDairyAmount(dairyDelivery);
+                auditLog.log("DairyDeliveryReceiver: DAIRY_INVENTORY_UPDATED", dairyDelivery.productName() + " +" + dairyDelivery.quantity());
+                break;
+            }
+        }
     }
 }

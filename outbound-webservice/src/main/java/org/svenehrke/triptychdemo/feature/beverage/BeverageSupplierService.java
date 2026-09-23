@@ -12,7 +12,7 @@ public class BeverageSupplierService implements BeverageSupplierSPI {
     BeverageOrderService client;
 
     @Override
-    public void placeOrder(String productName, int quantity) {
-        client.placeOrder(productName, quantity);
+    public void placeOrder(BeverageOrder beverageOrder) {
+        client.placeOrder(beverageOrder.productName(), beverageOrder.quantity());
     }
 }

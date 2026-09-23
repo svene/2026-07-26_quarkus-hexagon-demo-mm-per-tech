@@ -2,9 +2,9 @@
 
 How untrusted input is validated at this system's inbound boundaries, and the one pattern used to
 do it everywhere. Unlike `architecture-flow.md`/`architecture-module-participants.md`, this file
-describes a **convention to follow**, not just the current state of every endpoint — most
-endpoints have not adopted it yet (see [`wip_validation.md`](wip_validation.md) for rollout
-status).
+describes a **convention to follow**, not just the current state of every endpoint — the `/purchase`
+endpoint and `ShopReceiver`'s checkout flow have not adopted it yet (see
+[`wip_validation.md`](wip_validation.md) for rollout status).
 
 This document has two parts: **Part 1 — Usage** describes the mechanism as it stands, and how to
 use it. **Part 2 — Background & Reasoning** explains why it was built this way and what

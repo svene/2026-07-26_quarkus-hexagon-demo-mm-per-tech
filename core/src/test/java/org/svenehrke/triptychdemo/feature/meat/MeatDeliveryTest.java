@@ -7,8 +7,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
-import java.util.Optional;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -18,13 +16,11 @@ class MeatDeliveryTest {
 
 	@ParameterizedTest
 	@ValueSource(ints = {1, 500, 10_000})
-	void parse_returnsPresentOptional_forValidQuantities(int quantity) {
-		Optional<MeatDelivery> order = MeatDelivery.parse("productName", quantity);
+	void parse_returnsValidMeatDelivery_forValidQuantities(int quantity) {
+		ParsedMeatDelivery result = MeatDelivery.parse("productName", quantity);
 
-		assertThat(order)
-			.isPresent()
-			.get()
-			.extracting(MeatDelivery::quantity)
+		assertThat(result).isInstanceOf(MeatDelivery.class);
+		assertThat(((MeatDelivery) result).quantity())
 			.isEqualTo(quantity);
 	}
 
@@ -32,10 +28,28 @@ class MeatDeliveryTest {
 
 	@ParameterizedTest
 	@ValueSource(ints = {0, -1, -100, 10_001, Integer.MAX_VALUE})
-	void parse_returnsEmptyOptional_forInvalidQuantities(int quantity) {
-		Optional<MeatDelivery> order = MeatDelivery.parse("productName", quantity);
+	void parse_returnsInvalidMeatDelivery_forInvalidQuantities(int quantity) {
+		ParsedMeatDelivery result = MeatDelivery.parse("productName", quantity);
 
-		assertThat(order).isEmpty();
+		assertThat(result).isInstanceOf(ParsedMeatDelivery.Invalid.class);
+		assertThat(((ParsedMeatDelivery.Invalid) result).violations()).isNotEmpty();
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"", " "})
+	void parse_returnsInvalidMeatDelivery_forBlankProductName(String productName) {
+		ParsedMeatDelivery result = MeatDelivery.parse(productName, 42);
+
+		assertThat(result).isInstanceOf(ParsedMeatDelivery.Invalid.class);
+		assertThat(((ParsedMeatDelivery.Invalid) result).violations()).isNotEmpty();
+	}
+
+	@Test
+	void parse_returnsInvalidMeatDelivery_forNullProductName() {
+		ParsedMeatDelivery result = MeatDelivery.parse(null, 42);
+
+		assertThat(result).isInstanceOf(ParsedMeatDelivery.Invalid.class);
+		assertThat(((ParsedMeatDelivery.Invalid) result).violations()).isNotEmpty();
 	}
 
 	@Nested
@@ -45,7 +59,7 @@ class MeatDeliveryTest {
 
 		@Test
 		void serializesInterfaceTypedInstance() throws Exception {
-			MeatDelivery delivery = MeatDelivery.parse("productName", 42).orElseThrow();
+			MeatDelivery delivery = new MeatDelivery("productName", 42);
 
 			String json = mapper.writeValueAsString(delivery);
 
@@ -56,7 +70,7 @@ class MeatDeliveryTest {
 
 		@Test
 		void deserializesToInterfaceType() throws Exception {
-			MeatDelivery delivery = mapper.readValue("{\"quantity\":42}", MeatDelivery.class);
+			MeatDelivery delivery = mapper.readValue("{\"productName\":\"productName\",\"quantity\":42}", MeatDelivery.class);
 
 			assertThat(delivery.quantity()).isEqualTo(42);
 			assertThat(delivery).isInstanceOf(MeatDelivery.class);
@@ -64,8 +78,20 @@ class MeatDeliveryTest {
 
 		@Test
 		void deserializationFailsForInvalidQuantity() {
-			assertThatThrownBy(() -> mapper.readValue("{\"quantity\":-5}", MeatDelivery.class))
-				.isInstanceOf(ValueInstantiationException.class);
+			assertThatThrownBy(() -> mapper.readValue("{\"productName\":\"productName\",\"quantity\":-5}", MeatDelivery.class))
+				.isInstanceOf(ValueInstantiationException.class)
+				.hasCauseInstanceOf(IllegalArgumentException.class)
+				.cause()
+				.hasMessage("must be greater than or equal to 1");
+		}
+
+		@Test
+		void deserializationFailsForBlankProductName() {
+			assertThatThrownBy(() -> mapper.readValue("{\"quantity\":42}", MeatDelivery.class))
+				.isInstanceOf(ValueInstantiationException.class)
+				.hasCauseInstanceOf(IllegalArgumentException.class)
+				.cause()
+				.hasMessage("must not be blank");
 		}
 	}
 }

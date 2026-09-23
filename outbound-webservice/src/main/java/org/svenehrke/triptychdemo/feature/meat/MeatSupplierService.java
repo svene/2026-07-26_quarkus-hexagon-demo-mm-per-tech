@@ -12,7 +12,7 @@ public class MeatSupplierService implements MeatSupplierSPI {
     MeatOrderService client;
 
     @Override
-    public void placeOrder(String productName, int quantity) {
-        client.placeOrder(productName, quantity);
+    public void placeOrder(MeatOrder meatOrder) {
+        client.placeOrder(meatOrder.productName(), meatOrder.quantity());
     }
 }

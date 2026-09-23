@@ -13,9 +13,9 @@ public class MeatHandler implements MeatAPI {
     AuditLogSPI auditLog;
 
     @Override
-    public void order(String productName, int quantity) {
-        auditLog.log("MeatHandler: MEAT_ORDER_RECEIVED", productName + " qty=" + quantity);
-        meatSupplier.placeOrder(productName, quantity);
-        auditLog.log("MeatHandler: MEAT_ORDER_PLACED", productName + " qty=" + quantity);
+    public void order(MeatOrder meatOrder) {
+        auditLog.log("MeatHandler: MEAT_ORDER_RECEIVED", meatOrder.productName() + " qty=" + meatOrder.quantity());
+        meatSupplier.placeOrder(meatOrder);
+        auditLog.log("MeatHandler: MEAT_ORDER_PLACED", meatOrder.productName() + " qty=" + meatOrder.quantity());
     }
 }

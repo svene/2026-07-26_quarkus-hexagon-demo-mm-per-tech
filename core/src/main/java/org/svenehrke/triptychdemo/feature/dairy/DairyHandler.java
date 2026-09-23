@@ -13,9 +13,9 @@ public class DairyHandler implements DairyAPI {
     AuditLogSPI auditLog;
 
     @Override
-    public void order(String productName, int quantity) {
-        auditLog.log("DairyHandler: DAIRY_ORDER_RECEIVED", productName + " qty=" + quantity);
-        dairySupplier.placeOrder(productName, quantity);
-        auditLog.log("DairyHandler: DAIRY_ORDER_PLACED", productName + " qty=" + quantity);
+    public void order(DairyOrder dairyOrder) {
+        auditLog.log("DairyHandler: DAIRY_ORDER_RECEIVED", dairyOrder.productName() + " qty=" + dairyOrder.quantity());
+        dairySupplier.placeOrder(dairyOrder);
+        auditLog.log("DairyHandler: DAIRY_ORDER_PLACED", dairyOrder.productName() + " qty=" + dairyOrder.quantity());
     }
 }

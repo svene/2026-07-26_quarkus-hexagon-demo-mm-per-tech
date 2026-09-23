@@ -13,7 +13,7 @@ public class NonFoodSupplierService implements NonFoodSupplierSPI {
     Emitter<NonFoodOrderMessage> emitter;
 
     @Override
-    public void placeOrder(String productName, int quantity) {
-        emitter.send(new NonFoodOrderMessage(productName, quantity));
+    public void placeOrder(NonFoodOrder nonFoodOrder) {
+        emitter.send(new NonFoodOrderMessage(nonFoodOrder.productName(), nonFoodOrder.quantity()));
     }
 }

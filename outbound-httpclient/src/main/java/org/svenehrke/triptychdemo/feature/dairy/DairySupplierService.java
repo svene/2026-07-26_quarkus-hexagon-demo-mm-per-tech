@@ -12,7 +12,7 @@ public class DairySupplierService implements DairySupplierSPI {
     DairySupplierClient client;
 
     @Override
-    public void placeOrder(String productName, int quantity) {
-        client.placeOrder(new OrderRequest(productName, quantity));
+    public void placeOrder(DairyOrder dairyOrder) {
+        client.placeOrder(new OrderRequest(dairyOrder.productName(), dairyOrder.quantity()));
     }
 }

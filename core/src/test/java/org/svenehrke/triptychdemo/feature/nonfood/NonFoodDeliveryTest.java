@@ -7,8 +7,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
-import java.util.Optional;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -18,13 +16,11 @@ class NonFoodDeliveryTest {
 
 	@ParameterizedTest
 	@ValueSource(ints = {1, 500, 10_000})
-	void parse_returnsPresentOptional_forValidQuantities(int quantity) {
-		Optional<NonFoodDelivery> order = NonFoodDelivery.parse("productName", quantity);
+	void parse_returnsValidNonFoodDelivery_forValidQuantities(int quantity) {
+		ParsedNonFoodDelivery result = NonFoodDelivery.parse("productName", quantity);
 
-		assertThat(order)
-			.isPresent()
-			.get()
-			.extracting(NonFoodDelivery::quantity)
+		assertThat(result).isInstanceOf(NonFoodDelivery.class);
+		assertThat(((NonFoodDelivery) result).quantity())
 			.isEqualTo(quantity);
 	}
 
@@ -32,10 +28,28 @@ class NonFoodDeliveryTest {
 
 	@ParameterizedTest
 	@ValueSource(ints = {0, -1, -100, 10_001, Integer.MAX_VALUE})
-	void parse_returnsEmptyOptional_forInvalidQuantities(int quantity) {
-		Optional<NonFoodDelivery> order = NonFoodDelivery.parse("productName", quantity);
+	void parse_returnsInvalidNonFoodDelivery_forInvalidQuantities(int quantity) {
+		ParsedNonFoodDelivery result = NonFoodDelivery.parse("productName", quantity);
 
-		assertThat(order).isEmpty();
+		assertThat(result).isInstanceOf(ParsedNonFoodDelivery.Invalid.class);
+		assertThat(((ParsedNonFoodDelivery.Invalid) result).violations()).isNotEmpty();
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"", " "})
+	void parse_returnsInvalidNonFoodDelivery_forBlankProductName(String productName) {
+		ParsedNonFoodDelivery result = NonFoodDelivery.parse(productName, 42);
+
+		assertThat(result).isInstanceOf(ParsedNonFoodDelivery.Invalid.class);
+		assertThat(((ParsedNonFoodDelivery.Invalid) result).violations()).isNotEmpty();
+	}
+
+	@Test
+	void parse_returnsInvalidNonFoodDelivery_forNullProductName() {
+		ParsedNonFoodDelivery result = NonFoodDelivery.parse(null, 42);
+
+		assertThat(result).isInstanceOf(ParsedNonFoodDelivery.Invalid.class);
+		assertThat(((ParsedNonFoodDelivery.Invalid) result).violations()).isNotEmpty();
 	}
 
 	@Nested
@@ -45,7 +59,7 @@ class NonFoodDeliveryTest {
 
 		@Test
 		void serializesInterfaceTypedInstance() throws Exception {
-			NonFoodDelivery delivery = NonFoodDelivery.parse("productName", 42).orElseThrow();
+			NonFoodDelivery delivery = new NonFoodDelivery("productName", 42);
 
 			String json = mapper.writeValueAsString(delivery);
 
@@ -56,7 +70,7 @@ class NonFoodDeliveryTest {
 
 		@Test
 		void deserializesToInterfaceType() throws Exception {
-			NonFoodDelivery delivery = mapper.readValue("{\"quantity\":42}", NonFoodDelivery.class);
+			NonFoodDelivery delivery = mapper.readValue("{\"productName\":\"productName\",\"quantity\":42}", NonFoodDelivery.class);
 
 			assertThat(delivery.quantity()).isEqualTo(42);
 			assertThat(delivery).isInstanceOf(NonFoodDelivery.class);
@@ -64,8 +78,20 @@ class NonFoodDeliveryTest {
 
 		@Test
 		void deserializationFailsForInvalidQuantity() {
-			assertThatThrownBy(() -> mapper.readValue("{\"quantity\":-5}", NonFoodDelivery.class))
-				.isInstanceOf(ValueInstantiationException.class);
+			assertThatThrownBy(() -> mapper.readValue("{\"productName\":\"productName\",\"quantity\":-5}", NonFoodDelivery.class))
+				.isInstanceOf(ValueInstantiationException.class)
+				.hasCauseInstanceOf(IllegalArgumentException.class)
+				.cause()
+				.hasMessage("must be greater than or equal to 1");
+		}
+
+		@Test
+		void deserializationFailsForBlankProductName() {
+			assertThatThrownBy(() -> mapper.readValue("{\"quantity\":42}", NonFoodDelivery.class))
+				.isInstanceOf(ValueInstantiationException.class)
+				.hasCauseInstanceOf(IllegalArgumentException.class)
+				.cause()
+				.hasMessage("must not be blank");
 		}
 	}
 }

@@ -6,7 +6,10 @@ import org.svenehrke.triptychdemo.cross.inventory.InventoryAPI;
 import io.smallrye.reactive.messaging.annotations.Blocking;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.validation.ConstraintViolation;
 import org.eclipse.microprofile.reactive.messaging.Incoming;
+
+import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class BeveragesDeliveryReceiver {
@@ -20,12 +23,21 @@ public class BeveragesDeliveryReceiver {
     @Blocking
     public void receive(RawBeverageDelivery message) {
         // Mapping: RawBeverageDelivery -> BeverageDelivery:
-        var x = BeverageDelivery.parse(message.productName(), message.quantity());
-        // Validation:
-        if (x.isEmpty()) return;
-        // Processing:
-        auditLog.log("BeveragesDeliveryReceiver: BEVERAGE_DELIVERY_RECEIVED", x.get().productName() + " qty=" + x.get().quantity());
-        inventoryAPI.updateBeverageAmount(x.get());
-        auditLog.log("BeveragesDeliveryReceiver: BEVERAGE_INVENTORY_UPDATED", x.get().productName() + " +" + x.get().quantity());
+        switch (BeverageDelivery.parse(message.productName(), message.quantity())) {
+            case ParsedBeverageDelivery.Invalid invalid: {
+                String errors = invalid.violations().stream()
+                    .map(ConstraintViolation::getMessage)
+                    .collect(Collectors.joining(", "));
+                auditLog.log("BeveragesDeliveryReceiver: BEVERAGE_DELIVERY_RECEIVED",
+                    "INVALID: %s, %d: %s".formatted(message.productName(), message.quantity(), errors));
+                break;
+            }
+            case BeverageDelivery beverageDelivery: {
+                auditLog.log("BeveragesDeliveryReceiver: BEVERAGE_DELIVERY_RECEIVED", beverageDelivery.productName() + " qty=" + beverageDelivery.quantity());
+                inventoryAPI.updateBeverageAmount(beverageDelivery);
+                auditLog.log("BeveragesDeliveryReceiver: BEVERAGE_INVENTORY_UPDATED", beverageDelivery.productName() + " +" + beverageDelivery.quantity());
+                break;
+            }
+        }
     }
 }

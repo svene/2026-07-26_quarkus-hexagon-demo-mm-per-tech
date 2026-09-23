@@ -13,9 +13,9 @@ public class BakeryHandler implements BakeryAPI {
     AuditLogSPI auditLog;
 
     @Override
-    public void order(String productName, int quantity) {
-        auditLog.log("BakeryHandler: BAKERY_ORDER_RECEIVED", productName + " qty=" + quantity);
-        bakerySupplier.placeOrder(productName, quantity);
-        auditLog.log("BakeryHandler: BAKERY_ORDER_PLACED", productName + " qty=" + quantity);
+    public void order(BakeryOrder bakeryOrder) {
+        auditLog.log("BakeryHandler: BAKERY_ORDER_RECEIVED", bakeryOrder.productName() + " qty=" + bakeryOrder.quantity());
+        bakerySupplier.placeOrder(bakeryOrder);
+        auditLog.log("BakeryHandler: BAKERY_ORDER_PLACED", bakeryOrder.productName() + " qty=" + bakeryOrder.quantity());
     }
 }

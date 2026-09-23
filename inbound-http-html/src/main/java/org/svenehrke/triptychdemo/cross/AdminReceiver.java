@@ -3,12 +3,18 @@ package org.svenehrke.triptychdemo.cross;
 import org.svenehrke.triptychdemo.cross.auditlog.AuditLogAPI;
 import org.svenehrke.triptychdemo.cross.products.ProductsAPI;
 import org.svenehrke.triptychdemo.feature.bakery.BakeryAPI;
+import org.svenehrke.triptychdemo.feature.bakery.BakeryOrder;
+import org.svenehrke.triptychdemo.feature.beverage.BeverageOrder;
 import org.svenehrke.triptychdemo.feature.beverage.BeveragesAPI;
 import org.svenehrke.triptychdemo.feature.dairy.DairyAPI;
+import org.svenehrke.triptychdemo.feature.dairy.DairyOrder;
 import org.svenehrke.triptychdemo.feature.fruit.FruitOrder;
 import org.svenehrke.triptychdemo.feature.fruit.FruitsAPI;
 import org.svenehrke.triptychdemo.feature.meat.MeatAPI;
+import org.svenehrke.triptychdemo.feature.meat.MeatOrder;
 import org.svenehrke.triptychdemo.feature.nonfood.NonFoodAPI;
+import org.svenehrke.triptychdemo.feature.nonfood.NonFoodOrder;
+import org.svenehrke.triptychdemo.feature.vegetable.VegetableOrder;
 import org.svenehrke.triptychdemo.feature.vegetable.VegetablesAPI;
 
 import org.svenehrke.triptychdemo.cross.auditlog.AuditLogEntry;
@@ -95,7 +101,7 @@ public class AdminReceiver {
     public Response orderVegetables(@FormParam("productName") String productName,
                                     @FormParam("quantity") int quantity,
                                     @HeaderParam("HX-Request") String hxRequest) {
-        vegetablesAPI.order(productName, quantity);
+        vegetablesAPI.order(new VegetableOrder(productName, quantity));
         return orderResponse(hxRequest);
     }
 
@@ -105,7 +111,7 @@ public class AdminReceiver {
     public Response orderDairy(@FormParam("productName") String productName,
                                @FormParam("quantity") int quantity,
                                @HeaderParam("HX-Request") String hxRequest) {
-        dairyAPI.order(productName, quantity);
+        dairyAPI.order(new DairyOrder(productName, quantity));
         return orderResponse(hxRequest);
     }
 
@@ -115,7 +121,7 @@ public class AdminReceiver {
     public Response orderBeverages(@FormParam("productName") String productName,
                                    @FormParam("quantity") int quantity,
                                    @HeaderParam("HX-Request") String hxRequest) {
-        beveragesAPI.order(productName, quantity);
+        beveragesAPI.order(new BeverageOrder(productName, quantity));
         return orderResponse(hxRequest);
     }
 
@@ -125,7 +131,7 @@ public class AdminReceiver {
     public Response orderMeat(@FormParam("productName") String productName,
                               @FormParam("quantity") int quantity,
                               @HeaderParam("HX-Request") String hxRequest) {
-        meatAPI.order(productName, quantity);
+        meatAPI.order(new MeatOrder(productName, quantity));
         return orderResponse(hxRequest);
     }
 
@@ -135,7 +141,7 @@ public class AdminReceiver {
     public Response orderBakery(@FormParam("productName") String productName,
                                 @FormParam("quantity") int quantity,
                                 @HeaderParam("HX-Request") String hxRequest) {
-        bakeryAPI.order(productName, quantity);
+        bakeryAPI.order(new BakeryOrder(productName, quantity));
         return orderResponse(hxRequest);
     }
 
@@ -145,7 +151,7 @@ public class AdminReceiver {
     public Response orderNonFood(@FormParam("productName") String productName,
                                  @FormParam("quantity") int quantity,
                                  @HeaderParam("HX-Request") String hxRequest) {
-        nonFoodAPI.order(productName, quantity);
+        nonFoodAPI.order(new NonFoodOrder(productName, quantity));
         return orderResponse(hxRequest);
     }
 

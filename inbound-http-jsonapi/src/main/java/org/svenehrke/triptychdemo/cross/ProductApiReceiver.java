@@ -3,13 +3,25 @@ package org.svenehrke.triptychdemo.cross;
 import org.svenehrke.triptychdemo.cross.products.ProductsAPI;
 import org.svenehrke.triptychdemo.cross.purchase.PurchaseAPI;
 import org.svenehrke.triptychdemo.feature.bakery.BakeryAPI;
+import org.svenehrke.triptychdemo.feature.bakery.BakeryOrder;
+import org.svenehrke.triptychdemo.feature.bakery.ParsedBakeryOrder;
+import org.svenehrke.triptychdemo.feature.beverage.BeverageOrder;
 import org.svenehrke.triptychdemo.feature.beverage.BeveragesAPI;
+import org.svenehrke.triptychdemo.feature.beverage.ParsedBeverageOrder;
 import org.svenehrke.triptychdemo.feature.dairy.DairyAPI;
+import org.svenehrke.triptychdemo.feature.dairy.DairyOrder;
+import org.svenehrke.triptychdemo.feature.dairy.ParsedDairyOrder;
 import org.svenehrke.triptychdemo.feature.fruit.FruitOrder;
 import org.svenehrke.triptychdemo.feature.fruit.FruitsAPI;
 import org.svenehrke.triptychdemo.feature.fruit.ParsedFruitOrder;
 import org.svenehrke.triptychdemo.feature.meat.MeatAPI;
+import org.svenehrke.triptychdemo.feature.meat.MeatOrder;
+import org.svenehrke.triptychdemo.feature.meat.ParsedMeatOrder;
 import org.svenehrke.triptychdemo.feature.nonfood.NonFoodAPI;
+import org.svenehrke.triptychdemo.feature.nonfood.NonFoodOrder;
+import org.svenehrke.triptychdemo.feature.nonfood.ParsedNonFoodOrder;
+import org.svenehrke.triptychdemo.feature.vegetable.ParsedVegetableOrder;
+import org.svenehrke.triptychdemo.feature.vegetable.VegetableOrder;
 import org.svenehrke.triptychdemo.feature.vegetable.VegetablesAPI;
 
 import org.svenehrke.triptychdemo.cross.products.Product;
@@ -72,43 +84,97 @@ public class ProductApiReceiver {
     @POST
     @Path("/order-vegetables")
     @Consumes(MediaType.APPLICATION_JSON)
-    public void orderVegetables(Requests.VegetableOrderRequest request) {
-        vegetablesAPI.order(request.productName(), request.quantity());
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response orderVegetables(Requests.VegetableOrderRequest request) {
+        return switch (VegetableOrder.parse(request.productName(), request.quantity())) {
+            case ParsedVegetableOrder.Invalid invalid -> Response.status(Response.Status.BAD_REQUEST)
+                .entity(invalid.violations().stream().map(ConstraintViolation::getMessage).toList())
+                .build();
+            case VegetableOrder vegetableOrder -> {
+                vegetablesAPI.order(vegetableOrder);
+                yield Response.noContent().build();
+            }
+        };
     }
 
     @POST
     @Path("/order-dairy")
     @Consumes(MediaType.APPLICATION_JSON)
-    public void orderDairy(Requests.DairyOrderRequest request) {
-        dairyAPI.order(request.productName(), request.quantity());
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response orderDairy(Requests.DairyOrderRequest request) {
+        return switch (DairyOrder.parse(request.productName(), request.quantity())) {
+            case ParsedDairyOrder.Invalid invalid -> Response.status(Response.Status.BAD_REQUEST)
+                .entity(invalid.violations().stream().map(ConstraintViolation::getMessage).toList())
+                .build();
+            case DairyOrder dairyOrder -> {
+                dairyAPI.order(dairyOrder);
+                yield Response.noContent().build();
+            }
+        };
     }
 
     @POST
     @Path("/order-beverages")
     @Consumes(MediaType.APPLICATION_JSON)
-    public void orderBeverages(Requests.BeverageOrderRequest request) {
-        beveragesAPI.order(request.productName(), request.quantity());
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response orderBeverages(Requests.BeverageOrderRequest request) {
+        return switch (BeverageOrder.parse(request.productName(), request.quantity())) {
+            case ParsedBeverageOrder.Invalid invalid -> Response.status(Response.Status.BAD_REQUEST)
+                .entity(invalid.violations().stream().map(ConstraintViolation::getMessage).toList())
+                .build();
+            case BeverageOrder beverageOrder -> {
+                beveragesAPI.order(beverageOrder);
+                yield Response.noContent().build();
+            }
+        };
     }
 
     @POST
     @Path("/order-meat")
     @Consumes(MediaType.APPLICATION_JSON)
-    public void orderMeat(Requests.MeatOrderRequest request) {
-        meatAPI.order(request.productName(), request.quantity());
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response orderMeat(Requests.MeatOrderRequest request) {
+        return switch (MeatOrder.parse(request.productName(), request.quantity())) {
+            case ParsedMeatOrder.Invalid invalid -> Response.status(Response.Status.BAD_REQUEST)
+                .entity(invalid.violations().stream().map(ConstraintViolation::getMessage).toList())
+                .build();
+            case MeatOrder meatOrder -> {
+                meatAPI.order(meatOrder);
+                yield Response.noContent().build();
+            }
+        };
     }
 
     @POST
     @Path("/order-bakery")
     @Consumes(MediaType.APPLICATION_JSON)
-    public void orderBakery(Requests.BakeryOrderRequest request) {
-        bakeryAPI.order(request.productName(), request.quantity());
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response orderBakery(Requests.BakeryOrderRequest request) {
+        return switch (BakeryOrder.parse(request.productName(), request.quantity())) {
+            case ParsedBakeryOrder.Invalid invalid -> Response.status(Response.Status.BAD_REQUEST)
+                .entity(invalid.violations().stream().map(ConstraintViolation::getMessage).toList())
+                .build();
+            case BakeryOrder bakeryOrder -> {
+                bakeryAPI.order(bakeryOrder);
+                yield Response.noContent().build();
+            }
+        };
     }
 
     @POST
     @Path("/order-nonfood")
     @Consumes(MediaType.APPLICATION_JSON)
-    public void orderNonFood(Requests.NonFoodOrderRequest request) {
-        nonFoodAPI.order(request.productName(), request.quantity());
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response orderNonFood(Requests.NonFoodOrderRequest request) {
+        return switch (NonFoodOrder.parse(request.productName(), request.quantity())) {
+            case ParsedNonFoodOrder.Invalid invalid -> Response.status(Response.Status.BAD_REQUEST)
+                .entity(invalid.violations().stream().map(ConstraintViolation::getMessage).toList())
+                .build();
+            case NonFoodOrder nonFoodOrder -> {
+                nonFoodAPI.order(nonFoodOrder);
+                yield Response.noContent().build();
+            }
+        };
     }
 
     @POST

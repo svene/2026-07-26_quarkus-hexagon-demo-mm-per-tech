@@ -13,9 +13,9 @@ public class VegetablesHandler implements VegetablesAPI {
     AuditLogSPI auditLog;
 
     @Override
-    public void order(String productName, int quantity) {
-        auditLog.log("VegetablesHandler: VEGETABLES_ORDER_RECEIVED", productName + " qty=" + quantity);
-        vegetablesSupplier.placeOrder(productName, quantity);
-        auditLog.log("VegetablesHandler: VEGETABLES_ORDER_PLACED", productName + " qty=" + quantity);
+    public void order(VegetableOrder vegetableOrder) {
+        auditLog.log("VegetablesHandler: VEGETABLES_ORDER_RECEIVED", vegetableOrder.productName() + " qty=" + vegetableOrder.quantity());
+        vegetablesSupplier.placeOrder(vegetableOrder);
+        auditLog.log("VegetablesHandler: VEGETABLES_ORDER_PLACED", vegetableOrder.productName() + " qty=" + vegetableOrder.quantity());
     }
 }

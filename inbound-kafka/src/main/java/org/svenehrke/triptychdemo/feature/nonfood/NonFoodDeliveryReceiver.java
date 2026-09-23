@@ -6,7 +6,10 @@ import org.svenehrke.triptychdemo.cross.inventory.InventoryAPI;
 import io.smallrye.reactive.messaging.annotations.Blocking;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.validation.ConstraintViolation;
 import org.eclipse.microprofile.reactive.messaging.Incoming;
+
+import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class NonFoodDeliveryReceiver {
@@ -20,12 +23,21 @@ public class NonFoodDeliveryReceiver {
     @Blocking
     public void receive(RawNonFoodDelivery message) {
         // Mapping: RawNonFoodDelivery -> NonFoodDelivery:
-        var x = NonFoodDelivery.parse(message.productName(), message.quantity());
-        // Validation:
-        if (x.isEmpty()) return;
-        // Processing:
-        auditLog.log("NonFoodDeliveryReceiver: NON_FOOD_DELIVERY_RECEIVED", x.get().productName() + " qty=" + x.get().quantity());
-        inventoryAPI.updateNonFoodAmount(x.get());
-        auditLog.log("NonFoodDeliveryReceiver: NON_FOOD_INVENTORY_UPDATED", x.get().productName() + " +" + x.get().quantity());
+        switch (NonFoodDelivery.parse(message.productName(), message.quantity())) {
+            case ParsedNonFoodDelivery.Invalid invalid: {
+                String errors = invalid.violations().stream()
+                    .map(ConstraintViolation::getMessage)
+                    .collect(Collectors.joining(", "));
+                auditLog.log("NonFoodDeliveryReceiver: NON_FOOD_DELIVERY_RECEIVED",
+                    "INVALID: %s, %d: %s".formatted(message.productName(), message.quantity(), errors));
+                break;
+            }
+            case NonFoodDelivery nonFoodDelivery: {
+                auditLog.log("NonFoodDeliveryReceiver: NON_FOOD_DELIVERY_RECEIVED", nonFoodDelivery.productName() + " qty=" + nonFoodDelivery.quantity());
+                inventoryAPI.updateNonFoodAmount(nonFoodDelivery);
+                auditLog.log("NonFoodDeliveryReceiver: NON_FOOD_INVENTORY_UPDATED", nonFoodDelivery.productName() + " +" + nonFoodDelivery.quantity());
+                break;
+            }
+        }
     }
 }

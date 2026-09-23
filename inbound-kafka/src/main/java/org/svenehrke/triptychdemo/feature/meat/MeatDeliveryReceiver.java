@@ -6,7 +6,10 @@ import org.svenehrke.triptychdemo.cross.inventory.InventoryAPI;
 import io.smallrye.reactive.messaging.annotations.Blocking;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.validation.ConstraintViolation;
 import org.eclipse.microprofile.reactive.messaging.Incoming;
+
+import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class MeatDeliveryReceiver {
@@ -20,12 +23,21 @@ public class MeatDeliveryReceiver {
     @Blocking
     public void receive(RawMeatDelivery message) {
         // Mapping: RawMeatDelivery -> MeatDelivery:
-        var x = MeatDelivery.parse(message.productName(), message.quantity());
-        // Validation:
-        if (x.isEmpty()) return;
-        // Processing:
-        auditLog.log("MeatDeliveryReceiver: MEAT_DELIVERY_RECEIVED", x.get().productName() + " qty=" + x.get().quantity());
-        inventoryAPI.updateMeatAmount(x.get());
-        auditLog.log("MeatDeliveryReceiver: MEAT_INVENTORY_UPDATED", x.get().productName() + " +" + x.get().quantity());
+        switch (MeatDelivery.parse(message.productName(), message.quantity())) {
+            case ParsedMeatDelivery.Invalid invalid: {
+                String errors = invalid.violations().stream()
+                    .map(ConstraintViolation::getMessage)
+                    .collect(Collectors.joining(", "));
+                auditLog.log("MeatDeliveryReceiver: MEAT_DELIVERY_RECEIVED",
+                    "INVALID: %s, %d: %s".formatted(message.productName(), message.quantity(), errors));
+                break;
+            }
+            case MeatDelivery meatDelivery: {
+                auditLog.log("MeatDeliveryReceiver: MEAT_DELIVERY_RECEIVED", meatDelivery.productName() + " qty=" + meatDelivery.quantity());
+                inventoryAPI.updateMeatAmount(meatDelivery);
+                auditLog.log("MeatDeliveryReceiver: MEAT_INVENTORY_UPDATED", meatDelivery.productName() + " +" + meatDelivery.quantity());
+                break;
+            }
+        }
     }
 }

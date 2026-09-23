@@ -13,9 +13,9 @@ public class NonFoodHandler implements NonFoodAPI {
     AuditLogSPI auditLog;
 
     @Override
-    public void order(String productName, int quantity) {
-        auditLog.log("NonFoodHandler: NONFOOD_ORDER_RECEIVED", productName + " qty=" + quantity);
-        nonFoodSupplier.placeOrder(productName, quantity);
-        auditLog.log("NonFoodHandler: NONFOOD_ORDER_PLACED", productName + " qty=" + quantity);
+    public void order(NonFoodOrder nonFoodOrder) {
+        auditLog.log("NonFoodHandler: NONFOOD_ORDER_RECEIVED", nonFoodOrder.productName() + " qty=" + nonFoodOrder.quantity());
+        nonFoodSupplier.placeOrder(nonFoodOrder);
+        auditLog.log("NonFoodHandler: NONFOOD_ORDER_PLACED", nonFoodOrder.productName() + " qty=" + nonFoodOrder.quantity());
     }
 }

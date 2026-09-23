@@ -6,26 +6,30 @@ rolled out across the codebase, and what's left. Update this file as boundaries 
 
 ## Kafka boundary
 
-Implemented for `feature.fruit` only. Not yet applied to
-`feature.meat`/`dairy`/`bakery`/`vegetable`/`beverage`/`nonfood`, which still use their older,
-unvalidated or `Optional`-returning `parse()` style (see e.g. `MeatDelivery.parse()`).
+Implemented for all seven commodities: `feature.fruit`/`meat`/`dairy`/`bakery`/`vegetable`/
+`beverage`/`nonfood`. Each `XxxDelivery` carries Bean Validation annotations, implements a sibling
+`ParsedXxxDelivery`, and each `*DeliveryReceiver` (`inbound-kafka`) `switch`es exhaustively, logging
+`Invalid` messages to the audit trail (`"INVALID: <name>, <qty>: <violation messages>"`) instead of
+silently dropping them the way the pre-rollout `Optional`-returning `parse()` did.
 
 ## HTTP boundary
 
-Implemented for `POST /api/products/order-fruits` only (`FruitOrder`/`ParsedFruitOrder`).
-`AdminReceiver`'s `/admin/order-fruits` HTML form also now constructs a `FruitOrder` (so it can't
-reach `FruitsHandler` with invalid data either), but via the throwing constructor rather than its
-own `parse()`-based handling. Not yet applied to the other six `order-*` endpoints on
-`ProductApiReceiver`/`AdminReceiver`, the `/purchase` endpoint, or `ShopReceiver`, all of which
-still accept unvalidated quantities.
+Implemented for all seven `order-*` endpoints on `ProductApiReceiver` (`FruitOrder`, `MeatOrder`,
+`DairyOrder`, `BakeryOrder`, `VegetableOrder`, `BeverageOrder`, `NonFoodOrder`, each with a sibling
+`ParsedXxxOrder`) — each builds a `400` from the violation messages directly, no `@Valid`, no
+exception mapper. `AdminReceiver`'s HTML forms for all seven commodities construct their `XxxOrder`
+via the throwing `@Deprecated` constructor (consistent with `orderFruits`, not yet upgraded — see
+known gap below).
+
+Not yet applied: the `/purchase` endpoint (`PurchaseRequest`/`PurchaseRequestItem`/`PurchaseItem`)
+and `ShopReceiver`'s `/shop/checkout` flow, both still entirely unvalidated — no `ParsedPurchaseItem`
+equivalent exists yet.
 
 ## Next steps
 
-- Apply the pattern to the remaining six commodities (Kafka side) and the remaining `order-*`
-  endpoints, `/purchase`, and `ShopReceiver` (HTTP side). Replicate the landed shape directly
-  (`Xxx implements ParsedXxx`, no wrapper type) — don't reintroduce a generic `Parsed<T>` or a
-  private-constructor wrapper class; both were explicitly tried and rejected for this codebase
-  (see "Known trade-off" in `validation.md`).
-- Give `AdminReceiver`'s HTML forms their own `parse()`-based handling (matching `orderFruits`)
+- Design and apply the pattern to `/purchase` and `ShopReceiver`'s `/shop/checkout` — no
+  `ParsedPurchaseItem`-equivalent exists yet; this is a new design, not a replication of the
+  landed shape.
+- Give `AdminReceiver`'s HTML forms (all seven commodities) their own `parse()`-based handling
   instead of relying on the throwing constructor, so a violation produces a proper HTML error
-  instead of an unhandled exception.
+  instead of an unhandled exception. Explicitly deferred, not an oversight.
