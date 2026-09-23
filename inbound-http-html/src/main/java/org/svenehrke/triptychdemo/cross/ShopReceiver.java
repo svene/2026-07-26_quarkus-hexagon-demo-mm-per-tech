@@ -4,6 +4,9 @@ import org.svenehrke.triptychdemo.cross.products.ProductsAPI;
 import org.svenehrke.triptychdemo.cross.purchase.PurchaseAPI;
 
 import org.svenehrke.triptychdemo.cross.products.Product;
+import org.svenehrke.triptychdemo.cross.purchase.ParsedPurchase;
+import org.svenehrke.triptychdemo.cross.purchase.ParsedPurchaseItem;
+import org.svenehrke.triptychdemo.cross.purchase.Purchase;
 import org.svenehrke.triptychdemo.cross.purchase.PurchaseItem;
 import io.quarkus.qute.CheckedTemplate;
 import io.quarkus.qute.TemplateInstance;
@@ -30,17 +33,14 @@ public class ShopReceiver {
 
     @CheckedTemplate
     public static class Templates {
-        public static native TemplateInstance shop(List<Product> products);
+        public static native TemplateInstance shop(List<Product> products, List<String> errors);
         public static native TemplateInstance inventoryFragment(List<Product> products);
     }
 
     @GET
     @Produces(MediaType.TEXT_HTML)
     public TemplateInstance list() {
-        var inStock = productsAPI.listAll().stream()
-            .filter(p -> p.availableAmount() > 0)
-            .toList();
-        return Templates.shop(inStock);
+        return Templates.shop(inStock(), List.of());
     }
 
     @GET
@@ -55,22 +55,51 @@ public class ShopReceiver {
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     public Response checkout(@FormParam("productName") List<String> productNames,
                              @FormParam("quantity") List<String> quantities) {
-        var items = new ArrayList<PurchaseItem>();
+        // Cart semantics (UI concern, not validation): a row with a blank or 0 quantity is simply not in the cart.
+        var errors = new ArrayList<String>();
+        var cartNames = new ArrayList<String>();
+        var parsedItems = new ArrayList<ParsedPurchaseItem>();
         if (productNames != null) {
             for (int i = 0; i < productNames.size(); i++) {
                 var name = productNames.get(i);
                 var qtyStr = quantities != null && i < quantities.size() ? quantities.get(i) : null;
-                if (name == null || name.isBlank() || qtyStr == null || qtyStr.isBlank()) continue;
+                if (qtyStr == null || qtyStr.isBlank()) continue;
                 int qty;
                 try {
                     qty = Integer.parseInt(qtyStr.trim());
                 } catch (NumberFormatException e) {
+                    errors.add(name + ": quantity must be a number");
                     continue;
                 }
-                if (qty > 0) items.add(new PurchaseItem(name, qty));
+                if (qty == 0) continue;
+                cartNames.add(name);
+                parsedItems.add(PurchaseItem.parse(name, qty));
             }
         }
-        if (!items.isEmpty()) purchaseAPI.purchase(items);
-        return Response.seeOther(URI.create("/shop")).build();
+        return switch (Purchase.parse(parsedItems)) {
+            case ParsedPurchase.Invalid invalid -> {
+                invalid.violationsByItemIndex().forEach((index, violations) ->
+                    violations.forEach(v -> errors.add(cartNames.get(index) + ": " + v.getMessage())));
+                yield badRequest(errors);
+            }
+            case Purchase purchase -> {
+                if (!errors.isEmpty()) yield badRequest(errors);
+                if (!purchase.items().isEmpty()) purchaseAPI.purchase(purchase);
+                yield Response.seeOther(URI.create("/shop")).build();
+            }
+        };
+    }
+
+    private Response badRequest(List<String> errors) {
+        return Response.status(Response.Status.BAD_REQUEST)
+            .type(MediaType.TEXT_HTML)
+            .entity(Templates.shop(inStock(), errors))
+            .build();
+    }
+
+    private List<Product> inStock() {
+        return productsAPI.listAll().stream()
+            .filter(p -> p.availableAmount() > 0)
+            .toList();
     }
 }

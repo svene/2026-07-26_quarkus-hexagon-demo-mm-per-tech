@@ -116,4 +116,36 @@ class CashpointFlowTest {
 
         assertThat(given().get("/api/products").asString()).isEqualTo("[]");
     }
+
+    @Test
+    void purchase_with_invalid_item_returns_400_and_deducts_nothing() {
+        given().contentType(ContentType.JSON)
+            .body("""
+                {"productName": "Apple", "quantity": 10}
+                """)
+            .post("/api/products/order-fruits").then().statusCode(204);
+
+        await().atMost(10, SECONDS).untilAsserted(() ->
+            assertThat(given().get("/api/products").asString())
+                .isEqualTo("""
+                    [{"name":"Apple","type":"FRUIT","availableAmount":10}]""")
+        );
+
+        auditHelper.clearAuditLog();
+
+        // all-or-nothing: the valid first item is not deducted either; a negative quantity used to *add* stock
+        var response = given()
+            .contentType(ContentType.JSON)
+            .body("""
+                {"items":[{"productName":"Apple","quantity":3},{"productName":"Apple","quantity":-5}]}
+                """)
+            .post("/api/products/purchase");
+
+        assertThat(response.statusCode()).isEqualTo(400);
+        assertThat(response.asString()).contains("items[1]: must be greater than or equal to 1");
+        assertThat(auditHelper.findEventDetails("PurchaseHandler: PURCHASE_RECEIVED")).isEmpty();
+        assertThat(given().get("/api/products").asString())
+            .isEqualTo("""
+                [{"name":"Apple","type":"FRUIT","availableAmount":10}]""");
+    }
 }

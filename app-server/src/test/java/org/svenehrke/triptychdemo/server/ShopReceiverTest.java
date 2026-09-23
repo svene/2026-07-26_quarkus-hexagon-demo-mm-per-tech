@@ -75,6 +75,35 @@ class ShopReceiverTest {
     }
 
     @Test
+    void checkout_with_invalid_rows_shows_errors_and_deducts_nothing() {
+        inventory.addAmount("Apple", ProductType.FRUIT, 10);
+        inventory.addAmount("Milk", ProductType.DAIRY, 6);
+        inventory.addAmount("Bread", ProductType.BAKERY, 4);
+
+        var response = given()
+            .contentType("application/x-www-form-urlencoded")
+            .formParam("productName", "Apple")
+            .formParam("productName", "Milk")
+            .formParam("productName", "Bread")
+            .formParam("quantity", "3")
+            .formParam("quantity", "-2")
+            .formParam("quantity", "abc")
+            .redirects().follow(false)
+            .post("/shop/checkout");
+
+        assertThat(response.statusCode()).isEqualTo(400);
+        assertThat(response.contentType()).contains("text/html");
+        assertThat(response.asString())
+            .contains("Purchase not processed")
+            .contains("Milk: must be greater than or equal to 1")
+            .contains("Bread: quantity must be a number");
+
+        assertThat(given().get("/api/products").asString())
+            .contains("\"name\":\"Apple\",\"type\":\"FRUIT\",\"availableAmount\":10")
+            .contains("\"name\":\"Milk\",\"type\":\"DAIRY\",\"availableAmount\":6");
+    }
+
+    @Test
     void checkout_ignores_blank_and_zero_quantity_rows() {
         inventory.addAmount("Apple", ProductType.FRUIT, 10);
         inventory.addAmount("Milk", ProductType.DAIRY, 6);

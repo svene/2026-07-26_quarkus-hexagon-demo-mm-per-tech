@@ -26,6 +26,6 @@ public interface Requests {
 
   record PurchaseRequest(List<PurchaseRequestItem> items) {}
 
-  record PurchaseRequestItem(String productName, int quantity) {}
+  record  PurchaseRequestItem(String productName, int quantity) {}
 
 }

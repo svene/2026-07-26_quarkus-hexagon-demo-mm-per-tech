@@ -2,8 +2,7 @@
 
 How untrusted input is validated at this system's inbound boundaries, and the one pattern used to
 do it everywhere. Unlike `architecture-flow.md`/`architecture-module-participants.md`, this file
-describes a **convention to follow**, not just the current state of every endpoint — the `/purchase`
-endpoint and `ShopReceiver`'s checkout flow have not adopted it yet (see
+describes a **convention to follow**, not just the current state of every endpoint (see
 [`wip_validation.md`](wip_validation.md) for rollout status).
 
 This document has two parts: **Part 1 — Usage** describes the mechanism as it stands, and how to
@@ -146,6 +145,43 @@ type.
 `XxxOrder.parse(...)`; the `Invalid` branch returns a `400` with the violation messages as
 `text/plain`.
 
+## Multi-item input: `Purchase`
+
+`/api/products/purchase`, the `cashpoint-purchases` Kafka topic, and `/shop/checkout` all carry a
+*list* of items. The item itself follows the usual shape — `PurchaseItem(@NotBlank productName,
+@Min(1) quantity) implements ParsedPurchaseItem` — and a small aggregate on top makes the whole
+request **all-or-nothing**:
+
+```java
+public record Purchase(List<PurchaseItem> items) implements ParsedPurchase {
+    public static ParsedPurchase parse(List<ParsedPurchaseItem> parsedItems) { ... }
+}
+
+record Invalid(SortedMap<Integer, Set<ConstraintViolation<PurchaseItem>>> violationsByItemIndex)
+        implements ParsedPurchase {
+    public List<String> messages() { ... }   // e.g. "items[1]: must be greater than or equal to 1"
+}
+```
+
+The adapter parses each raw item with `PurchaseItem.parse(...)` and hands the list to
+`Purchase.parse(...)`, which yields a `Purchase` only if **every** item is valid; otherwise an
+`Invalid` keyed by the offending item's index. `Purchase` has no constraints of its own: its items
+are valid by construction, so it is too. `PurchaseAPI.purchase(Purchase)` therefore only ever sees a
+fully valid basket — one bad item rejects the whole request, nothing is deducted.
+
+The invalid branch follows the usual boundary split:
+
+- `ProductApiReceiver.purchase` — `400`, body is `invalid.messages()` as a JSON array.
+- `CashpointReceiver` (Kafka) — audit log `"CashpointReceiver: PURCHASE_RECEIVED"` with
+  `"INVALID: <items>: <messages>"`, then keep consuming.
+- `ShopReceiver.checkout` — re-renders the shop page with status `400` and a list of errors, each
+  prefixed with the **product name** rather than `items[i]` (a shop user can't map an index to a
+  row). Rows with a blank or `0` quantity are filtered out *before* parsing: that is cart semantics
+  ("not in the cart"), not validation. A non-numeric quantity can't reach `parse(String, int)`, so
+  the adapter reports it itself.
+
+An empty item list is not a violation — it parses to an empty `Purchase`, which is a harmless no-op.
+
 ## Constructor vs. `parse()`
 
 A record's canonical constructor must be as accessible as the record itself, so the throwing
@@ -175,6 +211,7 @@ Any module whose own classes reference `jakarta.validation.*` directly declares
 - `inbound-http-jsonapi/pom.xml` — needed by `ProductApiReceiver` (`ConstraintViolation`, to read
   back violation messages for the `400` body). `Requests.java` itself needs nothing here anymore —
   its DTOs carry no constraint annotations.
+- `inbound-http-html/pom.xml` — needed by `AdminReceiver` (`ConstraintViolation`, same reason).
 
 Both entries are plain (non-test-scoped) dependencies: `FruitDelivery.parse()`/`FruitOrder.parse()`
 call `Validation.buildDefaultValidatorFactory()` at real application runtime, not just from tests.
@@ -287,9 +324,11 @@ the `switch` handles both outcomes directly, so there's nothing for a mapper to 
 
 ## Why `quarkus-hibernate-validator` is declared per-module instead of relying on transitivity
 
-This follows this project's existing "declare what you use" convention, already visible with
-`quarkus-rest-jackson`, which appears in both `core` and `inbound-http-jsonapi` even though the
-latter could get it transitively.
+This follows this project's "declare what you use" convention: every module that imports
+`jakarta.validation` (`core`, `inbound-http-jsonapi`, `inbound-http-html`) declares the extension
+itself instead of getting it transitively through `core`. The same holds for Jackson: `core` has no
+Jackson dependency at all, and each adapter module that (de)serializes JSON declares its own
+(`quarkus-rest-jackson`, `quarkus-rest-client-jackson` or `quarkus-jackson`).
 
 ---
 

@@ -5,7 +5,6 @@ import org.svenehrke.triptychdemo.cross.inventory.InventoryRepositorySPI;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
@@ -17,7 +16,8 @@ public class PurchaseHandler implements PurchaseAPI {
     AuditLogSPI auditLog;
 
     @Override
-    public void purchase(List<PurchaseItem> items) {
+    public void purchase(Purchase purchase) {
+        var items = purchase.items();
         auditLog.log("PurchaseHandler: PURCHASE_RECEIVED",
             items.stream().map(i -> i.productName() + " qty=" + i.quantity()).collect(Collectors.joining(", ")));
 

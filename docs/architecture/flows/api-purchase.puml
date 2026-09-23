@@ -12,7 +12,7 @@ database "PostgreSQL\n(Inventory)" as db_inv
 database "MongoDB\n(Audit)" as db_audit
 
 user -> receiver: POST /api/products/purchase\n{items: [{product, qty}, ...]}
-receiver -> handler: purchase(items)
+receiver -> handler: purchase(purchase)
 handler -> audit: log("PURCHASE_RECEIVED")
 audit -> db_audit: Insert audit entry
 audit --> handler

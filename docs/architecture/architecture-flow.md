@@ -206,7 +206,7 @@ ShopReceiver.inventoryFragment()
 #### POST /shop/checkout - Customer Purchase
 ```
 ShopReceiver.checkout(productNames[], quantities[])
-└─ PurchaseAPI.purchase(items)
+└─ PurchaseAPI.purchase(purchase)
    └─ PurchaseHandler.purchase()
       ├─ AuditLogSPI.log("PURCHASE_RECEIVED")
       │  └─ AuditLogService (outbound-mongodb)
@@ -258,7 +258,7 @@ ProductApiReceiver.orderFruits(request)
 #### POST /api/products/purchase - Purchase Request (JSON)
 ```
 ProductApiReceiver.purchase(request)
-└─ PurchaseAPI.purchase(items)
+└─ PurchaseAPI.purchase(purchase)
    └─ PurchaseHandler.purchase()
       ├─ AuditLogSPI.log("PURCHASE_RECEIVED")
       │  └─ AuditLogService (outbound-mongodb)

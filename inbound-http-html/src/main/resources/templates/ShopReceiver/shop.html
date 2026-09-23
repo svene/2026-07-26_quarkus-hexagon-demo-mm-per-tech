@@ -11,6 +11,17 @@
 <div class="container">
     <h1 class="title">Supermarket – Shop</h1>
 
+    {#if !errors.isEmpty()}
+    <div class="notification is-danger" id="checkout-errors">
+        <p><strong>Purchase not processed:</strong></p>
+        <ul>
+            {#for e in errors}
+            <li>{e}</li>
+            {/for}
+        </ul>
+    </div>
+    {/if}
+
     {#if products.isEmpty()}
     <p class="has-text-grey"><em>No products available to purchase right now.</em></p>
     {/if}

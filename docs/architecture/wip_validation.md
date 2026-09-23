@@ -22,14 +22,16 @@ commodities, returning the violation messages as a `text/plain` `400`. An ArchUn
 (`ArchitectureTest.receivers_construct_domain_values_only_via_parse`) keeps any `*Receiver` from
 calling the throwing constructor directly.
 
-Not yet applied: the `/purchase` endpoint (`PurchaseRequest`/`PurchaseRequestItem`/`PurchaseItem`)
-and `ShopReceiver`'s `/shop/checkout` flow, both still entirely unvalidated — no `ParsedPurchaseItem`
-equivalent exists yet.
+## Purchase (HTTP, Kafka, shop)
+
+Implemented all-or-nothing via `PurchaseItem`/`ParsedPurchaseItem` plus the `Purchase`/`ParsedPurchase`
+aggregate (see `validation.md` § "Multi-item input"): `ProductApiReceiver.purchase` (`400`),
+`CashpointReceiver` (audit log `INVALID: ...`, keep consuming) and `ShopReceiver.checkout` (shop page
+re-rendered with `400` and errors). This also closed a bug: a negative purchase quantity used to
+*add* stock, since `InventoryService.deductAmount` computes `max(0, amount - delta)`.
 
 ## Next steps
 
-- Design and apply the pattern to `/purchase` and `ShopReceiver`'s `/shop/checkout` — no
-  `ParsedPurchaseItem`-equivalent exists yet; this is a new design, not a replication of the
-  landed shape.
 - Show `AdminReceiver`'s `400` violation messages in the admin page — the forms use
   `hx-swap="none"`, so under htmx the error response is currently not rendered anywhere.
+  Deferred until after the htmx 4 upgrade.

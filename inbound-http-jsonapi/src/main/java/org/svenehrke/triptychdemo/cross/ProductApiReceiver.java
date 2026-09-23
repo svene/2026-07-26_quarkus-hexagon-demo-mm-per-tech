@@ -25,6 +25,8 @@ import org.svenehrke.triptychdemo.feature.vegetable.VegetableOrder;
 import org.svenehrke.triptychdemo.feature.vegetable.VegetablesAPI;
 
 import org.svenehrke.triptychdemo.cross.products.Product;
+import org.svenehrke.triptychdemo.cross.purchase.ParsedPurchase;
+import org.svenehrke.triptychdemo.cross.purchase.Purchase;
 import org.svenehrke.triptychdemo.cross.purchase.PurchaseItem;
 import jakarta.inject.Inject;
 import jakarta.validation.ConstraintViolation;
@@ -180,10 +182,19 @@ public class ProductApiReceiver {
     @POST
     @Path("/purchase")
     @Consumes(MediaType.APPLICATION_JSON)
-    public void purchase(Requests.PurchaseRequest request) {
-        var items = request.items().stream()
-            .map(i -> new PurchaseItem(i.productName(), i.quantity()))
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response purchase(Requests.PurchaseRequest request) {
+        var parsedItems = request.items().stream()
+            .map(i -> PurchaseItem.parse(i.productName(), i.quantity()))
             .toList();
-        purchaseAPI.purchase(items);
+        return switch (Purchase.parse(parsedItems)) {
+            case ParsedPurchase.Invalid invalid -> Response.status(Response.Status.BAD_REQUEST)
+                .entity(invalid.messages())
+                .build();
+            case Purchase purchase -> {
+                purchaseAPI.purchase(purchase);
+                yield Response.noContent().build();
+            }
+        };
     }
 }

@@ -15,7 +15,7 @@ database "MongoDB\n(Audit)" as db_audit
 external -> kafka: publish purchase message\n{items: [{product, qty}, ...]}
 
 kafka -> receiver: consume (@Incoming)
-receiver -> handler: purchase(items)
+receiver -> handler: purchase(purchase)
 handler -> audit: log("PURCHASE_RECEIVED")
 audit -> db_audit: Insert audit entry
 audit --> handler
