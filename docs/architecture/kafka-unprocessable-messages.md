@@ -26,6 +26,9 @@ Two kinds of failure behave differently:
 This document is about the first kind. For transient failures, retrying (with backoff, possibly
 through retry topics) is the usual answer.
 
+A third kind, messages that are read successfully but break a business rule, is covered in
+"Business rejections are not technical failures" below.
+
 ## What "stopping the channel" means
 
 Most Kafka client frameworks stop by default when they hit a record they can't handle. In
@@ -165,6 +168,61 @@ again and puts the record back in the DLQ. One of these has to happen first:
   one, so track "already handled" separately, for example through the replay job's committed
   offset.
 
+## Business rejections are not technical failures
+
+Some messages are read successfully but break a business rule: a quantity out of range, a
+required value left blank, a reference to something unknown. These are different from the
+failures above. The consumer understood the message and decided "no". That is an expected,
+handled outcome, not a sign that something is broken.
+
+| | Technical failure | Business rejection |
+|---|---|---|
+| What went wrong | The bytes can't be interpreted | The content was understood and breaks a rule |
+| Expected? | No, it points to a bug or an incompatibility | Yes, the code handles it explicitly |
+| Replay unchanged | Works once the consumer is fixed | Fails again unless the *rule* changes |
+
+### The argument for treating them the same
+
+A Kafka message usually describes something that has already happened, such as "goods
+arrived" or "item sold". It is not a request that can be refused. An HTTP endpoint can answer
+`400` and the caller corrects and resends. A consumer that rejects an event has no such caller,
+and the event happened anyway. If the rule turns out to be wrong, the rejected events are
+missing from the consumer's state. Recovering them should be a replay, not a manual
+reconstruction. The producer also never learns about the rejection unless something tells it.
+
+### The argument for keeping them apart
+
+- **The DLQ loses its meaning.** Its alert should mean something is broken. If routine
+  business rejections land there too, a real incident is lost among expected rejects, and the
+  alert either fires constantly or needs a threshold too high to be useful.
+- **The data may already be kept.** If the rejection is logged with the full message content
+  (easy for small messages), nothing is lost. Losing the payload is what justified a DLQ in the
+  first place, and that concern doesn't apply.
+- **Routing to a DLQ usually means throwing.** Most frameworks send a message to the DLQ when it
+  is nacked, typically because of an exception. Throwing for an expected outcome produces
+  error-level logs with stack traces for every business reject. Nacking explicitly avoids the
+  exception but makes the consumer code more complex.
+- **Different people read them.** The people who care about business rejections read the
+  application's own records, such as an audit log or an admin view. Operations reads the DLQ.
+
+### Common patterns
+
+There is no single standard. Practice converges on two principles: **never lose data silently**,
+and **keep technical failures and business rejections separate**. The usual options are:
+
+- **Log or audit, then skip.** Fine when the log entry captures the whole message and replay is
+  rarely needed.
+- **A separate "rejected" topic** (e.g. `<topic>-rejected`), apart from the DLQ. Rejections are
+  kept and replayable, with their own alert or dashboard, and the DLQ still means "something is
+  broken". The reason for rejection goes in headers, as it does for DLQ records.
+- **A rejection event back to the producer** (e.g. `SomethingRejected`). This is the
+  event-driven equivalent of a `400`. It is the cleanest solution when producer and consumer are
+  owned by different teams or organizations, because the owner of the data is told and can fix
+  it at the source.
+
+These options combine. Keeping the audit or log entry alongside a rejected topic or a rejection
+event is common, because business users rely on it.
+
 ## Decision guide
 
 1. **Are the messages independent of each other?** Each message's effect stands alone, and order
@@ -172,7 +230,10 @@ again and puts the record back in the DLQ. One of these has to happen first:
    or log entry as well if that suits the system.
 2. **Does a gap break later processing?** If yes, stop, or use a DLQ that also holds back the
    records that depend on the bad one.
-3. **In either case:** alert on the failure rate, and document who reviews the DLQ and how
+3. **Is the message readable, but it breaks a business rule?** Then it is not a DLQ case. Log
+   or audit it with its full content, send it to a separate rejected topic, or send a rejection
+   event back to the producer (see "Business rejections are not technical failures").
+4. **In every case:** alert on the failure rate, and document who reviews the DLQ and how
    records are replayed.
 
 ## References
