@@ -1,21 +1,18 @@
 package org.svenehrke.triptychdemo.cross.purchase;
 
 import jakarta.validation.ConstraintViolation;
-import jakarta.validation.Validation;
-import jakarta.validation.Validator;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 
 import java.lang.reflect.Constructor;
 import java.util.Set;
 
+import static org.svenehrke.triptychdemo.cross.validation.ConstructorValidation.declaredConstructor;
+import static org.svenehrke.triptychdemo.cross.validation.ConstructorValidation.validateParameters;
+
 public record PurchaseItem(@NotBlank String productName, @Min(1) int quantity) implements ParsedPurchaseItem {
 
-	private static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();
-
-	@SuppressWarnings("unchecked")
-	private static final Constructor<PurchaseItem> CANONICAL_CONSTRUCTOR =
-		(Constructor<PurchaseItem>) PurchaseItem.class.getDeclaredConstructors()[0];
+	private static final Constructor<PurchaseItem> CANONICAL_CONSTRUCTOR = declaredConstructor(PurchaseItem.class, String.class, int.class);
 
 	/**
 	 * For trusted data only - throws {@link IllegalArgumentException} on a violation.
@@ -37,8 +34,7 @@ public record PurchaseItem(@NotBlank String productName, @Min(1) int quantity) i
 	}
 
 	private static Set<ConstraintViolation<PurchaseItem>> validate(String productName, int quantity) {
-		return VALIDATOR.forExecutables()
-			.validateConstructorParameters(CANONICAL_CONSTRUCTOR, new Object[]{productName, quantity});
+		return validateParameters(CANONICAL_CONSTRUCTOR, productName, quantity);
 	}
 
 }

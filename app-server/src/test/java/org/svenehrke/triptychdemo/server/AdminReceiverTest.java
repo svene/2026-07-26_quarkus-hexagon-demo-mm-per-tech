@@ -80,6 +80,34 @@ class AdminReceiverTest {
     }
 
     @Test
+    void order_fruits_with_non_numeric_quantity_returns_400() {
+        var response = given()
+            .contentType("application/x-www-form-urlencoded")
+            .formParam("productName", "Banana")
+            .formParam("quantity", "abc")
+            .redirects().follow(false)
+            .post("/admin/order-fruits");
+
+        assertThat(response.statusCode()).isEqualTo(400);
+        assertThat(response.contentType()).contains("text/html");
+        assertThat(response.asString()).contains("must be a number");
+    }
+
+    @Test
+    void order_fruits_with_blank_quantity_returns_400() {
+        var response = given()
+            .contentType("application/x-www-form-urlencoded")
+            .formParam("productName", "Banana")
+            .formParam("quantity", "")
+            .redirects().follow(false)
+            .post("/admin/order-fruits");
+
+        assertThat(response.statusCode()).isEqualTo(400);
+        assertThat(response.contentType()).contains("text/html");
+        assertThat(response.asString()).contains("must not be blank");
+    }
+
+    @Test
     void order_fruits_htmx_post_returns_200_with_empty_body() {
         var response = given()
             .contentType("application/x-www-form-urlencoded")

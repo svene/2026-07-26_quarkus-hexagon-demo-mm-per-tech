@@ -24,7 +24,8 @@ Implemented for all seven `order-*` endpoints on `ProductApiReceiver` (`FruitOrd
 `DairyOrder`, `BakeryOrder`, `VegetableOrder`, `BeverageOrder`, `NonFoodOrder`, each with a sibling
 `ParsedXxxOrder`) — each builds a `400` from the violation messages directly, no `@Valid`, no
 exception mapper. `AdminReceiver`'s HTML forms (`inbound-http-html`) do the same for all seven
-commodities, returning the violation messages as a `400` HTML fragment shown below the form. An ArchUnit rule
+commodities, returning the violation messages as a `400` HTML fragment shown below the form. A
+blank or non-numeric `quantity` on those forms gets the same fragment. An ArchUnit rule
 (`ArchitectureTest.receivers_construct_domain_values_only_via_parse`) keeps any `*Receiver` from
 calling the throwing constructor directly.
 
@@ -41,9 +42,12 @@ re-rendered with `400` and errors). This also closed a bug: a negative purchase 
 Every inbound boundary now sends its *values* through `parse()`, and Kafka's structural failures
 are handled. What's left are two smaller gaps plus the business-rule decisions:
 
-- **Admin form: non-numeric quantity.** `@FormParam("quantity") int` fails in JAX-RS before
-  `parse()`, so the `400` is Quarkus's default body rather than the `orderErrors` fragment. The
-  browser's `type="number"` makes this hard to hit.
+- **JSON API: wrongly typed field (unverified).** `{"quantity": "abc"}` to `/api/products/order-*`
+  or `/purchase` presumably fails in Jackson before the receiver runs, so the caller would get
+  Quarkus's default `400` body rather than the JSON array of violation messages. The admin forms
+  had the same gap and now pass the text to `XxxOrder.parse(String, String)` (see `validation.md`).
+  For JSON, the likely fix is to make `quantity` a `String` in the request DTOs and use that same
+  overload (`PurchaseItem` would need one too). First step: a test to see the actual response.
 - **ArchUnit rule scope.** `receivers_construct_domain_values_only_via_parse` only checks `*Receiver`
   classes; a receiver delegating to a helper class that calls the constructor would slip through.
   Nothing does this today. Closing it means checking every non-`core` class in the inbound modules.

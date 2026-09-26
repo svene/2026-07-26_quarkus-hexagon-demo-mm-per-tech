@@ -23,10 +23,12 @@ mechanism for a domain type `Xxx`:
 - `Xxx` implements a sibling sealed interface `ParsedXxx` **directly** — there is no separate
   `Valid` wrapper type. The failure case has its own type, `ParsedXxx.Invalid`, holding
   `Set<ConstraintViolation<Xxx>>`.
-- A private `validate(...)` helper calls
-  `Validator.forExecutables().validateConstructorParameters(canonicalConstructor, args)` against the
-  record's own canonical constructor (found once via
-  `Class.getDeclaredConstructors()[0]`, cached in a `static final Constructor<Xxx>` field). This
+- A private `validate(...)` helper validates the arguments against the parameter constraints of the
+  record's own canonical constructor, without invoking it. It uses `ConstructorValidation`
+  (`core`, `cross.validation`), which holds the one shared `Validator` and wraps
+  `validateConstructorParameters`. The constructor is looked up by its parameter types with
+  `ConstructorValidation.declaredConstructor(Xxx.class, String.class, int.class)` and cached in a
+  `static final Constructor<Xxx>` field. This
   validates every constrained component in one call, driven entirely by reflection over the actual
   constructor's annotations — there is no per-property name to keep in sync with the record's
   components. This helper is used by **both**:
@@ -34,6 +36,14 @@ mechanism for a domain type `Xxx`:
     only, see "Constructor vs. `parse()`" below), and
   - `parse(...)` (the normal entry point — returns `ParsedXxx.Invalid` on violation instead of
     throwing).
+- **Text input** (the order types `XxxOrder` only): a second overload, `parse(String productName,
+  String quantity)`, takes the quantity as text, e.g. an HTML form field. It validates the text
+  against a private, never-invoked `Xxx(String, String)` constructor. That constructor carries
+  `@NotBlank` and `@Pattern(message = "must be a number")`, at most 9 digits so the value always
+  fits an `int`. Then it converts the text and delegates to `parse(String, int)`. So a
+  non-number becomes an ordinary `ConstraintViolation<Xxx>` in the same `Invalid`, and a blank
+  product name and a non-numeric quantity are reported together. See "Why a never-invoked second
+  constructor for text input" in Part 2.
 - Callers `switch` exhaustively over the sealed result. **What happens in the invalid branch is
   the only thing that differs by boundary** — see below.
 
@@ -134,6 +144,11 @@ body (Quarkus passes `request == null`) is a `400` `["request body is required"]
 and `/purchase` additionally rejects a missing list (`["items is required"]`) and `null` entries
 (`["items[1]: must not be null"]`). An explicit empty list `{"items": []}` is not an error — see
 "Multi-item input" below.
+
+The admin HTML forms (`AdminReceiver`) receive `quantity` as a `String` and pass it straight to
+`XxxOrder.parse(String, String)`. An `int` `@FormParam` would fail in JAX-RS before the method runs,
+and the caller would get Quarkus's default `400` instead of the `orderErrors` fragment. A blank
+value gives `"must not be blank"`, and a value that isn't a number gives `"must be a number"`.
 
 ### Verified behavior
 
@@ -242,8 +257,10 @@ Any module whose own classes reference `jakarta.validation.*` directly declares
   its DTOs carry no constraint annotations.
 - `inbound-http-html/pom.xml` — needed by `AdminReceiver` (`ConstraintViolation`, same reason).
 
-Both entries are plain (non-test-scoped) dependencies: `FruitDelivery.parse()`/`FruitOrder.parse()`
-call `Validation.buildDefaultValidatorFactory()` at real application runtime, not just from tests.
+Both entries are plain (non-test-scoped) dependencies: `ConstructorValidation`, used by every
+`parse()`, calls `Validation.buildDefaultValidatorFactory()` at real application runtime, not just
+from tests. It does so once, for all records: building a `ValidatorFactory` is expensive, and a
+`Validator` is thread-safe.
 
 ---
 
@@ -278,6 +295,24 @@ list at all — nothing to fall out of sync when the record's components change.
 `-parameters` being enabled on the compiler (it is, project-wide, in the root `pom.xml`), so
 constructor parameter names resolve to real component names (`productName`) rather than `arg0`,
 `arg1`, … in violation property paths.
+
+## Why a never-invoked second constructor for text input
+
+`parse(String, String)` has to report "not a number" through the same `ParsedXxx.Invalid`, and that
+holds `Set<ConstraintViolation<Xxx>>` (see "Why no `Valid` wrapper type"). A failed
+`Integer.parseInt` isn't a `ConstraintViolation`, and one can't reasonably be built by hand. Two
+other options were rejected:
+
+- changing `Invalid` to `List<String>`, which gives up the property path and invalid value, and
+- adding a third sealed case such as `Unparseable`, which every `switch` would then have to handle,
+  including callers that can never produce it.
+
+A second record constructor, `Xxx(String, String)`, solves it. Its parameters carry the text-level
+constraints, and `validateConstructorParameters` checks them exactly as it checks the canonical
+constructor, so the result is a real `ConstraintViolation<Xxx>`. The constructor is never invoked.
+It is `private`, and it delegates to the canonical constructor only because records require it.
+Having two constructors is also why every record looks up its constructors by parameter types.
+`getDeclaredConstructors()[0]` was used before, and its order isn't guaranteed.
 
 ## Why `ParsedXxx` must be a separate top-level file
 

@@ -99,7 +99,7 @@ public class AdminReceiver {
     @Path("/order-fruits")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     public Response orderFruits(@FormParam("productName") String productName,
-                                @FormParam("quantity") int quantity,
+                                @FormParam("quantity") String quantity,
                                 @HeaderParam("HX-Request") String hxRequest) {
         return switch (FruitOrder.parse(productName, quantity)) {
             case ParsedFruitOrder.Invalid invalid -> badRequest(invalid.violations());
@@ -114,7 +114,7 @@ public class AdminReceiver {
     @Path("/order-vegetables")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     public Response orderVegetables(@FormParam("productName") String productName,
-                                    @FormParam("quantity") int quantity,
+                                    @FormParam("quantity") String quantity,
                                     @HeaderParam("HX-Request") String hxRequest) {
         return switch (VegetableOrder.parse(productName, quantity)) {
             case ParsedVegetableOrder.Invalid invalid -> badRequest(invalid.violations());
@@ -129,7 +129,7 @@ public class AdminReceiver {
     @Path("/order-dairy")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     public Response orderDairy(@FormParam("productName") String productName,
-                               @FormParam("quantity") int quantity,
+                               @FormParam("quantity") String quantity,
                                @HeaderParam("HX-Request") String hxRequest) {
         return switch (DairyOrder.parse(productName, quantity)) {
             case ParsedDairyOrder.Invalid invalid -> badRequest(invalid.violations());
@@ -144,7 +144,7 @@ public class AdminReceiver {
     @Path("/order-beverages")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     public Response orderBeverages(@FormParam("productName") String productName,
-                                   @FormParam("quantity") int quantity,
+                                   @FormParam("quantity") String quantity,
                                    @HeaderParam("HX-Request") String hxRequest) {
         return switch (BeverageOrder.parse(productName, quantity)) {
             case ParsedBeverageOrder.Invalid invalid -> badRequest(invalid.violations());
@@ -159,7 +159,7 @@ public class AdminReceiver {
     @Path("/order-meat")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     public Response orderMeat(@FormParam("productName") String productName,
-                              @FormParam("quantity") int quantity,
+                              @FormParam("quantity") String quantity,
                               @HeaderParam("HX-Request") String hxRequest) {
         return switch (MeatOrder.parse(productName, quantity)) {
             case ParsedMeatOrder.Invalid invalid -> badRequest(invalid.violations());
@@ -174,7 +174,7 @@ public class AdminReceiver {
     @Path("/order-bakery")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     public Response orderBakery(@FormParam("productName") String productName,
-                                @FormParam("quantity") int quantity,
+                                @FormParam("quantity") String quantity,
                                 @HeaderParam("HX-Request") String hxRequest) {
         return switch (BakeryOrder.parse(productName, quantity)) {
             case ParsedBakeryOrder.Invalid invalid -> badRequest(invalid.violations());
@@ -189,7 +189,7 @@ public class AdminReceiver {
     @Path("/order-nonfood")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     public Response orderNonFood(@FormParam("productName") String productName,
-                                 @FormParam("quantity") int quantity,
+                                 @FormParam("quantity") String quantity,
                                  @HeaderParam("HX-Request") String hxRequest) {
         return switch (NonFoodOrder.parse(productName, quantity)) {
             case ParsedNonFoodOrder.Invalid invalid -> badRequest(invalid.violations());
