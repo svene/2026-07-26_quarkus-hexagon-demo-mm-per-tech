@@ -22,6 +22,7 @@ public class FruitDeliveryReceiver {
     @Incoming("fruit-deliveries")
     @Blocking
     public void receive(RawFruitDelivery message) {
+        rejectUnprocessable(message);
         // Mapping: RawFruitDelivery -> FruitDelivery:
         switch (FruitDelivery.parse(message.productName(), message.quantity())) {
             case ParsedFruitDelivery.Invalid invalid: {
@@ -38,6 +39,14 @@ public class FruitDeliveryReceiver {
                 auditLog.log("FruitDeliveryReceiver: FRUIT_INVENTORY_UPDATED", fruitDelivery.productName() + " +" + fruitDelivery.quantity());
                 break;
             }
+        }
+    }
+
+    // Throwing nacks the message, which sends it to the dead-letter topic (failure-strategy=dead-letter-queue).
+    // Undeserializable messages never get here: SmallRye sends those to the DLQ directly.
+    private static void rejectUnprocessable(RawFruitDelivery message) {
+        if (message == null) {
+            throw new IllegalArgumentException("null payload (tombstone)");
         }
     }
 }

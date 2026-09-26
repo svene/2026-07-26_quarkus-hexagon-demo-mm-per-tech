@@ -24,6 +24,7 @@ public class CashpointReceiver {
     @Incoming("cashpoint-purchases")
     @Blocking
     public void receive(PurchaseMessage message) {
+        rejectUnprocessable(message);
         var parsedItems = message.items().stream()
             .map(i -> PurchaseItem.parse(i.productName(), i.quantity()))
             .toList();
@@ -40,6 +41,20 @@ public class CashpointReceiver {
                 purchaseAPI.purchase(purchase);
                 break;
             }
+        }
+    }
+
+    // Throwing nacks the message, which sends it to the dead-letter topic (failure-strategy=dead-letter-queue).
+    // Undeserializable messages never get here: SmallRye sends those to the DLQ directly.
+    private static void rejectUnprocessable(PurchaseMessage message) {
+        if (message == null) {
+            throw new IllegalArgumentException("null payload (tombstone)");
+        }
+        if (message.items() == null) {
+            throw new IllegalArgumentException("items is required");
+        }
+        if (message.items().contains(null)) {
+            throw new IllegalArgumentException("items must not contain null entries");
         }
     }
 }

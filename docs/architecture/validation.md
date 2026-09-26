@@ -65,6 +65,26 @@ switch (FruitDelivery.parse(message.productName(), message.quantity())) {
 }
 ```
 
+A message that fails *before* `parse()` goes to the channel's dead-letter topic, `<topic>-dlq`.
+This covers messages that can't be deserialized (invalid JSON, `"quantity": "abc"`), tombstones,
+and cashpoint messages with `"items": null` or `null` entries. They are **not** written to the
+audit log. The DLQ is the single record of them, and it keeps the payload so it can be replayed.
+
+Two mechanisms work together, configured on every incoming channel with
+`fail-on-deserialization-failure=false` and `failure-strategy=dead-letter-queue`:
+
+- **Deserialization failures** are routed to the DLQ by SmallRye itself, with the original bytes.
+  The receiver never sees them.
+- **Structural problems the receiver detects** (a `null` payload, or `items` missing or containing
+  `null` entries) make the receiver throw an `IllegalArgumentException`. The message is nacked,
+  and the exception message becomes the `dead-letter-reason` header.
+
+Without this, each of these cases permanently stops its channel. This was verified with a probe
+before the fix. `KafkaMalformedMessageTest` (`app-server`) sends each case to a probe topic, checks
+the DLQ record's value and headers, and checks that the next valid message is still processed.
+The general reasoning (why a DLQ and not stopping or skipping, and how to replay records) is in
+[`kafka-unprocessable-messages.md`](kafka-unprocessable-messages.md).
+
 ---
 
 ## Reference example: HTTP boundary
