@@ -37,17 +37,34 @@ aggregate (see `validation.md` § "Multi-item input"): `ProductApiReceiver.purch
 re-rendered with `400` and errors). This also closed a bug: a negative purchase quantity used to
 *add* stock, since `InventoryService.deductAmount` computes `max(0, amount - delta)`.
 
+## JSON API: malformed input (done 2026-09-27)
+
+Input that Jackson rejected or silently "fixed" before `parse()` ran (`"quantity": "abc"`, `"5"`,
+`5.7`, `123` as `productName`, invalid JSON, missing/`null` quantity or productName) now gets our JSON array with a
+precise message instead of Quarkus's `{"objectName":…}` body, an empty `400`, the wrong reason, or a
+`204`. `quantity` is an `Integer` in the request DTOs and checked as a structure error by each
+request record's static `structureErrors(request)` (the receiver then calls the
+domain `parse()` as before); a strict, resource-local reader (`StrictJsonReader` via `@CustomDeserialization`)
+rejects the coercions; and `ProductApiReceiver`'s `@ServerExceptionMapper` methods delegate to the
+shared `JsonInputErrors` (see `validation.md`, "Reference example: HTTP boundary"). Newer Quarkus 3.x wouldn't have fixed this (Jackson 3 only arrives with Quarkus 4), and
+`String` DTO fields were rejected because they'd put `quantity` into the API contract as a string.
+One finding while implementing: inside a record, Jackson wraps parser errors (out-of-range number,
+truncated JSON) in a `JsonMappingException`, so the mapper unwraps one level and takes its path.
+
 ## Next steps
 
 Every inbound boundary now sends its *values* through `parse()`, and Kafka's structural failures
 are handled. What's left are two smaller gaps plus the business-rule decisions:
 
-- **JSON API: wrongly typed field (unverified).** `{"quantity": "abc"}` to `/api/products/order-*`
-  or `/purchase` presumably fails in Jackson before the receiver runs, so the caller would get
-  Quarkus's default `400` body rather than the JSON array of violation messages. The admin forms
-  had the same gap and now pass the text to `XxxOrder.parse(String, String)` (see `validation.md`).
-  For JSON, the likely fix is to make `quantity` a `String` in the request DTOs and use that same
-  overload (`PurchaseItem` would need one too). First step: a test to see the actual response.
+- **Kafka: transient failures go to the DLQ instead of being retried.** `failure-strategy=dead-letter-queue`
+  treats *every* nack as dead, including transient ones such as a database that is down or
+  shutting down. Observed during a test run: a valid delivery arrived while the app was shutting
+  down (`Session/EntityManager is closed`) and went to `fruit-deliveries-dlq`. Before the DLQ,
+  fail-stop left the offset uncommitted, so the message was reprocessed after a restart. Now it
+  needs a manual replay. `kafka-unprocessable-messages.md` says transient failures should be
+  retried. Options: SmallRye's `delayed-retry-topic` strategy (retry topics, then DLQ), or
+  MicroProfile Fault Tolerance `@Retry` on the receivers, plus distinguishing retryable from
+  non-retryable exceptions.
 - **ArchUnit rule scope.** `receivers_construct_domain_values_only_via_parse` only checks `*Receiver`
   classes; a receiver delegating to a helper class that calls the constructor would slip through.
   Nothing does this today. Closing it means checking every non-`core` class in the inbound modules.

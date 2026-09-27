@@ -8,6 +8,8 @@ import io.restassured.http.ContentType;
 import jakarta.inject.Inject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import static io.restassured.RestAssured.given;
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -434,5 +436,77 @@ class ProductApiReceiverTest {
 
         assertThat(response.statusCode()).isEqualTo(400);
         assertThat(response.jsonPath().<String>getList("$")).containsExactly("items[1]: must not be null");
+    }
+
+    @ParameterizedTest(name = "{0}: {1}")
+    @CsvSource(delimiter = '|', quoteCharacter = '`', textBlock = """
+        order-fruits | missing quantity        | {"productName": "Mango"}                                      | quantity is required
+        order-fruits | null quantity           | {"productName": "Mango", "quantity": null}                    | quantity is required
+        order-fruits | missing productName     | {"quantity": 5}                                               | productName is required
+        """)
+    void missing_field_returns_400(String endpoint, String description, String body, String expectedMessage) {
+        var response = given()
+            .contentType(ContentType.JSON)
+            .body(body)
+            .post("/api/products/" + endpoint);
+
+        assertThat(response.statusCode()).isEqualTo(400);
+        assertThat(response.jsonPath().<String>getList("$")).containsExactly(expectedMessage);
+    }
+
+    @Test
+    void order_fruits_reports_every_missing_field() {
+        var response = given()
+            .contentType(ContentType.JSON)
+            .body("{}")
+            .post("/api/products/order-fruits");
+
+        assertThat(response.statusCode()).isEqualTo(400);
+        assertThat(response.jsonPath().<String>getList("$"))
+            .containsExactly("productName is required", "quantity is required");
+    }
+
+    @Test
+    void purchase_reports_every_structure_error_of_every_item() {
+        var response = given()
+            .contentType(ContentType.JSON)
+            .body("""
+                {"items": [{"productName": "A"}, {"quantity": null}, null]}
+                """)
+            .post("/api/products/purchase");
+
+        assertThat(response.statusCode()).isEqualTo(400);
+        assertThat(response.jsonPath().<String>getList("$")).containsExactly(
+            "items[0].quantity is required",
+            "items[1].productName is required",
+            "items[1].quantity is required",
+            "items[2]: must not be null");
+    }
+
+    // --- Deserialization errors (rejected by Jackson before the receiver method runs) ---
+
+    @ParameterizedTest(name = "{0}: {1}")
+    @CsvSource(delimiter = '|', quoteCharacter = '`', textBlock = """
+        order-fruits | non-numeric quantity    | {"productName": "Mango", "quantity": "abc"}                   | quantity: must be an integer
+        order-fruits | numeric string quantity | {"productName": "Mango", "quantity": "5"}                     | quantity: must be an integer
+        order-fruits | decimal quantity        | {"productName": "Mango", "quantity": 5.7}                     | quantity: must be an integer
+        order-fruits | object as quantity      | {"productName": "Mango", "quantity": {}}                      | quantity: must be an integer
+        order-fruits | out-of-range quantity   | {"productName": "Mango", "quantity": 99999999999}             | quantity: number is out of range
+        order-fruits | number as productName   | {"productName": 123, "quantity": 5}                           | productName: must be a string
+        order-fruits | list as body            | []                                                            | request body: has an invalid value
+        order-fruits | invalid JSON            | {not json                                                     | request body is not valid JSON
+        purchase     | non-numeric item qty    | {"items": [{"productName": "Mango", "quantity": "abc"}]}      | items[0].quantity: must be an integer
+        purchase     | items is not a list     | {"items": "Mango"}                                            | items: must be a list
+        purchase     | invalid JSON            | {"items": [                                                   | request body is not valid JSON
+        """)
+    void malformed_input_returns_400_with_json_messages(String endpoint, String description, String body, String expectedMessage) {
+        var response = given()
+            .contentType(ContentType.JSON)
+            .body(body)
+            .post("/api/products/" + endpoint);
+
+        assertThat(response.statusCode()).isEqualTo(400);
+        assertThat(response.contentType()).contains("application/json");
+        assertThat(response.jsonPath().<String>getList("$")).containsExactly(expectedMessage);
     }
 }

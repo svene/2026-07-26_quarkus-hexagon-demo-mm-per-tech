@@ -12,7 +12,7 @@ Complete inventory of all classes participating in the system flows, organized b
 | Module | Participants |
 |--------|--------------|
 | **inbound-http-html** | `AdminReceiver`<br>`ShopReceiver` |
-| **inbound-http-jsonapi** | `ProductApiReceiver`<br>`Requests` |
+| **inbound-http-jsonapi** | `ProductApiReceiver`<br>`XxxOrderRequest`/`PurchaseRequest`/`PurchaseRequestItem`/`RequestStructureErrorMessages`<br>`JsonInputErrors`/`StrictJsonReader`/`JsonResponses` |
 | **inbound-kafka** | `FruitDeliveryReceiver`<br>`VegetablesDeliveryReceiver`<br>`DairyDeliveryReceiver`<br>`BeveragesDeliveryReceiver`<br>`MeatDeliveryReceiver`<br>`BakeryDeliveryReceiver`<br>`NonFoodDeliveryReceiver`<br>`CashpointReceiver` |
 | **core** | `FruitsAPI`/`FruitSupplierSPI`/`FruitDelivery`/`FruitsHandler`<br>`VegetablesAPI`/`VegetablesSupplierSPI`/`VegetableDelivery`/`VegetablesHandler`<br>`DairyAPI`/`DairySupplierSPI`/`DairyDelivery`/`DairyHandler`<br>`BeveragesAPI`/`BeverageSupplierSPI`/`BeverageDelivery`/`BeveragesHandler`<br>`MeatAPI`/`MeatSupplierSPI`/`MeatDelivery`/`MeatHandler`<br>`BakeryAPI`/`BakerySupplierSPI`/`BakeryDelivery`/`BakeryHandler`<br>`NonFoodAPI`/`NonFoodSupplierSPI`/`NonFoodDelivery`/`NonFoodHandler`<br>`InventoryAPI`/`InventoryRepositorySPI`/`InventoryHandler`<br>`AuditLogAPI`/`AuditLogSPI`/`AuditLogHandler`/`AuditLogEntry`<br>`ProductsAPI`/`ProductsHandler`/`Product`/`ProductType`<br>`PurchaseAPI`/`PurchaseHandler`/`PurchaseItem` |
 | **outbound-postgres** | `InventoryService`<br>`ProductEntity` |
@@ -54,16 +54,23 @@ Complete inventory of all classes participating in the system flows, organized b
 ### Receivers
 - `ProductApiReceiver` - REST API endpoints (GET /api/products, POST /api/products/order-*, POST /api/products/purchase)
 
-### Request Models (consolidated in Requests interface)
-- `Requests.FruitOrderRequest` - Fruit order (productName, quantity)
-- `Requests.VegetableOrderRequest` - Vegetable order (productName, quantity)
-- `Requests.DairyOrderRequest` - Dairy order (productName, quantity)
-- `Requests.BeverageOrderRequest` - Beverage order (productName, quantity)
-- `Requests.MeatOrderRequest` - Meat order (productName, quantity)
-- `Requests.BakeryOrderRequest` - Bakery order (productName, quantity)
-- `Requests.NonFoodOrderRequest` - Non-food order (productName, quantity)
-- `Requests.PurchaseRequest` - Purchase request (List of PurchaseRequestItem)
-- `Requests.PurchaseRequestItem` - Purchase item (productName, quantity)
+### Request Models (one record per file)
+- `FruitOrderRequest` - Fruit order (productName, quantity)
+- `VegetableOrderRequest` - Vegetable order (productName, quantity)
+- `DairyOrderRequest` - Dairy order (productName, quantity)
+- `BeverageOrderRequest` - Beverage order (productName, quantity)
+- `MeatOrderRequest` - Meat order (productName, quantity)
+- `BakeryOrderRequest` - Bakery order (productName, quantity)
+- `NonFoodOrderRequest` - Non-food order (productName, quantity)
+- `PurchaseRequest` - Purchase request (List of PurchaseRequestItem)
+- `PurchaseRequestItem` - Purchase item (productName, quantity)
+- `RequestStructureErrorMessages` - shared structure-error messages
+- Each request record (except `PurchaseRequestItem`) has a static `structureErrors(request)`: structure checks only (missing body/field/entry, all errors collected); values are validated by the domain `parse()` in the receiver
+
+### JSON input handling
+- `StrictJsonReader` - `@CustomDeserialization` reader without silent scalar coercions (global mapper untouched)
+- `JsonInputErrors` - messages for Jackson deserialization errors, used by `ProductApiReceiver`'s resource-local `@ServerExceptionMapper`s
+- `JsonResponses` - `badRequest(List<String>)`, the `400` JSON array
 
 **Responsibilities**:
 - Parse HTTP JSON requests (APPLICATION_JSON)
@@ -390,7 +397,7 @@ Complete inventory of all classes participating in the system flows, organized b
 | Module | Participants | Type |
 |--------|--------------|------|
 | inbound-http-html | 2 | HTTP HTML Receivers |
-| inbound-http-jsonapi | 2 | HTTP JSON API Receiver + Requests |
+| inbound-http-jsonapi | 2 | HTTP JSON API Receiver + request records |
 | inbound-kafka | 8 + 3 | Kafka Receivers + cashpoint message types |
 | core | 11 Handlers, 11 API interfaces, 9 SPI interfaces, 10 domain records/enum | Feature (7 packages) + Cross (4 packages) |
 | outbound-postgres | 2 | Service (InventoryService) + Entity (ProductEntity) |

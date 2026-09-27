@@ -100,7 +100,7 @@ The general reasoning (why a DLQ and not stopping or skipping, and how to replay
 ## Reference example: HTTP boundary
 
 `POST /api/products/order-fruits` — `FruitOrder`/`ParsedFruitOrder` (`core`) +
-`Requests.FruitOrderRequest`/`ProductApiReceiver.orderFruits` (`inbound-http-jsonapi`).
+`FruitOrderRequest`/`ProductApiReceiver.orderFruits` (`inbound-http-jsonapi`).
 
 `FruitOrder` follows the exact same shape as `FruitDelivery`:
 
@@ -110,40 +110,73 @@ public record FruitOrder(@NotBlank String productName, @Min(1) int quantity) imp
 }
 ```
 
-The wire-format DTO stays a **bare, unvalidated** record — no constraint annotations, no `@Valid`:
+The wire-format DTO stays a **bare, unvalidated** record — no constraint annotations, no `@Valid`.
+It only knows its own *structure*, which the domain `parse()` can't see because it only gets values:
 
 ```java
-record FruitOrderRequest(String productName, int quantity) {}
+record FruitOrderRequest(String productName, Integer quantity) {
+    public static List<String> structureErrors(FruitOrderRequest request) {
+        if (request == null) return List.of(BODY_REQUIRED);
+        var errors = new ArrayList<String>();
+        if (request.productName() == null) errors.add(PRODUCT_NAME_REQUIRED);
+        if (request.quantity() == null) errors.add(QUANTITY_REQUIRED);
+        return errors;
+    }
+}
 ```
 
-The resource method `parse()`s straight into the domain type and reacts to the result itself,
-building the `400` directly from the collected `ConstraintViolation`s:
+`structureErrors` is static because an empty body arrives as `request == null`, and it reports every
+structure error, not just the first. `quantity` is an `Integer`, so a missing or `null` value stays
+`null` instead of silently becoming `0`. The messages are shared in `RequestStructureErrorMessages`.
+
+The resource method checks the structure first, then `parse()`s straight into the domain type and
+reacts to the result itself, building the `400` directly from the collected `ConstraintViolation`s:
 
 ```java
 @POST
 @Path("/order-fruits")
 @Consumes(MediaType.APPLICATION_JSON)
 @Produces(MediaType.APPLICATION_JSON)
-public Response orderFruits(Requests.FruitOrderRequest request) {
+public Response orderFruits(FruitOrderRequest request) {
+    var structureErrors = FruitOrderRequest.structureErrors(request);
+    if (!structureErrors.isEmpty()) return badRequest(structureErrors);
     return switch (FruitOrder.parse(request.productName(), request.quantity())) {
-        case ParsedFruitOrder.Invalid invalid -> Response.status(Response.Status.BAD_REQUEST)
-            .entity(invalid.violations().stream().map(ConstraintViolation::getMessage).toList())
-            .build();
-        case FruitOrder fruitOrder -> {
-            fruitsAPI.order(fruitOrder);
+        case ParsedFruitOrder.Invalid invalid -> badRequest(messagesOf(invalid.violations()));
+        case FruitOrder order -> {
+            fruitsAPI.order(order);
             yield Response.noContent().build();
         }
     };
 }
 ```
 
-A `400` response body is a plain JSON array of violation messages, e.g. `["must not be blank"]`.
+A `400` response body is a plain JSON array of messages, e.g. `["must not be blank"]`
+(`JsonResponses.badRequest`).
 
-The request's *structure* is checked before `parse()`, since `parse()` only sees values: an empty
-body (Quarkus passes `request == null`) is a `400` `["request body is required"]` on every endpoint,
-and `/purchase` additionally rejects a missing list (`["items is required"]`) and `null` entries
-(`["items[1]: must not be null"]`). An explicit empty list `{"items": []}` is not an error — see
-"Multi-item input" below.
+The structure errors: an empty body is `["request body is required"]` on every endpoint, and a
+missing or `null` field is `"productName is required"` / `"quantity is required"` (`{}` gets both).
+A blank `productName` is not a structure error; the domain's `@NotBlank` reports it.
+`PurchaseRequest.structureErrors` additionally rejects a missing list (`["items is required"]`),
+`null` entries (`"items[1]: must not be null"`) and missing fields per item
+(`"items[0].productName is required"`, `"items[0].quantity is required"`), collected over all items. An explicit empty
+list `{"items": []}` is not an error — see "Multi-item input" below.
+
+Some input never reaches the resource method, because Jackson rejects it while deserializing. Two
+things on `ProductApiReceiver` handle that, and they apply to this resource only:
+
+- `@CustomDeserialization(StrictJsonReader.class)` reads the body with a strict copy of the global
+  `ObjectMapper`. Its coercion config rejects `"5"` and `5.7` for an integer and `123` for a string,
+  which Jackson would otherwise accept silently. The global mapper stays lenient because the Kafka
+  deserializers use it too.
+- Two `@ServerExceptionMapper` methods turn Jackson's *deserialization* errors into the same JSON
+  array. They must be declared in the resource class to stay resource-local, so they are 2-line
+  delegates to the shared `JsonInputErrors`. Messages: `["quantity: must be an integer"]`, `["productName: must be a string"]`,
+  `["items: must be a list"]`, `["items[0].quantity: number is out of range"]`,
+  `["request body is not valid JSON"]`, and otherwise `["<path>: has an invalid value"]`. They
+  replace Quarkus's built-in `{"objectName":…,"line":…}` body and the empty `400` for invalid JSON.
+
+These mappers only handle deserialization errors. Validation still has no `@Valid` and no exception
+mapper: the method's `switch` over `parse()` handles it.
 
 The admin HTML forms (`AdminReceiver`) receive `quantity` as a `String` and pass it straight to
 `XxxOrder.parse(String, String)`. An `int` `@FormParam` would fail in JAX-RS before the method runs,
@@ -157,6 +190,9 @@ value gives `"must not be blank"`, and a value that isn't a number gives `"must 
 `order_fruits_with_non_positive_quantity_returns_400` (quantity `0` → `400`, body contains
 `"must be greater than or equal to 1"`), and `order_fruits_with_blank_product_name_returns_400`
 (blank `productName` → `400`, body contains `"must not be blank"`).
+`missing_quantity_returns_400`, `purchase_reports_every_item_without_quantity` and
+`malformed_input_returns_400_with_json_messages` cover the structure and deserialization errors,
+each with its exact message.
 
 ---
 
@@ -253,8 +289,8 @@ Any module whose own classes reference `jakarta.validation.*` directly declares
 - `core/pom.xml` — needed by `FruitDelivery`/`ParsedFruitDelivery`/`FruitOrder`/`ParsedFruitOrder`
   (`Validator`, `ConstraintViolation`, `@NotBlank`/`@Min`/`@Max`).
 - `inbound-http-jsonapi/pom.xml` — needed by `ProductApiReceiver` (`ConstraintViolation`, to read
-  back violation messages for the `400` body). `Requests.java` itself needs nothing here anymore —
-  its DTOs carry no constraint annotations.
+  back violation messages for the `400` body). the request records themselves need nothing here —
+  they carry no constraint annotations.
 - `inbound-http-html/pom.xml` — needed by `AdminReceiver` (`ConstraintViolation`, same reason).
 
 Both entries are plain (non-test-scoped) dependencies: `ConstructorValidation`, used by every
@@ -377,14 +413,15 @@ depending on framework-wired exception handling.
 ## Why not just deserialize the JSON body directly into `FruitOrder`?
 
 This looks tempting — it would let Jackson call `FruitOrder`'s constructor straight from the
-request body, skipping `Requests.FruitOrderRequest` entirely. It was rejected: a validation failure
+request body, skipping `FruitOrderRequest` entirely. It was rejected: a validation failure
 there happens *during deserialization*, as a Jackson `ValueInstantiationException` wrapping the
 constructor's `IllegalArgumentException` — and Quarkus's `rest-jackson` extension only ships a
 built-in `400` mapper for `MismatchedInputException` (structurally malformed JSON), not for
 `ValueInstantiationException`. Without a bespoke `ExceptionMapper`, this would silently fall
 through to a generic, unhelpful `500`. Keeping a separate (bare) `FruitOrderRequest` and calling
-`FruitOrder.parse()` explicitly avoids needing any new exception-handling infrastructure at all —
-the `switch` handles both outcomes directly, so there's nothing for a mapper to catch.
+`FruitOrder.parse()` explicitly keeps validation out of exception handling —
+the `switch` handles both outcomes directly, so there's nothing for a mapper to catch. (The
+resource's exception mappers only handle JSON that can't be deserialized at all; see above.)
 
 ## Why `quarkus-hibernate-validator` is declared per-module instead of relying on transitivity
 
