@@ -14,6 +14,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
+import java.util.regex.Pattern;
 
 /**
  * Checks this project's "Triptych" architecture (see {@link TriptychArchitecture} and concepts.md) -
@@ -35,6 +36,7 @@ class ArchitectureTest {
 	private static final String PKG_ROOT = "org.svenehrke.triptychdemo";
 	private static final String PKG_EXTERNAL = PKG_ROOT + ".external";
 	private static final String GROUP_ID_REPO_PATH = "/org/svenehrke/";
+	private static final Pattern INBOUND_MODULE_PATH = Pattern.compile("/inbound-[^/]+/");
 
 	/**
 	 * Skips opening third-party library JARs (Quarkus, Jakarta, Kafka clients, ...) during the scan.
@@ -52,6 +54,18 @@ class ArchitectureTest {
 	 */
 	private static final ImportOption EXCLUDE_EXTERNAL_MODULES =
 		location -> !location.contains("/" + PKG_EXTERNAL.replace('.', '/') + "/");
+
+	/**
+	 * Matches both ways a module's classes reach this scan: {@code .../inbound-kafka/target/classes/...} (reactor
+	 * build) and {@code .../org/svenehrke/inbound-kafka/<version>/inbound-kafka-<version>.jar!/...} (local repo).
+	 * external-inbound-kafka cannot match, it is excluded from the scan entirely.
+	 */
+	private static final DescribedPredicate<JavaClass> RESIDE_IN_INBOUND_MODULE = DescribedPredicate.describe(
+		"reside in an inbound-* module",
+		javaClass -> javaClass.getSource()
+			.map(source -> INBOUND_MODULE_PATH.matcher(source.getUri().toString()).find())
+			.orElse(false)
+	);
 
 	JavaClasses importedClasses;
 
@@ -87,14 +101,18 @@ class ArchitectureTest {
 	 * Untrusted input must enter the domain via {@code XxxOrder.parse()}/{@code XxxDelivery.parse()}, never via
 	 * the throwing constructor (see validation.md). Domain values are recognized by implementing their sealed
 	 * {@code Parsed*} interface, so there is no maintained list of the commodity types.
+	 * <p>
+	 * Covers every class of an inbound-* module, not just {@code *Receiver}s, so a helper a receiver delegates
+	 * to (request record, deserializer, ...) cannot slip through. Packages cannot tell modules apart (all of
+	 * them share the feature/cross packages), so the module is taken from the class file's location instead.
 	 */
 	@Test
-	void receivers_construct_domain_values_only_via_parse() {
+	void inbound_adapters_construct_domain_values_only_via_parse() {
 		DescribedPredicate<JavaConstructorCall> constructsParsedDomainValue = DescribedPredicate.describe(
 			"a constructor of a Parsed* domain value",
 			call -> implementsParsedInterface(call.getTargetOwner())
 		);
-		noClasses().that().haveSimpleNameEndingWith("Receiver")
+		noClasses().that(RESIDE_IN_INBOUND_MODULE)
 			.should().callConstructorWhere(constructsParsedDomainValue)
 			.because("untrusted input must go through parse(), see validation.md")
 			.check(importedClasses);

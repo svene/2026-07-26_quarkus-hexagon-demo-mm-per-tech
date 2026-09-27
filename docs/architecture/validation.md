@@ -284,10 +284,12 @@ call is about **where the data comes from**, not about the constructor itself:
   constructor directly. It still enforces the same constraints, so an invalid instance can never
   exist; it just reports a violation as an exception instead of an `Invalid` value.
 
-The first rule is enforced by `ArchitectureTest.receivers_construct_domain_values_only_via_parse`
-(`app-server`): no `*Receiver` class may call the constructor of any type implementing a
-`Parsed*` interface. Deliberately not `@Deprecated` — nothing about the constructor is deprecated,
-and a compiler warning would not fail the build.
+The first rule is enforced by `ArchitectureTest.inbound_adapters_construct_domain_values_only_via_parse`
+(`app-server`): no class in an `inbound-*` module — receivers and the helpers they delegate to
+alike — may call the constructor of any type implementing a `Parsed*` interface. The module is
+recognized by the class file's location, since all modules share the same `feature`/`cross`
+packages. Deliberately not `@Deprecated` — nothing about the constructor is deprecated, and a
+compiler warning would not fail the build.
 
 ---
 

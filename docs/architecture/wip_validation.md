@@ -26,8 +26,8 @@ Implemented for all seven `order-*` endpoints on `ProductApiReceiver` (`FruitOrd
 exception mapper. `AdminReceiver`'s HTML forms (`inbound-http-html`) do the same for all seven
 commodities, returning the violation messages as a `400` HTML fragment shown below the form. A
 blank or non-numeric `quantity` on those forms gets the same fragment. An ArchUnit rule
-(`ArchitectureTest.receivers_construct_domain_values_only_via_parse`) keeps any `*Receiver` from
-calling the throwing constructor directly.
+(`ArchitectureTest.inbound_adapters_construct_domain_values_only_via_parse`) keeps any class in an
+`inbound-*` module from calling the throwing constructor directly.
 
 ## Purchase (HTTP, Kafka, shop)
 
@@ -70,11 +70,8 @@ unprocessed for 60 s anyway). Accepted trade-off: a stopped channel needs a rest
 ## Next steps
 
 Every inbound boundary now sends its *values* through `parse()`, and Kafka's structural failures
-and transient failures are handled. What's left is one smaller gap plus the business-rule decisions:
+and transient failures are handled. What's left are the business-rule decisions:
 
-- **ArchUnit rule scope.** `receivers_construct_domain_values_only_via_parse` only checks `*Receiver`
-  classes; a receiver delegating to a helper class that calls the constructor would slip through.
-  Nothing does this today. Closing it means checking every non-`core` class in the inbound modules.
 - **Business rules (decisions, not validation):** purchasing more than is in stock is silently
   capped at `0` by `InventoryService.deductAmount` — should it be rejected? Orders and purchases have
   no upper quantity limit, while deliveries have `@Max(10_000)`.
