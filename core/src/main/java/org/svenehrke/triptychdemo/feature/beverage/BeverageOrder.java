@@ -1,6 +1,7 @@
 package org.svenehrke.triptychdemo.feature.beverage;
 
 import jakarta.validation.ConstraintViolation;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
@@ -11,7 +12,7 @@ import java.util.Set;
 import static org.svenehrke.triptychdemo.cross.validation.ConstructorValidation.declaredConstructor;
 import static org.svenehrke.triptychdemo.cross.validation.ConstructorValidation.validateParameters;
 
-public record BeverageOrder(@NotBlank String productName, @Min(1) int quantity) implements ParsedBeverageOrder {
+public record BeverageOrder(@NotBlank String productName, @Min(1) @Max(2000) int quantity) implements ParsedBeverageOrder {
 
 	private static final Constructor<BeverageOrder> CANONICAL_CONSTRUCTOR = declaredConstructor(BeverageOrder.class, String.class, int.class);
 	private static final Constructor<BeverageOrder> TEXT_CONSTRUCTOR = declaredConstructor(BeverageOrder.class, String.class, String.class);

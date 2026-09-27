@@ -1,6 +1,7 @@
 package org.svenehrke.triptychdemo.cross.purchase;
 
 import jakarta.validation.ConstraintViolation;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 
@@ -10,7 +11,7 @@ import java.util.Set;
 import static org.svenehrke.triptychdemo.cross.validation.ConstructorValidation.declaredConstructor;
 import static org.svenehrke.triptychdemo.cross.validation.ConstructorValidation.validateParameters;
 
-public record PurchaseItem(@NotBlank String productName, @Min(1) int quantity) implements ParsedPurchaseItem {
+public record PurchaseItem(@NotBlank String productName, @Min(1) @Max(50) int quantity) implements ParsedPurchaseItem {
 
 	private static final Constructor<PurchaseItem> CANONICAL_CONSTRUCTOR = declaredConstructor(PurchaseItem.class, String.class, int.class);
 

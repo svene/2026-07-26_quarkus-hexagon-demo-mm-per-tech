@@ -206,18 +206,18 @@ ShopReceiver.inventoryFragment()
 #### POST /shop/checkout - Customer Purchase
 ```
 ShopReceiver.checkout(productNames[], quantities[])
-└─ PurchaseAPI.purchase(purchase)
-   └─ PurchaseHandler.purchase()
+└─ PurchaseAPI.checkout(purchase)
+   └─ PurchaseHandler.checkout()
       ├─ AuditLogSPI.log("PURCHASE_RECEIVED")
       │  └─ AuditLogService (outbound-mongodb)
       │     └─ MongoDB
-      ├─ For each item:
-      │  └─ InventoryRepositorySPI.deductAmount()
-      │     └─ InventoryService (outbound-postgres)
-      │        └─ PostgreSQL (ProductEntity - deduct inventory)
-      └─ AuditLogSPI.log("INVENTORY_DEDUCTED")
-         └─ AuditLogService (outbound-mongodb)
-            └─ MongoDB
+      ├─ InventoryRepositorySPI.deductAll(quantities, REJECT)  (one transaction, all-or-nothing)
+      │  └─ InventoryService (outbound-postgres)
+      │     └─ PostgreSQL (SELECT ... FOR UPDATE per product, sorted by name)
+      └─ Completed: AuditLogSPI.log("INVENTORY_DEDUCTED") → 303 to /shop
+         Rejected:  AuditLogSPI.log("PURCHASE_REJECTED") → 409 with shortage messages, nothing deducted
+            └─ AuditLogService (outbound-mongodb)
+               └─ MongoDB
 ```
 
 ### ProductApiReceiver (/api/products) - JSON API → REST/SOAP/Kafka → Kafka Delivery Topics
@@ -258,18 +258,18 @@ ProductApiReceiver.orderFruits(request)
 #### POST /api/products/purchase - Purchase Request (JSON)
 ```
 ProductApiReceiver.purchase(request)
-└─ PurchaseAPI.purchase(purchase)
-   └─ PurchaseHandler.purchase()
+└─ PurchaseAPI.checkout(purchase)
+   └─ PurchaseHandler.checkout()
       ├─ AuditLogSPI.log("PURCHASE_RECEIVED")
       │  └─ AuditLogService (outbound-mongodb)
       │     └─ MongoDB
-      ├─ For each item:
-      │  └─ InventoryRepositorySPI.deductAmount()
-      │     └─ InventoryService (outbound-postgres)
-      │        └─ PostgreSQL
-      └─ AuditLogSPI.log("INVENTORY_DEDUCTED")
-         └─ AuditLogService (outbound-mongodb)
-            └─ MongoDB
+      ├─ InventoryRepositorySPI.deductAll(quantities, REJECT)  (one transaction, all-or-nothing)
+      │  └─ InventoryService (outbound-postgres)
+      │     └─ PostgreSQL (SELECT ... FOR UPDATE per product, sorted by name)
+      └─ Completed: AuditLogSPI.log("INVENTORY_DEDUCTED") → 204
+         Rejected:  AuditLogSPI.log("PURCHASE_REJECTED") → 409 with shortage messages, nothing deducted
+            └─ AuditLogService (outbound-mongodb)
+               └─ MongoDB
 ```
 
 ## Note: Kafka Delivery Receivers

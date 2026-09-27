@@ -93,4 +93,48 @@ class CashpointViaKafkaFlowTest {
             .isEqualTo("""
                 [{"name":"Orange","type":"FRUIT","availableAmount":10}]""");
     }
+
+    @Test
+    void store_sale_beyond_recorded_stock_is_recorded_capped_at_zero_and_logged_as_discrepancy() {
+        given()
+            .contentType(ContentType.JSON)
+            .body("""
+                {"productName": "Orange", "quantity": 3}
+                """)
+            .post("/api/products/order-fruits")
+            .then().statusCode(204);
+
+        await().atMost(10, SECONDS).untilAsserted(() ->
+            assertThat(given().get("/api/products").asString())
+                .isEqualTo("""
+                    [{"name":"Orange","type":"FRUIT","availableAmount":3}]""")
+        );
+
+        auditHelper.clearAuditLog();
+
+        // the goods physically left the store, so the sale is not rejected - the inventory was wrong
+        cashpointPublisher.publish(new PurchaseMessage(List.of(new PurchaseMessageItem("Orange", 5))));
+
+        await().atMost(10, SECONDS).untilAsserted(() -> {
+            assertThat(auditHelper.findEventDetails("PurchaseHandler: STOCK_DISCREPANCY"))
+                .containsExactly("Orange: sold 5, only 3 on record");
+            assertThat(auditHelper.findEventDetails("PurchaseHandler: INVENTORY_DEDUCTED"))
+                .containsExactly("Orange -5 total=0");
+        });
+        assertThat(given().get("/api/products").asString())
+            .isEqualTo("""
+                [{"name":"Orange","type":"FRUIT","availableAmount":0}]""");
+    }
+
+    @Test
+    void store_sale_of_unknown_product_is_logged_as_discrepancy() {
+        cashpointPublisher.publish(new PurchaseMessage(List.of(new PurchaseMessageItem("Ghost", 1))));
+
+        await().atMost(10, SECONDS).untilAsserted(() ->
+            assertThat(auditHelper.findEventDetails("PurchaseHandler: STOCK_DISCREPANCY"))
+                .containsExactly("Ghost: sold 1, only 0 on record")
+        );
+        assertThat(auditHelper.findEventDetails("PurchaseHandler: INVENTORY_DEDUCTED")).isEmpty();
+        assertThat(given().get("/api/products").asString()).isEqualTo("[]");
+    }
 }

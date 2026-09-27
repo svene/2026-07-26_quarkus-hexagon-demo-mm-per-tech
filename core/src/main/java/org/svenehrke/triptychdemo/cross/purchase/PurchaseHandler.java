@@ -2,11 +2,16 @@ package org.svenehrke.triptychdemo.cross.purchase;
 
 import org.svenehrke.triptychdemo.cross.auditlog.AuditLogSPI;
 import org.svenehrke.triptychdemo.cross.inventory.InventoryRepositorySPI;
+import org.svenehrke.triptychdemo.cross.inventory.OnShortage;
+import org.svenehrke.triptychdemo.cross.inventory.Shortage;
+import org.svenehrke.triptychdemo.cross.inventory.StockDeduction;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import java.util.ArrayList;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 
+/** Online checkout and physical-store sale differ only in what a shortage means - see {@link OnShortage}. */
 @ApplicationScoped
 public class PurchaseHandler implements PurchaseAPI {
 
@@ -16,22 +21,42 @@ public class PurchaseHandler implements PurchaseAPI {
     AuditLogSPI auditLog;
 
     @Override
-    public void purchase(Purchase purchase) {
-        var items = purchase.items();
-        auditLog.log("PurchaseHandler: PURCHASE_RECEIVED",
-            items.stream().map(i -> i.productName() + " qty=" + i.quantity()).collect(Collectors.joining(", ")));
+    public PurchaseOutcome checkout(Purchase purchase) {
+        var deduction = deduct(purchase, OnShortage.REJECT);
+        if (!deduction.shortages().isEmpty()) {
+            auditLog.log("PurchaseHandler: PURCHASE_REJECTED",
+                deduction.shortages().stream().map(Shortage::message).collect(Collectors.joining(", ")));
+            return new PurchaseOutcome.Rejected(deduction.shortages());
+        }
+        return new PurchaseOutcome.Completed();
+    }
 
-        var deducted = new ArrayList<String>();
-        for (var item : items) {
-            var updated = inventoryRepository.deductAmount(item.productName(), item.quantity());
-            if (updated != null) {
-                deducted.add(item.productName() + " -" + item.quantity() + " total=" + updated.availableAmount());
-            } else {
-                auditLog.log("PurchaseHandler: PRODUCT_NOT_FOUND", item.productName());
-            }
+    @Override
+    public void recordStoreSale(Purchase purchase) {
+        var deduction = deduct(purchase, OnShortage.CAP_AT_ZERO);
+        deduction.shortages().forEach(shortage ->
+            auditLog.log("PurchaseHandler: STOCK_DISCREPANCY", shortage.discrepancyMessage()));
+    }
+
+    private StockDeduction deduct(Purchase purchase, OnShortage onShortage) {
+        auditLog.log("PurchaseHandler: PURCHASE_RECEIVED",
+            purchase.items().stream().map(i -> i.productName() + " qty=" + i.quantity()).collect(Collectors.joining(", ")));
+        var quantitiesByName = quantitiesByName(purchase);
+        var deduction = inventoryRepository.deductAll(quantitiesByName, onShortage);
+        if (!deduction.updated().isEmpty()) {
+            auditLog.log("PurchaseHandler: INVENTORY_DEDUCTED", deduction.updated().stream()
+                .map(p -> p.name() + " -" + quantitiesByName.get(p.name()) + " total=" + p.availableAmount())
+                .collect(Collectors.joining(", ")));
         }
-        if (!deducted.isEmpty()) {
-            auditLog.log("PurchaseHandler: INVENTORY_DEDUCTED", String.join(", ", deducted));
-        }
+        return deduction;
+    }
+
+    /**
+     * Sums repeated products, so each is checked against its total; sorted by name, so concurrent
+     * purchases always lock the same products in the same order and cannot deadlock.
+     */
+    private static SortedMap<String, Integer> quantitiesByName(Purchase purchase) {
+        return purchase.items().stream()
+            .collect(Collectors.toMap(PurchaseItem::productName, PurchaseItem::quantity, Integer::sum, TreeMap::new));
     }
 }

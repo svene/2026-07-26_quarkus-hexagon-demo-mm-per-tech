@@ -6,6 +6,7 @@ import org.svenehrke.triptychdemo.cross.purchase.ParsedPurchase;
 import org.svenehrke.triptychdemo.cross.purchase.Purchase;
 import org.svenehrke.triptychdemo.cross.purchase.PurchaseAPI;
 import org.svenehrke.triptychdemo.cross.purchase.PurchaseItem;
+import org.svenehrke.triptychdemo.cross.purchase.PurchaseOutcome;
 import org.svenehrke.triptychdemo.feature.bakery.BakeryAPI;
 import org.svenehrke.triptychdemo.feature.bakery.BakeryOrder;
 import org.svenehrke.triptychdemo.feature.bakery.ParsedBakeryOrder;
@@ -45,6 +46,7 @@ import java.util.List;
 import org.jboss.resteasy.reactive.server.ServerExceptionMapper;
 
 import static org.svenehrke.triptychdemo.cross.JsonResponses.badRequest;
+import static org.svenehrke.triptychdemo.cross.JsonResponses.conflict;
 
 @Path("/api/products")
 @CustomDeserialization(StrictJsonReader.class)
@@ -199,10 +201,10 @@ public class ProductApiReceiver {
             .toList();
         return switch (Purchase.parse(parsedItems)) {
             case ParsedPurchase.Invalid invalid -> badRequest(invalid.messages());
-            case Purchase purchase -> {
-                purchaseAPI.purchase(purchase);
-                yield Response.noContent().build();
-            }
+            case Purchase purchase -> switch (purchaseAPI.checkout(purchase)) {
+                case PurchaseOutcome.Rejected rejected -> conflict(rejected.messages());
+                case PurchaseOutcome.Completed completed -> Response.noContent().build();
+            };
         };
     }
 

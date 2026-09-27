@@ -25,6 +25,17 @@ class PurchaseTest {
 	}
 
 	@Test
+	void parseItem_acceptsPurchaseLimit() {
+		assertThat(PurchaseItem.parse("Apple", 50)).isEqualTo(new PurchaseItem("Apple", 50));
+	}
+
+	@Test
+	void parseItem_returnsInvalid_abovePurchaseLimit() {
+		assertThat(PurchaseItem.parse("Apple", 51)).isInstanceOfSatisfying(ParsedPurchaseItem.Invalid.class, invalid ->
+			assertThat(invalid.violations()).extracting(v -> v.getMessage()).containsExactly("must be less than or equal to 50"));
+	}
+
+	@Test
 	void parseItem_returnsInvalid_forBlankProductName() {
 		assertThat(PurchaseItem.parse(" ", 3)).isInstanceOf(ParsedPurchaseItem.Invalid.class);
 	}

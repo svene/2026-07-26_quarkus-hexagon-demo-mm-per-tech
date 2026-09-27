@@ -139,7 +139,10 @@ Complete inventory of all classes participating in the system flows, organized b
 
 ### cross.inventory
 - `InventoryAPI` - Update inventory (methods: updateFruitAmount, updateVegetableAmount, updateDairyAmount, updateBeverageAmount, updateMeatAmount, updateBakeryAmount, updateNonFoodAmount) - imports each commodity's `*Delivery` record from its `feature.<commodity>` package
-- `InventoryRepositorySPI` - Interface for inventory data access (methods: findAll, addAmount, deductAmount)
+- `InventoryRepositorySPI` - Interface for inventory data access (methods: findAll, addAmount, deductAll)
+- `OnShortage` - Enum passed to deductAll: `REJECT` (online, deduct nothing) | `CAP_AT_ZERO` (physical store)
+- `StockDeduction` - Result of deductAll (updated products, shortages)
+- `Shortage` - Domain record (productName, requested, available) with rejection and discrepancy messages
 - `InventoryHandler` - Updates inventory from delivery events (implements InventoryAPI for all commodities)
 
 ### cross.auditlog
@@ -155,7 +158,8 @@ Complete inventory of all classes participating in the system flows, organized b
 - `ProductType` - Enum (FRUIT, VEGETABLE, DAIRY, BEVERAGE, MEAT, BAKERY, NON_FOOD)
 
 ### cross.purchase
-- `PurchaseAPI` - Process customer purchases (method: purchase)
+- `PurchaseAPI` - Process customer purchases (methods: checkout - online, rejects on insufficient stock; recordStoreSale - physical store, never rejects)
+- `PurchaseOutcome` - Sealed result of checkout (`Completed` | `Rejected`)
 - `PurchaseHandler` - Handles customer purchases (implements PurchaseAPI, injects InventoryRepositorySPI + AuditLogSPI)
 - `PurchaseItem` - Domain record (productName, quantity)
 

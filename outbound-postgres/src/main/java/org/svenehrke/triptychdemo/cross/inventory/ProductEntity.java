@@ -5,6 +5,7 @@ import org.svenehrke.triptychdemo.cross.products.ProductType;
 import io.quarkus.hibernate.orm.panache.PanacheEntity;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
+import jakarta.persistence.LockModeType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
@@ -21,12 +22,12 @@ public class ProductEntity extends PanacheEntity {
 
     public int availableAmount;
 
-    public static Optional<ProductEntity> findByNameAndType(String name, ProductType type) {
-        return find("name = ?1 and type = ?2", name, type).firstResultOptional();
+    public static Optional<ProductEntity> findByNameAndTypeForUpdate(String name, ProductType type) {
+        return find("name = ?1 and type = ?2", name, type).withLock(LockModeType.PESSIMISTIC_WRITE).firstResultOptional();
     }
 
-    public static Optional<ProductEntity> findByName(String name) {
-        return find("name", name).firstResultOptional();
+    public static Optional<ProductEntity> findByNameForUpdate(String name) {
+        return find("name", name).withLock(LockModeType.PESSIMISTIC_WRITE).firstResultOptional();
     }
 
     public Product toDomain() {

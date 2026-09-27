@@ -167,4 +167,17 @@ class AdminReceiverTest {
         assertThat(response.contentType()).contains("text/html");
         assertThat(response.asString()).contains("Apple", "FRUIT", "10");
     }
+
+    @Test
+    void order_fruits_above_limit_returns_400() {
+        var response = given()
+            .contentType("application/x-www-form-urlencoded")
+            .formParam("productName", "Banana")
+            .formParam("quantity", "2001")
+            .redirects().follow(false)
+            .post("/admin/order-fruits");
+
+        assertThat(response.statusCode()).isEqualTo(400);
+        assertThat(response.asString()).contains("must be less than or equal to 2000");
+    }
 }

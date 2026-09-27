@@ -13,7 +13,7 @@ Technical reference for understanding the Kafka-based integration patterns and t
 ### PostgreSQL (outbound-postgres)
 - **InventoryService**: Manages product inventory
   - `addAmount()`: Called by delivery receivers to add stock
-  - `deductAmount()`: Called by purchase handlers to reduce stock
+  - `deductAll(quantities, OnShortage)`: Called by PurchaseHandler - one transaction, rows locked; `REJECT` for online checkouts (shop, JSON API: nothing deducted on a shortage), `CAP_AT_ZERO` for cashpoint sales (never rejects, stock floors at 0)
   - `findAll()`: Called by product list endpoints
   - Storage: ProductEntity table
 
@@ -122,7 +122,7 @@ These cycles show how external supplier integrations (REST/SOAP stubs) are decou
 **Topic: cashpoint-purchases**
 - **Producer**: External checkout systems (simulated by CashpointStub)
 - **Consumer**: CashpointReceiver (in inbound-kafka)
-- **Flow**: Cashpoint event → PurchaseHandler → Inventory deduction
+- **Flow**: Cashpoint event → PurchaseHandler.recordStoreSale → Inventory deduction (capped at 0; overselling is logged as `STOCK_DISCREPANCY`, never rejected)
 - **Config**: 
   - Incoming: `mp.messaging.incoming.cashpoint-purchases.topic=cashpoint-purchases`
   - Outgoing (for testing): `mp.messaging.outgoing.cashpoint-purchases-out.topic=cashpoint-purchases`

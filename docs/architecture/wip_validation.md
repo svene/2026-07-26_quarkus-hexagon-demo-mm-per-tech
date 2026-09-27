@@ -35,7 +35,7 @@ Implemented all-or-nothing via `PurchaseItem`/`ParsedPurchaseItem` plus the `Pur
 aggregate (see `validation.md` § "Multi-item input"): `ProductApiReceiver.purchase` (`400`),
 `CashpointReceiver` (audit log `INVALID: ...`, keep consuming) and `ShopReceiver.checkout` (shop page
 re-rendered with `400` and errors). This also closed a bug: a negative purchase quantity used to
-*add* stock, since `InventoryService.deductAmount` computes `max(0, amount - delta)`.
+*add* stock, since `InventoryService.deductAmount` computed `max(0, amount - delta)`.
 
 ## JSON API: malformed input (done 2026-09-27)
 
@@ -67,11 +67,19 @@ Rejected: `delayed-retry-topic` (can't tell retryable from non-retryable, extra 
 ordering) and retrying forever (SmallRye's throttled commit closes a consumer whose record stays
 unprocessed for 60 s anyway). Accepted trade-off: a stopped channel needs a restart.
 
+## Business rules (done 2026-09-27)
+
+- **No overselling online:** `/shop/checkout` and `/api/products/purchase` now go through
+  `PurchaseAPI.checkout`, which rejects the whole purchase with `409` if any item lacks stock; row
+  locks in product-name order make it safe against concurrent customers (covered by
+  `CashpointFlowTest.concurrent_purchases_never_sell_more_than_is_in_stock`, which fails without the
+  lock). The cashpoint (`recordStoreSale`) still records every sale, capped at `0`, and logs a
+  `STOCK_DISCREPANCY` (an unknown product counts as 0 on record). Both paths share one SPI method,
+  `deductAll(quantities, OnShortage)`; the policy is the only difference (user-requested
+  simplification). See `validation.md` § "After parsing".
+- **Upper limits:** `@Max(2000)` on all 7 `XxxOrder`s, `@Max(50)` on `PurchaseItem` (all three
+  purchase channels, cashpoint included — user decision).
+
 ## Next steps
 
-Every inbound boundary now sends its *values* through `parse()`, and Kafka's structural failures
-and transient failures are handled. What's left are the business-rule decisions:
-
-- **Business rules (decisions, not validation):** purchasing more than is in stock is silently
-  capped at `0` by `InventoryService.deductAmount` — should it be rejected? Orders and purchases have
-  no upper quantity limit, while deliveries have `@Max(10_000)`.
+None — the validation rollout is complete.

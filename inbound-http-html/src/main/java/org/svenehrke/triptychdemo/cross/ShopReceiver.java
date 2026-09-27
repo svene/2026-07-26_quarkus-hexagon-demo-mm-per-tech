@@ -8,6 +8,7 @@ import org.svenehrke.triptychdemo.cross.purchase.ParsedPurchase;
 import org.svenehrke.triptychdemo.cross.purchase.ParsedPurchaseItem;
 import org.svenehrke.triptychdemo.cross.purchase.Purchase;
 import org.svenehrke.triptychdemo.cross.purchase.PurchaseItem;
+import org.svenehrke.triptychdemo.cross.purchase.PurchaseOutcome;
 import io.quarkus.qute.CheckedTemplate;
 import io.quarkus.qute.TemplateInstance;
 import jakarta.inject.Inject;
@@ -84,14 +85,21 @@ public class ShopReceiver {
             }
             case Purchase purchase -> {
                 if (!errors.isEmpty()) yield badRequest(errors);
-                if (!purchase.items().isEmpty()) purchaseAPI.purchase(purchase);
-                yield Response.seeOther(URI.create("/shop")).build();
+                if (purchase.items().isEmpty()) yield Response.seeOther(URI.create("/shop")).build();
+                yield switch (purchaseAPI.checkout(purchase)) {
+                    case PurchaseOutcome.Rejected rejected -> shopPage(Response.Status.CONFLICT, rejected.messages());
+                    case PurchaseOutcome.Completed completed -> Response.seeOther(URI.create("/shop")).build();
+                };
             }
         };
     }
 
     private Response badRequest(List<String> errors) {
-        return Response.status(Response.Status.BAD_REQUEST)
+        return shopPage(Response.Status.BAD_REQUEST, errors);
+    }
+
+    private Response shopPage(Response.Status status, List<String> errors) {
+        return Response.status(status)
             .type(MediaType.TEXT_HTML)
             .entity(Templates.shop(inStock(), errors))
             .build();

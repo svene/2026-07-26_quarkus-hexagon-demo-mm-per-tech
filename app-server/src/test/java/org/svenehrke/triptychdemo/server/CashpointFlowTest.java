@@ -1,10 +1,17 @@
 package org.svenehrke.triptychdemo.server;
 
+import org.svenehrke.triptychdemo.cross.inventory.InventoryRepositorySPI;
+import org.svenehrke.triptychdemo.cross.products.ProductType;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
 import jakarta.inject.Inject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+
+import java.util.ArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import static io.restassured.RestAssured.given;
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -16,6 +23,7 @@ class CashpointFlowTest {
 
     @Inject TestInventoryHelper inventoryHelper;
     @Inject TestAuditLogHelper auditHelper;
+    @Inject InventoryRepositorySPI inventory;
 
     @BeforeEach
     void setUp() {
@@ -98,23 +106,122 @@ class CashpointFlowTest {
     }
 
     @Test
-    void purchase_of_unknown_product_logs_product_not_found() {
-        given()
+    void purchase_of_unknown_product_returns_409() {
+        var response = given()
             .contentType(ContentType.JSON)
             .body("""
                 {"items":[{"productName":"Ghost","quantity":1}]}
                 """)
-            .post("/api/products/purchase")
-            .then().statusCode(204);
+            .post("/api/products/purchase");
 
-        assertThat(auditHelper.findEventDetails("PurchaseHandler: PURCHASE_RECEIVED"))
-            .containsExactly("Ghost qty=1");
-        assertThat(auditHelper.findEventDetails("PurchaseHandler: PRODUCT_NOT_FOUND"))
-            .containsExactly("Ghost");
-        assertThat(auditHelper.findEventDetails("PurchaseHandler: INVENTORY_DEDUCTED"))
-            .isEmpty();
+        assertThat(response.statusCode()).isEqualTo(409);
+        assertThat(response.jsonPath().<String>getList("$")).containsExactly("Ghost: not in stock");
+        assertThat(auditHelper.findEventDetails("PurchaseHandler: PURCHASE_REJECTED"))
+            .containsExactly("Ghost: not in stock");
+        assertThat(auditHelper.findEventDetails("PurchaseHandler: INVENTORY_DEDUCTED")).isEmpty();
 
         assertThat(given().get("/api/products").asString()).isEqualTo("[]");
+    }
+
+    @Test
+    void purchase_exceeding_stock_returns_409_and_deducts_nothing() {
+        given().contentType(ContentType.JSON)
+            .body("""
+                {"productName": "Apple", "quantity": 10}
+                """)
+            .post("/api/products/order-fruits").then().statusCode(204);
+        given().contentType(ContentType.JSON)
+            .body("""
+                {"productName": "Milk", "quantity": 6}
+                """)
+            .post("/api/products/order-dairy").then().statusCode(204);
+
+        await().atMost(10, SECONDS).untilAsserted(() -> {
+            var body = given().get("/api/products").asString();
+            assertThat(body).contains("Apple").contains("Milk");
+        });
+
+        auditHelper.clearAuditLog();
+
+        // all-or-nothing: Apple is in stock, but is not deducted either
+        var response = given()
+            .contentType(ContentType.JSON)
+            .body("""
+                {"items":[{"productName":"Apple","quantity":3},{"productName":"Milk","quantity":7}]}
+                """)
+            .post("/api/products/purchase");
+
+        assertThat(response.statusCode()).isEqualTo(409);
+        assertThat(response.jsonPath().<String>getList("$"))
+            .containsExactly("Milk: only 6 in stock (requested 7)");
+        assertThat(auditHelper.findEventDetails("PurchaseHandler: INVENTORY_DEDUCTED")).isEmpty();
+        assertThat(given().get("/api/products").asString())
+            .contains("\"name\":\"Apple\",\"type\":\"FRUIT\",\"availableAmount\":10")
+            .contains("\"name\":\"Milk\",\"type\":\"DAIRY\",\"availableAmount\":6");
+    }
+
+    @Test
+    void repeated_product_is_checked_against_its_total_quantity() {
+        inventory.addAmount("Apple", ProductType.FRUIT, 5);
+
+        var response = given()
+            .contentType(ContentType.JSON)
+            .body("""
+                {"items":[{"productName":"Apple","quantity":3},{"productName":"Apple","quantity":3}]}
+                """)
+            .post("/api/products/purchase");
+
+        assertThat(response.statusCode()).isEqualTo(409);
+        assertThat(response.jsonPath().<String>getList("$"))
+            .containsExactly("Apple: only 5 in stock (requested 6)");
+    }
+
+    @Test
+    void concurrent_purchases_never_sell_more_than_is_in_stock() throws Exception {
+        int stock = 5;
+        int customers = 20;
+        inventory.addAmount("Apple", ProductType.FRUIT, stock);
+
+        // all customers are released at once, so their checkouts really overlap
+        var start = new CountDownLatch(1);
+        var statusCodes = new ArrayList<Future<Integer>>();
+        try (var executor = Executors.newFixedThreadPool(customers)) {
+            for (int i = 0; i < customers; i++) {
+                statusCodes.add(executor.submit(() -> {
+                    start.await();
+                    return given()
+                        .contentType(ContentType.JSON)
+                        .body("""
+                            {"items":[{"productName":"Apple","quantity":1}]}
+                            """)
+                        .post("/api/products/purchase")
+                        .statusCode();
+                }));
+            }
+            start.countDown();
+        }
+
+        var codes = new ArrayList<Integer>();
+        for (var statusCode : statusCodes) codes.add(statusCode.get());
+        assertThat(codes).filteredOn(c -> c == 204).hasSize(stock);
+        assertThat(codes).filteredOn(c -> c == 409).hasSize(customers - stock);
+        assertThat(given().get("/api/products").asString())
+            .isEqualTo("""
+                [{"name":"Apple","type":"FRUIT","availableAmount":0}]""");
+    }
+
+    @Test
+    void purchase_above_limit_returns_400() {
+        var response = given()
+            .contentType(ContentType.JSON)
+            .body("""
+                {"items":[{"productName":"Apple","quantity":51}]}
+                """)
+            .post("/api/products/purchase");
+
+        assertThat(response.statusCode()).isEqualTo(400);
+        assertThat(response.jsonPath().<String>getList("$"))
+            .containsExactly("items[0]: must be less than or equal to 50");
     }
 
     @Test

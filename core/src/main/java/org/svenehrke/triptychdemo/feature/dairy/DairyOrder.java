@@ -1,6 +1,7 @@
 package org.svenehrke.triptychdemo.feature.dairy;
 
 import jakarta.validation.ConstraintViolation;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
@@ -11,7 +12,7 @@ import java.util.Set;
 import static org.svenehrke.triptychdemo.cross.validation.ConstructorValidation.declaredConstructor;
 import static org.svenehrke.triptychdemo.cross.validation.ConstructorValidation.validateParameters;
 
-public record DairyOrder(@NotBlank String productName, @Min(1) int quantity) implements ParsedDairyOrder {
+public record DairyOrder(@NotBlank String productName, @Min(1) @Max(2000) int quantity) implements ParsedDairyOrder {
 
 	private static final Constructor<DairyOrder> CANONICAL_CONSTRUCTOR = declaredConstructor(DairyOrder.class, String.class, int.class);
 	private static final Constructor<DairyOrder> TEXT_CONSTRUCTOR = declaredConstructor(DairyOrder.class, String.class, String.class);

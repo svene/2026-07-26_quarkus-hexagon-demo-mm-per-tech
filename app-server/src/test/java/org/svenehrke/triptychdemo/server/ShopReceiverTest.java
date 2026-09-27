@@ -136,4 +136,29 @@ class ShopReceiverTest {
             .contains("<hx-partial id=\"avail-Apple\"")
             .contains(">10<");
     }
+
+    @Test
+    void checkout_exceeding_stock_returns_409_and_deducts_nothing() {
+        inventory.addAmount("Apple", ProductType.FRUIT, 10);
+        inventory.addAmount("Milk", ProductType.DAIRY, 2);
+
+        var response = given()
+            .contentType("application/x-www-form-urlencoded")
+            .formParam("productName", "Apple")
+            .formParam("productName", "Milk")
+            .formParam("quantity", "3")
+            .formParam("quantity", "5")
+            .redirects().follow(false)
+            .post("/shop/checkout");
+
+        assertThat(response.statusCode()).isEqualTo(409);
+        assertThat(response.contentType()).contains("text/html");
+        assertThat(response.asString())
+            .contains("Purchase not processed")
+            .contains("Milk: only 2 in stock (requested 5)");
+
+        assertThat(given().get("/api/products").asString())
+            .contains("\"name\":\"Apple\",\"type\":\"FRUIT\",\"availableAmount\":10")
+            .contains("\"name\":\"Milk\",\"type\":\"DAIRY\",\"availableAmount\":2");
+    }
 }

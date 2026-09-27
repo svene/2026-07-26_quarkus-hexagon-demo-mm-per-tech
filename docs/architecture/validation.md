@@ -113,7 +113,7 @@ The general reasoning (why a DLQ and not stopping or skipping, and how to replay
 `FruitOrder` follows the exact same shape as `FruitDelivery`:
 
 ```java
-public record FruitOrder(@NotBlank String productName, @Min(1) int quantity) implements ParsedFruitOrder {
+public record FruitOrder(@NotBlank String productName, @Min(1) @Max(2000) int quantity) implements ParsedFruitOrder {
     // ... same validate()/throwing constructor/parse() shape as FruitDelivery
 }
 ```
@@ -239,7 +239,7 @@ rather than `204` — htmx never swaps a `204`, and the empty swap is what clear
 
 `/api/products/purchase`, the `cashpoint-purchases` Kafka topic, and `/shop/checkout` all carry a
 *list* of items. The item itself follows the usual shape — `PurchaseItem(@NotBlank productName,
-@Min(1) quantity) implements ParsedPurchaseItem` — and a small aggregate on top makes the whole
+@Min(1) @Max(50) quantity) implements ParsedPurchaseItem` — and a small aggregate on top makes the whole
 request **all-or-nothing**:
 
 ```java
@@ -256,7 +256,7 @@ record Invalid(SortedMap<Integer, Set<ConstraintViolation<PurchaseItem>>> violat
 The adapter parses each raw item with `PurchaseItem.parse(...)` and hands the list to
 `Purchase.parse(...)`, which yields a `Purchase` only if **every** item is valid; otherwise an
 `Invalid` keyed by the offending item's index. `Purchase` has no constraints of its own: its items
-are valid by construction, so it is too. `PurchaseAPI.purchase(Purchase)` therefore only ever sees a
+are valid by construction, so it is too. `PurchaseAPI` therefore only ever sees a
 fully valid basket — one bad item rejects the whole request, nothing is deducted.
 
 The invalid branch follows the usual boundary split:
@@ -271,6 +271,28 @@ The invalid branch follows the usual boundary split:
   the adapter reports it itself.
 
 An empty item list is not a violation — it parses to an empty `Purchase`, which is a harmless no-op.
+
+### After parsing: stock is a business rule, not validation
+
+A valid `Purchase` can still be impossible to fulfil: there may not be enough stock. That depends on
+the current state, not on the input, so it is decided in the core, after `parse()`, and reported as
+its own sealed type — not as a `ConstraintViolation`:
+
+- **Online** (`/shop/checkout`, `/api/products/purchase`) → `PurchaseAPI.checkout(Purchase)` returns
+  `PurchaseOutcome` = `Completed` | `Rejected(List<Shortage>)`. Rejected is all-or-nothing (nothing
+  is deducted) and answered with `409 Conflict`, not `400`: the request was fine, the stock isn't
+  there. `InventoryService.deductAll` locks each product row (`SELECT ... FOR UPDATE`) in
+  product-name order inside one transaction, so concurrent customers can never both buy the last
+  item, and never deadlock.
+- **Physical store** (`cashpoint-purchases`) → `PurchaseAPI.recordStoreSale(Purchase)` never rejects:
+  the goods have already left the shelf, so selling more than is on record means the inventory was
+  wrong. Stock is capped at `0` and the gap is audit-logged as `STOCK_DISCREPANCY`.
+
+Both go through the same SPI method, `deductAll(quantities, OnShortage)` — same locking, same
+transaction; the `REJECT`/`CAP_AT_ZERO` policy is the only difference.
+
+Upper limits *are* validation, since they only depend on the input: `@Max(2000)` per order,
+`@Max(50)` per purchase item (at the cashpoint too), `@Max(10_000)` per delivery.
 
 ## Constructor vs. `parse()`
 

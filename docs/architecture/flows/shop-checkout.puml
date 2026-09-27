@@ -12,25 +12,39 @@ database "PostgreSQL\n(Inventory)" as db_inv
 database "MongoDB\n(Audit)" as db_audit
 
 user -> receiver: POST /shop/checkout\n[{product1, qty}, {product2, qty}]
-receiver -> handler: purchase(purchase)
+receiver -> handler: checkout(purchase)
 handler -> audit: log("PURCHASE_RECEIVED")
 audit -> db_audit: Insert audit entry
 audit --> handler
 
-loop for each item
-  handler -> inventory: deductAmount(productName, quantity)
-  inventory -> db_inv: UPDATE products SET availableAmount -= quantity
-  db_inv --> inventory: Product (updated)
-  inventory --> handler: Product (updated)
-  handler -> audit: log("PRODUCT_DEDUCTED", product details)
+handler -> inventory: deductAll(quantities by product name, REJECT)
+note right of inventory
+  One transaction, all-or-nothing.
+  Rows locked (SELECT ... FOR UPDATE) in
+  product-name order: concurrent checkouts
+  wait for each other, never deadlock.
+end note
+loop for each product (sorted by name)
+  inventory -> db_inv: SELECT ... FOR UPDATE
+  db_inv --> inventory: ProductEntity
+  inventory -> inventory: enough stock? deduct : record Shortage
+end
+alt all in stock
+  inventory -> db_inv: COMMIT
+  inventory --> handler: StockDeduction(updated, no shortages)
+  handler -> audit: log("INVENTORY_DEDUCTED", summary)
   audit -> db_audit: Insert audit entry
   audit --> handler
+  handler --> receiver: Completed
+  receiver --> user: Redirect to /shop (303 See Other)
+else any shortage (incl. unknown product)
+  inventory -> db_inv: ROLLBACK (nothing deducted)
+  inventory --> handler: StockDeduction(nothing updated, shortages)
+  handler -> audit: log("PURCHASE_REJECTED", shortages)
+  audit -> db_audit: Insert audit entry
+  audit --> handler
+  handler --> receiver: Rejected(shortages)
+  receiver --> user: 409 Conflict\nshop page with shortage messages
 end
-
-handler -> audit: log("INVENTORY_DEDUCTED", summary)
-audit -> db_audit: Insert audit entry
-audit --> handler
-handler --> receiver: OK
-receiver --> user: Redirect to /shop (303 See Other)
 
 @enduml

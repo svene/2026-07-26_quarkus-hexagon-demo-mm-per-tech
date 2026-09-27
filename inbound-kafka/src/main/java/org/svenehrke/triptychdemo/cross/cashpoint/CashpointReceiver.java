@@ -42,7 +42,7 @@ public class CashpointReceiver {
                 break;
             }
             case Purchase purchase: {
-                purchaseAPI.purchase(purchase);
+                purchaseAPI.recordStoreSale(purchase);
                 break;
             }
         }

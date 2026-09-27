@@ -10,6 +10,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import static io.restassured.RestAssured.given;
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -508,5 +509,19 @@ class ProductApiReceiverTest {
         assertThat(response.statusCode()).isEqualTo(400);
         assertThat(response.contentType()).contains("application/json");
         assertThat(response.jsonPath().<String>getList("$")).containsExactly(expectedMessage);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"order-fruits", "order-vegetables", "order-dairy", "order-beverages", "order-meat", "order-bakery", "order-nonfood"})
+    void order_above_limit_returns_400(String endpoint) {
+        var response = given()
+            .contentType(ContentType.JSON)
+            .body("""
+                {"productName": "Mango", "quantity": 2001}
+                """)
+            .post("/api/products/" + endpoint);
+
+        assertThat(response.statusCode()).isEqualTo(400);
+        assertThat(response.jsonPath().<String>getList("$")).containsExactly("must be less than or equal to 2000");
     }
 }

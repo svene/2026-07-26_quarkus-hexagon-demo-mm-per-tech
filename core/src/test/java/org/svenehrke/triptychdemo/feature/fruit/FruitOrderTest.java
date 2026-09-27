@@ -12,7 +12,7 @@ class FruitOrderTest {
 	// --- parse(String, String): text input, e.g. an HTML form field ---
 
 	@ParameterizedTest
-	@ValueSource(strings = {"1", "42", " 42 ", "+7", "999999999"})
+	@ValueSource(strings = {"1", "42", " 42 ", "+7", "2000"})
 	void parseText_returnsValidFruitOrder_forNumericQuantities(String quantity) {
 		ParsedFruitOrder result = FruitOrder.parse("productName", quantity);
 
@@ -48,6 +48,14 @@ class FruitOrderTest {
 		ParsedFruitOrder result = FruitOrder.parse("productName", "0");
 
 		assertThat(messages(result)).containsExactly("must be greater than or equal to 1");
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"2001", "999999999"})
+	void parseText_returnsInvalid_aboveOrderLimit(String quantity) {
+		ParsedFruitOrder result = FruitOrder.parse("productName", quantity);
+
+		assertThat(messages(result)).containsExactly("must be less than or equal to 2000");
 	}
 
 	@Test
