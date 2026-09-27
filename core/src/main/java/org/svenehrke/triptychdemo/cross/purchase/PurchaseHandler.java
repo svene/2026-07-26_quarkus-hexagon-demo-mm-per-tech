@@ -13,14 +13,17 @@ import java.util.stream.Collectors;
 
 /** Online checkout and physical-store sale differ only in what a shortage means - see {@link OnShortage}. */
 @ApplicationScoped
-public class PurchaseHandler implements PurchaseAPI {
+public class PurchaseHandler {
 
     @Inject
     InventoryRepositorySPI inventoryRepository;
     @Inject
     AuditLogSPI auditLog;
 
-    @Override
+    /**
+     * Online purchase (shop, JSON API): all-or-nothing, rejected if any item is not in stock - also when
+     * several customers buy concurrently.
+     */
     public PurchaseOutcome checkout(Purchase purchase) {
         var deduction = deduct(purchase, OnShortage.REJECT);
         if (!deduction.shortages().isEmpty()) {
@@ -31,7 +34,10 @@ public class PurchaseHandler implements PurchaseAPI {
         return new PurchaseOutcome.Completed();
     }
 
-    @Override
+    /**
+     * Physical-store sale (cashpoint): the goods are already gone, so it is recorded, never rejected. Selling
+     * more than is on record means the inventory was wrong; that is audit-logged as a stock discrepancy.
+     */
     public void recordStoreSale(Purchase purchase) {
         var deduction = deduct(purchase, OnShortage.CAP_AT_ZERO);
         deduction.shortages().forEach(shortage ->

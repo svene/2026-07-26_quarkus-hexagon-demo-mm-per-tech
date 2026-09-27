@@ -12,7 +12,7 @@ disable-model-invocation: true
    - Completion criterion: you can state, for each file, which of the three it needs and why - "targeted, only the package-path lines in the maintenance-notes section" is a valid answer; "not sure, I'll just rewrite it" is not.
    - Names (class/method/path/topic) surviving a refactor is common and shrinks the job a lot - a restructuring that only moves packages needs far less than one that also renames things. Don't assume "major refactor" always means "rewrite all four files"; check first.
 
-2. **For a full rewrite**: extract every fact straight from the current code - grep/read the actual Receivers, Handlers, APIs, SPIs, Services, stubs, and `application.properties` - never from an existing diagram, a prior version of the doc, or memory of an earlier session. See `TEMPLATES.md` for the section structure each file expects and what to read where.
+2. **For a full rewrite**: extract every fact straight from the current code - grep/read the actual Receivers, Handlers, SPIs, Services, stubs, and `application.properties` - never from an existing diagram, a prior version of the doc, or memory of an earlier session. See `TEMPLATES.md` for the section structure each file expects and what to read where.
 
 3. **For a targeted edit**: grep the file for the exact stale strings (old package paths, renamed classes) and fix them in place. Leave every unaffected section untouched.
 

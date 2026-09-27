@@ -89,7 +89,7 @@ refresh themselves every 3 seconds via htmx polling, so multiple browser tabs
 A customer-facing shopping page is available at **http://localhost:8080/shop**.
 It lists every in-stock product with a quantity field per row; filling in one
 or more quantities and clicking *Purchase* submits the whole basket in a single
-call to `PurchaseAPI.purchase(...)`. The "Available" column also refreshes
+call to `PurchaseHandler.checkout(...)`. The "Available" column also refreshes
 itself every 3 seconds via htmx (using `<hx-partial>` swaps that only touch
 the number, never the quantity inputs you're typing into). A *Randomize (dev)*
 button fills 2–4 random rows with random quantities (client-side JavaScript
@@ -112,7 +112,7 @@ serves automatically at the web root (`/css/bulma.min.css`,
 ### Repository layout
 
 ```
-core/                       Domain model, use-case interfaces (API), SPI
+core/                       Domain model, use cases (Handlers), SPI
 inbound-http-html/          JAX-RS + Qute — HTML UI (/admin, /shop)
 inbound-http-jsonapi/       JAX-RS — JSON API (/api/products)
 inbound-kafka/              Kafka @Incoming — delivery events + purchase events
@@ -179,10 +179,10 @@ Core (and every adapter module) is organized by `feature.<commodity>` package,
 not by port/application/domain layer — see [concepts.md](concepts.md) and
 `docs/ai/maintaining-module-participants.md` for the full picture. In short:
 
-1. Create a new `feature.<name>` package in `core` with `<Name>API`,
+1. Create a new `feature.<name>` package in `core` with
    `<Name>SupplierSPI`, `<Name>Delivery`, `<Name>Handler` as standalone
    top-level types.
-2. Add the corresponding case to `InventoryAPI`/`InventoryHandler` in
+2. Add the corresponding case to `InventoryHandler` in
    `core/.../cross/inventory/` and to `ProductType` in
    `core/.../cross/products/`.
 3. Implement the outbound adapter in the matching `outbound-*` module's new

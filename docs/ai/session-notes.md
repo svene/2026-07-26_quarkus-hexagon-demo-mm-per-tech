@@ -3,9 +3,9 @@
 Session-to-session bookkeeping for the `docs/architecture/` doc set. See [README.md](README.md)
 for the actual maintenance process.
 
-**Last Updated**: 2026-09-27, commit `e3d3c87` (baseline moved on request after the validation rollout, Kafka retry/fail-stop and purchase business rules; those commits updated `architecture-flow.md`, `validation.md`, `kafka-unprocessable-messages.md` and the purchase `flows/*.puml` alongside the code, but no full pass over every doc since `982b169` was done)
+**Last Updated**: 2026-09-27, on top of commit `865b81b` - the commit that removed the inbound `*API` interfaces (receivers now inject `*Handler`s directly; new ArchUnit rule `inbound_adapters_do_not_use_spis`) updated every doc alongside the code: `concepts.md`, `README.md`, `architecture-flow.md` (API nodes collapsed into their Handler node), `architecture-module-participants.md`, `validation.md`, `docs/ai/*` and both architecture-docs skills. `865b81b` itself was docs-only, so no code since `e3d3c87` is unaccounted for. `wip_validation.md` and `PLAN.md` were deliberately left untouched (historical/WIP).
 
-**Diff baseline for the next update**: `git diff e3d3c87 HEAD -- . ':(exclude)docs'` to see what changed in code since the last content pass, before deciding which doc section(s) need a surgical edit. If a doc looks stale for something older, `git diff 982b169 e3d3c87 -- . ':(exclude)docs'` covers the period that was not fully re-checked.
+**Diff baseline for the next update**: `git diff 865b81b HEAD -- . ':(exclude)docs'` to see what changed in code since the last content pass (its first commit on top, the `*API` removal, is already reflected), before deciding which doc section(s) need a surgical edit. If a doc looks stale for something older, `git diff 982b169 e3d3c87 -- . ':(exclude)docs'` covers the period that was not fully re-checked.
 
 **By**: Claude (session analysis)
 

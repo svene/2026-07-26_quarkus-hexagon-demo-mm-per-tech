@@ -34,7 +34,6 @@ When making code changes, check which files need updating:
 
 - [ ] **HTTP endpoint added/removed** → Update `architecture/architecture-flow.md`, create flow diagram
 - [ ] **Handler added/renamed** → Update `architecture/architecture-module-participants.md`, `architecture/architecture-flow.md`, flow diagrams
-- [ ] **API interface added** → Update `architecture/architecture-module-participants.md`
 - [ ] **SPI interface added** → Update `architecture/architecture-module-participants.md`
 - [ ] **Service added/renamed** → Update `architecture/architecture-module-participants.md`, flow diagrams
 - [ ] **Maven module added** → Add section to `architecture/architecture-module-participants.md`, update summary table
@@ -77,6 +76,6 @@ grep "ClassName" docs/architecture/*.md | sort | uniq -c  # Should show consiste
 
 **If you need to regenerate this documentation:** invoke the `recreate-architecture-docs` skill (`/recreate-architecture-docs`) - it contains all the instructions, including a first step that diffs what actually changed so you don't over-rewrite files whose content (class/method/topic names) survived the change intact.
 
-**If you just changed one endpoint, handler, API/SPI, service, topic, or module:** the `update-architecture-docs` skill can fire on its own for this - or invoke it directly - to make the single-section edit without touching the rest of the file.
+**If you just changed one endpoint, handler, SPI, service, topic, or module:** the `update-architecture-docs` skill can fire on its own for this - or invoke it directly - to make the single-section edit without touching the rest of the file.
 
 **Current status and diff baseline for the next update:** see [session-notes.md](session-notes.md).

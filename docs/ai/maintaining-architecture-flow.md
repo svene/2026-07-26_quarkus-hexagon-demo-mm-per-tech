@@ -11,7 +11,7 @@ update workflow.
 1. **architecture-flow.md** (human-readable flows)
    - Update HTTP endpoint descriptions if receiver methods change
    - Add/remove endpoints if handlers are added/removed
-   - Update handler/API names if they're refactored
+   - Update handler names if they're refactored
    - Do NOT recreate from scratch—just update the affected sections
 
 2. **architecture-flow-kafka-reference.md** (technical reference)

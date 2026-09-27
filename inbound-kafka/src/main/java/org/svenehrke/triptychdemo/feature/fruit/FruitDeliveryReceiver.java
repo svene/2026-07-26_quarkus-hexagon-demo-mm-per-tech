@@ -1,7 +1,7 @@
 package org.svenehrke.triptychdemo.feature.fruit;
 
-import org.svenehrke.triptychdemo.cross.auditlog.AuditLogAPI;
-import org.svenehrke.triptychdemo.cross.inventory.InventoryAPI;
+import org.svenehrke.triptychdemo.cross.auditlog.AuditLogHandler;
+import org.svenehrke.triptychdemo.cross.inventory.InventoryHandler;
 
 import io.smallrye.reactive.messaging.annotations.Blocking;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -18,9 +18,9 @@ import java.util.stream.Collectors;
 public class FruitDeliveryReceiver {
 
     @Inject
-    InventoryAPI inventoryAPI;
+    InventoryHandler inventoryHandler;
     @Inject
-    AuditLogAPI auditLog;
+    AuditLogHandler auditLog;
 
     @Incoming("fruit-deliveries")
     @Blocking
@@ -39,7 +39,7 @@ public class FruitDeliveryReceiver {
             }
             case FruitDelivery fruitDelivery: {
                 auditLog.log("FruitDeliveryReceiver: FRUIT_DELIVERY_RECEIVED", fruitDelivery.productName() + " qty=" + fruitDelivery.quantity());
-                inventoryAPI.updateFruitAmount(fruitDelivery);
+                inventoryHandler.updateFruitAmount(fruitDelivery);
                 auditLog.log("FruitDeliveryReceiver: FRUIT_INVENTORY_UPDATED", fruitDelivery.productName() + " +" + fruitDelivery.quantity());
                 break;
             }

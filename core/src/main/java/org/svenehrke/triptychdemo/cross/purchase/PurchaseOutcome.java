@@ -4,7 +4,7 @@ import org.svenehrke.triptychdemo.cross.inventory.Shortage;
 
 import java.util.List;
 
-/** Result of {@link PurchaseAPI#checkout}. A business outcome, not validation: the purchase itself is valid. */
+/** Result of {@link PurchaseHandler#checkout}. A business outcome, not validation: the purchase itself is valid. */
 public sealed interface PurchaseOutcome {
 
 	record Completed() implements PurchaseOutcome {}

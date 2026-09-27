@@ -151,7 +151,7 @@ public Response orderFruits(FruitOrderRequest request) {
     return switch (FruitOrder.parse(request.productName(), request.quantity())) {
         case ParsedFruitOrder.Invalid invalid -> badRequest(messagesOf(invalid.violations()));
         case FruitOrder order -> {
-            fruitsAPI.order(order);
+            fruitsHandler.order(order);
             yield Response.noContent().build();
         }
     };
@@ -206,19 +206,17 @@ each with its exact message.
 
 ---
 
-## `FruitsAPI`: the same construction guarantee as `InventoryAPI`
+## `FruitsHandler`: the same construction guarantee as `InventoryHandler`
 
-`FruitsAPI.order` takes `FruitOrder` instead of raw primitives:
+`FruitsHandler.order` takes `FruitOrder` instead of raw primitives:
 
 ```java
-public interface FruitsAPI {
-    void order(FruitOrder fruitOrder);
-}
+public void order(FruitOrder fruitOrder) { ... }
 ```
 
 `FruitsHandler.order(FruitOrder fruitOrder)` can only ever be called with an
 already-guaranteed-valid `FruitOrder`, since there's no way to construct an invalid one — the same
-guarantee `InventoryAPI.updateFruitAmount(FruitDelivery fruitDelivery)` already had on the Kafka
+guarantee `InventoryHandler.updateFruitAmount(FruitDelivery fruitDelivery)` already had on the Kafka
 side.
 
 `FruitSupplierSPI` (the outbound port to the external supplier, also defined in `core`) gets the
@@ -256,7 +254,7 @@ record Invalid(SortedMap<Integer, Set<ConstraintViolation<PurchaseItem>>> violat
 The adapter parses each raw item with `PurchaseItem.parse(...)` and hands the list to
 `Purchase.parse(...)`, which yields a `Purchase` only if **every** item is valid; otherwise an
 `Invalid` keyed by the offending item's index. `Purchase` has no constraints of its own: its items
-are valid by construction, so it is too. `PurchaseAPI` therefore only ever sees a
+are valid by construction, so it is too. `PurchaseHandler` therefore only ever sees a
 fully valid basket — one bad item rejects the whole request, nothing is deducted.
 
 The invalid branch follows the usual boundary split:
@@ -278,13 +276,13 @@ A valid `Purchase` can still be impossible to fulfil: there may not be enough st
 the current state, not on the input, so it is decided in the core, after `parse()`, and reported as
 its own sealed type — not as a `ConstraintViolation`:
 
-- **Online** (`/shop/checkout`, `/api/products/purchase`) → `PurchaseAPI.checkout(Purchase)` returns
+- **Online** (`/shop/checkout`, `/api/products/purchase`) → `PurchaseHandler.checkout(Purchase)` returns
   `PurchaseOutcome` = `Completed` | `Rejected(List<Shortage>)`. Rejected is all-or-nothing (nothing
   is deducted) and answered with `409 Conflict`, not `400`: the request was fine, the stock isn't
   there. `InventoryService.deductAll` locks each product row (`SELECT ... FOR UPDATE`) in
   product-name order inside one transaction, so concurrent customers can never both buy the last
   item, and never deadlock.
-- **Physical store** (`cashpoint-purchases`) → `PurchaseAPI.recordStoreSale(Purchase)` never rejects:
+- **Physical store** (`cashpoint-purchases`) → `PurchaseHandler.recordStoreSale(Purchase)` never rejects:
   the goods have already left the shelf, so selling more than is on record means the inventory was
   wrong. Stock is capped at `0` and the gap is audit-logged as `STOCK_DISCREPANCY`.
 
@@ -426,7 +424,7 @@ An earlier version of the HTTP pattern used Jakarta Bean Validation's `@Valid` d
 request DTO, letting `quarkus-rest`/`quarkus-hibernate-validator` auto-reject with `400` — no
 hand-written code at all. That's still a perfectly good, simpler choice **when there's no existing
 domain type whose constraints would otherwise be duplicated**. It was dropped here specifically
-because `FruitOrder` (the domain type `fruitsAPI.order(...)` needs anyway) already had to carry the
+because `FruitOrder` (the domain type `fruitsHandler.order(...)` needs anyway) already had to carry the
 same `@NotBlank`/`@Min` constraints for its own construction guarantee; keeping `@Valid` on a
 second, separate request-DTO record would have meant declaring the same rule twice. Reusing
 `FruitOrder.parse()` at the HTTP boundary removes that duplication entirely.

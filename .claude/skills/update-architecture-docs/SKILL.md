@@ -1,6 +1,6 @@
 ---
 name: update-architecture-docs
-description: Update this project's docs/ architecture documentation with a surgical, single-section edit right after adding, renaming, or removing one HTTP endpoint, Handler, API/SPI interface, outbound Service, Kafka topic, or Maven module. For a major refactoring needing all files rewritten instead, use recreate-architecture-docs.
+description: Update this project's docs/ architecture documentation with a surgical, single-section edit right after adding, renaming, or removing one HTTP endpoint, Handler, SPI interface, outbound Service, Kafka topic, or Maven module. For a major refactoring needing all files rewritten instead, use recreate-architecture-docs.
 ---
 
 A small code change gets a small doc edit - one section, one file at a time, never a rewrite.
@@ -9,7 +9,7 @@ A small code change gets a small doc edit - one section, one file at a time, nev
 
 1. Identify exactly what changed and where it's documented, using `docs/ai/README.md`'s "Update Checklist" as the map:
    - endpoint change → `docs/architecture/architecture-flow.md`, plus a new/updated `docs/architecture/flows/*.puml` if the endpoint is new
-   - Handler/API/SPI/Service change → `docs/architecture/architecture-module-participants.md`, and `docs/architecture/architecture-flow.md` if the change is visible in a flow tree
+   - Handler/SPI/Service change → `docs/architecture/architecture-module-participants.md`, and `docs/architecture/architecture-flow.md` if the change is visible in a flow tree
    - Kafka topic change → `docs/architecture/architecture-flow-kafka-reference.md`, cross-checked against `application.properties`
    - Maven module change → `docs/architecture/architecture-module-participants.md`'s Quick Reference table and its own module section
 

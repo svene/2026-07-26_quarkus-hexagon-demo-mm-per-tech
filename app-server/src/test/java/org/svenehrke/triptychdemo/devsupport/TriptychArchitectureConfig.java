@@ -6,7 +6,7 @@ import java.util.Optional;
 
 /**
  * Configuration for {@link TriptychArchitecture}: the root package, the feature/cross segment names,
- * and the five naming suffixes. {@code @RecordBuilder} generates {@link TriptychArchitectureConfigBuilder},
+ * and the four naming suffixes. {@code @RecordBuilder} generates {@link TriptychArchitectureConfigBuilder},
  * whose {@code With} interface gives this record {@code withX(...)} copy methods, used by
  * {@link TriptychArchitecture}'s fluent setters instead of hand-written copy constructors.
  */
@@ -15,7 +15,6 @@ public record TriptychArchitectureConfig(
 	String rootPackage,
 	String featureSegment,
 	String crossSegment,
-	String apiSuffix,
 	String spiSuffix,
 	String handlerSuffix,
 	String receiverSuffix,
@@ -29,7 +28,6 @@ public record TriptychArchitectureConfig(
 			.rootPackage(rootPackage)
 			.featureSegment("feature")
 			.crossSegment("cross")
-			.apiSuffix("API")
 			.spiSuffix("SPI")
 			.handlerSuffix("Handler")
 			.receiverSuffix("Receiver")

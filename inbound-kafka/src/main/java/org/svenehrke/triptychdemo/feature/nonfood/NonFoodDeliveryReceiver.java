@@ -1,7 +1,7 @@
 package org.svenehrke.triptychdemo.feature.nonfood;
 
-import org.svenehrke.triptychdemo.cross.auditlog.AuditLogAPI;
-import org.svenehrke.triptychdemo.cross.inventory.InventoryAPI;
+import org.svenehrke.triptychdemo.cross.auditlog.AuditLogHandler;
+import org.svenehrke.triptychdemo.cross.inventory.InventoryHandler;
 
 import io.smallrye.reactive.messaging.annotations.Blocking;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -18,9 +18,9 @@ import java.util.stream.Collectors;
 public class NonFoodDeliveryReceiver {
 
     @Inject
-    InventoryAPI inventoryAPI;
+    InventoryHandler inventoryHandler;
     @Inject
-    AuditLogAPI auditLog;
+    AuditLogHandler auditLog;
 
     @Incoming("nonfood-deliveries")
     @Blocking
@@ -39,7 +39,7 @@ public class NonFoodDeliveryReceiver {
             }
             case NonFoodDelivery nonFoodDelivery: {
                 auditLog.log("NonFoodDeliveryReceiver: NON_FOOD_DELIVERY_RECEIVED", nonFoodDelivery.productName() + " qty=" + nonFoodDelivery.quantity());
-                inventoryAPI.updateNonFoodAmount(nonFoodDelivery);
+                inventoryHandler.updateNonFoodAmount(nonFoodDelivery);
                 auditLog.log("NonFoodDeliveryReceiver: NON_FOOD_INVENTORY_UPDATED", nonFoodDelivery.productName() + " +" + nonFoodDelivery.quantity());
                 break;
             }

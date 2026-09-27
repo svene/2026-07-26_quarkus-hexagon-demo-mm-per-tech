@@ -5,7 +5,7 @@ Complete inventory of all classes participating in the system flows, organized b
 **Source**: Derived from architecture-flow.md with module mappings from actual code structure.
 **Maintenance**: see `../ai/maintaining-module-participants.md`.
 
-**Package scheme (as of 2026-09-13)**: every module — `core` included — is organized as `org.svenehrke.triptychdemo.feature.<commodity>` (fruit, vegetable, dairy, beverage, meat, bakery, nonfood) or `org.svenehrke.triptychdemo.cross(.<concern>)` for cross-cutting concerns (inventory, auditlog, products, purchase, cashpoint, and the admin/shop/json-api aggregator receivers). There is no `core.application`/`core.api`/`core.spi`/`adapter.inbound.*`/`adapter.outbound.*` package scheme anymore — `core`'s previous `APIs.java`/`SPIs.java` container classes were split into standalone top-level interfaces, one per port, each moved into its feature or cross package. `external-*` modules are untouched by this and keep their own `org.svenehrke.triptychdemo.external.*` root (they are not part of the hexagonal architecture — see `concepts.md`).
+**Package scheme (as of 2026-09-13)**: every module — `core` included — is organized as `org.svenehrke.triptychdemo.feature.<commodity>` (fruit, vegetable, dairy, beverage, meat, bakery, nonfood) or `org.svenehrke.triptychdemo.cross(.<concern>)` for cross-cutting concerns (inventory, auditlog, products, purchase, cashpoint, and the admin/shop/json-api aggregator receivers). There is no `core.application`/`core.api`/`core.spi`/`adapter.inbound.*`/`adapter.outbound.*` package scheme anymore — `core`'s previous `APIs.java`/`SPIs.java` container classes were split into standalone top-level interfaces, one per port, each moved into its feature or cross package. On 2026-09-27 the inbound `*API` interfaces were removed altogether - receivers inject the `*Handler` classes directly (see `concepts.md`, "Why inbound ports have no interface"). `external-*` modules are untouched by this and keep their own `org.svenehrke.triptychdemo.external.*` root (they are not part of the hexagonal architecture — see `concepts.md`).
 
 ## Quick Reference: All Modules & Participants
 
@@ -14,7 +14,7 @@ Complete inventory of all classes participating in the system flows, organized b
 | **inbound-http-html** | `AdminReceiver`<br>`ShopReceiver` |
 | **inbound-http-jsonapi** | `ProductApiReceiver`<br>`XxxOrderRequest`/`PurchaseRequest`/`PurchaseRequestItem`/`RequestStructureErrorMessages`<br>`JsonInputErrors`/`StrictJsonReader`/`JsonResponses` |
 | **inbound-kafka** | `FruitDeliveryReceiver`<br>`VegetablesDeliveryReceiver`<br>`DairyDeliveryReceiver`<br>`BeveragesDeliveryReceiver`<br>`MeatDeliveryReceiver`<br>`BakeryDeliveryReceiver`<br>`NonFoodDeliveryReceiver`<br>`CashpointReceiver` |
-| **core** | `FruitsAPI`/`FruitSupplierSPI`/`FruitDelivery`/`FruitsHandler`<br>`VegetablesAPI`/`VegetablesSupplierSPI`/`VegetableDelivery`/`VegetablesHandler`<br>`DairyAPI`/`DairySupplierSPI`/`DairyDelivery`/`DairyHandler`<br>`BeveragesAPI`/`BeverageSupplierSPI`/`BeverageDelivery`/`BeveragesHandler`<br>`MeatAPI`/`MeatSupplierSPI`/`MeatDelivery`/`MeatHandler`<br>`BakeryAPI`/`BakerySupplierSPI`/`BakeryDelivery`/`BakeryHandler`<br>`NonFoodAPI`/`NonFoodSupplierSPI`/`NonFoodDelivery`/`NonFoodHandler`<br>`InventoryAPI`/`InventoryRepositorySPI`/`InventoryHandler`<br>`AuditLogAPI`/`AuditLogSPI`/`AuditLogHandler`/`AuditLogEntry`<br>`ProductsAPI`/`ProductsHandler`/`Product`/`ProductType`<br>`PurchaseAPI`/`PurchaseHandler`/`PurchaseItem` |
+| **core** | `FruitSupplierSPI`/`FruitDelivery`/`FruitsHandler`<br>`VegetablesSupplierSPI`/`VegetableDelivery`/`VegetablesHandler`<br>`DairySupplierSPI`/`DairyDelivery`/`DairyHandler`<br>`BeverageSupplierSPI`/`BeverageDelivery`/`BeveragesHandler`<br>`MeatSupplierSPI`/`MeatDelivery`/`MeatHandler`<br>`BakerySupplierSPI`/`BakeryDelivery`/`BakeryHandler`<br>`NonFoodSupplierSPI`/`NonFoodDelivery`/`NonFoodHandler`<br>`InventoryRepositorySPI`/`InventoryHandler`<br>`AuditLogSPI`/`AuditLogHandler`/`AuditLogEntry`<br>`ProductsHandler`/`Product`/`ProductType`<br>`PurchaseHandler`/`PurchaseItem` |
 | **outbound-postgres** | `InventoryService`<br>`ProductEntity` |
 | **outbound-mongodb** | `AuditLogService`<br>`AuditLogEntryEntity` |
 | **outbound-httpclient** | `FruitSupplierService`<br>`VegetablesSupplierService`<br>`DairySupplierService`<br>`FruitSupplierClient`<br>`VegetablesSupplierClient`<br>`DairySupplierClient` |
@@ -30,7 +30,7 @@ Complete inventory of all classes participating in the system flows, organized b
 ## inbound-http-html
 
 **Purpose**: HTTP inbound adapter for HTML form-based user interfaces
-**Package**: `org.svenehrke.triptychdemo.cross` (both receivers are cross-cutting aggregators — Admin touches every commodity's ordering API, Shop touches Products+Purchase — so neither lives in a `feature.<name>` package)
+**Package**: `org.svenehrke.triptychdemo.cross` (both receivers are cross-cutting aggregators — Admin touches every commodity's ordering Handler, Shop touches Products+Purchase — so neither lives in a `feature.<name>` package)
 
 ### Receivers
 - `AdminReceiver` - Admin dashboard and ordering endpoints (GET /admin, POST /admin/order-*)
@@ -38,7 +38,7 @@ Complete inventory of all classes participating in the system flows, organized b
 
 **Responsibilities**:
 - Parse HTTP form requests (APPLICATION_FORM_URLENCODED)
-- Route to appropriate core API handlers
+- Route to the appropriate core Handlers
 - Return HTML responses via Qute templates
 - Manage session state for browser interactions
 
@@ -49,7 +49,7 @@ Complete inventory of all classes participating in the system flows, organized b
 ## inbound-http-jsonapi
 
 **Purpose**: HTTP inbound adapter for JSON REST API
-**Package**: `org.svenehrke.triptychdemo.cross` (spans every commodity's ordering API plus Products/Purchase, so it's cross-cutting like inbound-http-html)
+**Package**: `org.svenehrke.triptychdemo.cross` (spans every commodity's ordering Handler plus Products/Purchase, so it's cross-cutting like inbound-http-html)
 
 ### Receivers
 - `ProductApiReceiver` - REST API endpoints (GET /api/products, POST /api/products/order-*, POST /api/products/purchase)
@@ -75,7 +75,7 @@ Complete inventory of all classes participating in the system flows, organized b
 **Responsibilities**:
 - Parse HTTP JSON requests (APPLICATION_JSON)
 - Deserialize JSON into request objects
-- Route to appropriate core API handlers
+- Route to the appropriate core Handlers
 - Return JSON responses
 - Validate API input contracts
 
@@ -111,66 +111,61 @@ Complete inventory of all classes participating in the system flows, organized b
 ## core
 
 **Purpose**: Domain + application layer - entities, use cases, and all inbound/outbound ports. Deliberately free of any infrastructure dependency (no JDBC, no Kafka client, no HTTP client).
-**Package root**: `org.svenehrke.triptychdemo` - organized as `feature.<commodity>` (one package per commodity, holding that commodity's API, SPI, domain record and Handler together) or `cross.<concern>` (inventory, auditlog, products, purchase - each holding its API/SPI/Handler/domain type together). `APIs.java`/`SPIs.java` (previously one file each, holding every port as a nested interface) no longer exist - each port is now its own standalone top-level interface, filed directly into its feature or cross package.
+**Package root**: `org.svenehrke.triptychdemo` - organized as `feature.<commodity>` (one package per commodity, holding that commodity's SPI, domain record and Handler together) or `cross.<concern>` (inventory, auditlog, products, purchase - each holding its SPI/Handler/domain type together). `APIs.java`/`SPIs.java` (previously one file each, holding every port as a nested interface) no longer exist - each SPI is now its own standalone top-level interface, filed directly into its feature or cross package (the former inbound `*API` interfaces were removed on 2026-09-27).
 
 ### feature.fruit
-- `FruitsAPI` - Order fruits (method: order)
 - `FruitSupplierSPI` - Interface for fruit supplier (method: placeOrder)
 - `FruitDelivery` - Delivery domain record (productName, quantity)
-- `FruitsHandler` - Handles fruit orders (implements FruitsAPI, injects FruitSupplierSPI + AuditLogSPI)
+- `FruitsHandler` - Handles fruit orders (method: order; injects FruitSupplierSPI + AuditLogSPI)
 
 ### feature.vegetable
-- `VegetablesAPI`, `VegetablesSupplierSPI`, `VegetableDelivery`, `VegetablesHandler` - same shape as feature.fruit
+- `VegetablesSupplierSPI`, `VegetableDelivery`, `VegetablesHandler` - same shape as feature.fruit
 
 ### feature.dairy
-- `DairyAPI`, `DairySupplierSPI`, `DairyDelivery`, `DairyHandler` - same shape as feature.fruit
+- `DairySupplierSPI`, `DairyDelivery`, `DairyHandler` - same shape as feature.fruit
 
 ### feature.beverage
-- `BeveragesAPI`, `BeverageSupplierSPI`, `BeverageDelivery`, `BeveragesHandler` - same shape as feature.fruit
+- `BeverageSupplierSPI`, `BeverageDelivery`, `BeveragesHandler` - same shape as feature.fruit
 
 ### feature.meat
-- `MeatAPI`, `MeatSupplierSPI`, `MeatDelivery`, `MeatHandler` - same shape as feature.fruit
+- `MeatSupplierSPI`, `MeatDelivery`, `MeatHandler` - same shape as feature.fruit
 
 ### feature.bakery
-- `BakeryAPI`, `BakerySupplierSPI`, `BakeryDelivery`, `BakeryHandler` - same shape as feature.fruit
+- `BakerySupplierSPI`, `BakeryDelivery`, `BakeryHandler` - same shape as feature.fruit
 
 ### feature.nonfood
-- `NonFoodAPI`, `NonFoodSupplierSPI`, `NonFoodDelivery`, `NonFoodHandler` - same shape as feature.fruit
+- `NonFoodSupplierSPI`, `NonFoodDelivery`, `NonFoodHandler` - same shape as feature.fruit
 
 ### cross.inventory
-- `InventoryAPI` - Update inventory (methods: updateFruitAmount, updateVegetableAmount, updateDairyAmount, updateBeverageAmount, updateMeatAmount, updateBakeryAmount, updateNonFoodAmount) - imports each commodity's `*Delivery` record from its `feature.<commodity>` package
 - `InventoryRepositorySPI` - Interface for inventory data access (methods: findAll, addAmount, deductAll)
 - `OnShortage` - Enum passed to deductAll: `REJECT` (online, deduct nothing) | `CAP_AT_ZERO` (physical store)
 - `StockDeduction` - Result of deductAll (updated products, shortages)
 - `Shortage` - Domain record (productName, requested, available) with rejection and discrepancy messages
-- `InventoryHandler` - Updates inventory from delivery events (implements InventoryAPI for all commodities)
+- `InventoryHandler` - Updates inventory from delivery events, for all commodities (methods: updateFruitAmount, updateVegetableAmount, updateDairyAmount, updateBeverageAmount, updateMeatAmount, updateBakeryAmount, updateNonFoodAmount) - imports each commodity's `*Delivery` record from its `feature.<commodity>` package
 
 ### cross.auditlog
-- `AuditLogAPI` - Retrieve audit history (method: recent)
 - `AuditLogSPI` - Interface for audit log persistence (methods: log, findRecent)
-- `AuditLogHandler` - Retrieves audit log entries (implements AuditLogAPI)
+- `AuditLogHandler` - Retrieves audit log entries (method: recent)
 - `AuditLogEntry` - Domain record (event, details, timestamp) - not to be confused with `outbound-mongodb`'s `AuditLogEntryEntity` (the Panache persistence entity); the two used to share the name `AuditLogEntry` until 2026-09-13, when the entity was renamed to avoid a fully-qualified-name collision once both landed in `cross.auditlog`
 
 ### cross.products
-- `ProductsAPI` - Query all products (method: listAll)
-- `ProductsHandler` - Lists all products (implements ProductsAPI, injects InventoryRepositorySPI)
+- `ProductsHandler` - Lists all products (method: listAll; injects InventoryRepositorySPI)
 - `Product` - Domain record (name, type, availableAmount)
 - `ProductType` - Enum (FRUIT, VEGETABLE, DAIRY, BEVERAGE, MEAT, BAKERY, NON_FOOD)
 
 ### cross.purchase
-- `PurchaseAPI` - Process customer purchases (methods: checkout - online, rejects on insufficient stock; recordStoreSale - physical store, never rejects)
 - `PurchaseOutcome` - Sealed result of checkout (`Completed` | `Rejected`)
-- `PurchaseHandler` - Handles customer purchases (implements PurchaseAPI, injects InventoryRepositorySPI + AuditLogSPI)
+- `PurchaseHandler` - Handles customer purchases (methods: checkout - online, rejects on insufficient stock; recordStoreSale - physical store, never rejects; injects InventoryRepositorySPI + AuditLogSPI)
 - `PurchaseItem` - Domain record (productName, quantity)
 
 **Responsibilities**:
 - Implement business logic for each use case
-- Coordinate between inbound ports (APIs) and outbound ports (SPIs)
+- Coordinate between inbound adapters (Receivers) and outbound ports (SPIs)
 - Log events to audit trail
 - Invoke supplier services for orders
 - Manage inventory updates
 
-**Design Pattern**: Each handler implements one API (inbound port) and uses one or more SPIs (outbound ports). Each API is implemented by exactly one Handler in the same feature/cross package. Handlers depend on the SPI interface, not the concrete implementation - implementations are injected at runtime from the relevant `outbound-*` module.
+**Design Pattern**: Each Handler's public methods are its inbound port - there is no separate API interface; receivers inject the Handler class directly. A Handler uses one or more SPIs (outbound ports). Handlers depend on the SPI interface, not the concrete implementation - implementations are injected at runtime from the relevant `outbound-*` module.
 
 ---
 
@@ -372,7 +367,7 @@ Complete inventory of all classes participating in the system flows, organized b
 
 ### Core Business Layer
 - `core` module, organized as `feature.<commodity>` (7 packages) + `cross.<concern>` (4 packages: inventory, auditlog, products, purchase)
-- Participants: Handlers (11 total), API interfaces (11 total), SPI interfaces (9 total), domain records/enum (10 total)
+- Participants: Handlers (11 total), SPI interfaces (9 total), domain records/enum (10 total)
 - Responsibility: Implement business logic, coordinate flow between inbound and outbound
 
 ### Data Persistence Layer
@@ -403,7 +398,7 @@ Complete inventory of all classes participating in the system flows, organized b
 | inbound-http-html | 2 | HTTP HTML Receivers |
 | inbound-http-jsonapi | 2 | HTTP JSON API Receiver + request records |
 | inbound-kafka | 8 + 3 | Kafka Receivers + cashpoint message types |
-| core | 11 Handlers, 11 API interfaces, 9 SPI interfaces, 10 domain records/enum | Feature (7 packages) + Cross (4 packages) |
+| core | 11 Handlers, 9 SPI interfaces, 10 domain records/enum | Feature (7 packages) + Cross (4 packages) |
 | outbound-postgres | 2 | Service (InventoryService) + Entity (ProductEntity) |
 | outbound-mongodb | 2 | Service (AuditLogService) + Entity (AuditLogEntryEntity) |
 | outbound-httpclient | 3 | Services + 3 REST Clients |

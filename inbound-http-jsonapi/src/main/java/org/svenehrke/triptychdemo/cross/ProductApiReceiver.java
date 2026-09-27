@@ -1,33 +1,33 @@
 package org.svenehrke.triptychdemo.cross;
 
 import org.svenehrke.triptychdemo.cross.products.Product;
-import org.svenehrke.triptychdemo.cross.products.ProductsAPI;
+import org.svenehrke.triptychdemo.cross.products.ProductsHandler;
 import org.svenehrke.triptychdemo.cross.purchase.ParsedPurchase;
 import org.svenehrke.triptychdemo.cross.purchase.Purchase;
-import org.svenehrke.triptychdemo.cross.purchase.PurchaseAPI;
+import org.svenehrke.triptychdemo.cross.purchase.PurchaseHandler;
 import org.svenehrke.triptychdemo.cross.purchase.PurchaseItem;
 import org.svenehrke.triptychdemo.cross.purchase.PurchaseOutcome;
-import org.svenehrke.triptychdemo.feature.bakery.BakeryAPI;
+import org.svenehrke.triptychdemo.feature.bakery.BakeryHandler;
 import org.svenehrke.triptychdemo.feature.bakery.BakeryOrder;
 import org.svenehrke.triptychdemo.feature.bakery.ParsedBakeryOrder;
 import org.svenehrke.triptychdemo.feature.beverage.BeverageOrder;
 import org.svenehrke.triptychdemo.feature.beverage.ParsedBeverageOrder;
-import org.svenehrke.triptychdemo.feature.beverage.BeveragesAPI;
-import org.svenehrke.triptychdemo.feature.dairy.DairyAPI;
+import org.svenehrke.triptychdemo.feature.beverage.BeveragesHandler;
+import org.svenehrke.triptychdemo.feature.dairy.DairyHandler;
 import org.svenehrke.triptychdemo.feature.dairy.DairyOrder;
 import org.svenehrke.triptychdemo.feature.dairy.ParsedDairyOrder;
 import org.svenehrke.triptychdemo.feature.fruit.FruitOrder;
 import org.svenehrke.triptychdemo.feature.fruit.ParsedFruitOrder;
-import org.svenehrke.triptychdemo.feature.fruit.FruitsAPI;
-import org.svenehrke.triptychdemo.feature.meat.MeatAPI;
+import org.svenehrke.triptychdemo.feature.fruit.FruitsHandler;
+import org.svenehrke.triptychdemo.feature.meat.MeatHandler;
 import org.svenehrke.triptychdemo.feature.meat.MeatOrder;
 import org.svenehrke.triptychdemo.feature.meat.ParsedMeatOrder;
-import org.svenehrke.triptychdemo.feature.nonfood.NonFoodAPI;
+import org.svenehrke.triptychdemo.feature.nonfood.NonFoodHandler;
 import org.svenehrke.triptychdemo.feature.nonfood.NonFoodOrder;
 import org.svenehrke.triptychdemo.feature.nonfood.ParsedNonFoodOrder;
 import org.svenehrke.triptychdemo.feature.vegetable.VegetableOrder;
 import org.svenehrke.triptychdemo.feature.vegetable.ParsedVegetableOrder;
-import org.svenehrke.triptychdemo.feature.vegetable.VegetablesAPI;
+import org.svenehrke.triptychdemo.feature.vegetable.VegetablesHandler;
 
 import com.fasterxml.jackson.databind.exc.MismatchedInputException;
 import io.quarkus.resteasy.reactive.jackson.CustomDeserialization;
@@ -53,28 +53,28 @@ import static org.svenehrke.triptychdemo.cross.JsonResponses.conflict;
 public class ProductApiReceiver {
 
     @Inject
-    ProductsAPI productsAPI;
+    ProductsHandler productsHandler;
     @Inject
-    FruitsAPI fruitsAPI;
+    FruitsHandler fruitsHandler;
     @Inject
-    VegetablesAPI vegetablesAPI;
+    VegetablesHandler vegetablesHandler;
     @Inject
-    DairyAPI dairyAPI;
+    DairyHandler dairyHandler;
     @Inject
-    BeveragesAPI beveragesAPI;
+    BeveragesHandler beveragesHandler;
     @Inject
-    MeatAPI meatAPI;
+    MeatHandler meatHandler;
     @Inject
-    BakeryAPI bakeryAPI;
+    BakeryHandler bakeryHandler;
     @Inject
-    NonFoodAPI nonFoodAPI;
+    NonFoodHandler nonFoodHandler;
     @Inject
-    PurchaseAPI purchaseAPI;
+    PurchaseHandler purchaseHandler;
 
     @GET
     @Produces(MediaType.APPLICATION_JSON)
     public List<Product> list() {
-        return productsAPI.listAll();
+        return productsHandler.listAll();
     }
 
     @POST
@@ -87,7 +87,7 @@ public class ProductApiReceiver {
         return switch (FruitOrder.parse(request.productName(), request.quantity())) {
             case ParsedFruitOrder.Invalid invalid -> badRequest(messagesOf(invalid.violations()));
             case FruitOrder order -> {
-                fruitsAPI.order(order);
+                fruitsHandler.order(order);
                 yield Response.noContent().build();
             }
         };
@@ -103,7 +103,7 @@ public class ProductApiReceiver {
         return switch (VegetableOrder.parse(request.productName(), request.quantity())) {
             case ParsedVegetableOrder.Invalid invalid -> badRequest(messagesOf(invalid.violations()));
             case VegetableOrder order -> {
-                vegetablesAPI.order(order);
+                vegetablesHandler.order(order);
                 yield Response.noContent().build();
             }
         };
@@ -119,7 +119,7 @@ public class ProductApiReceiver {
         return switch (DairyOrder.parse(request.productName(), request.quantity())) {
             case ParsedDairyOrder.Invalid invalid -> badRequest(messagesOf(invalid.violations()));
             case DairyOrder order -> {
-                dairyAPI.order(order);
+                dairyHandler.order(order);
                 yield Response.noContent().build();
             }
         };
@@ -135,7 +135,7 @@ public class ProductApiReceiver {
         return switch (BeverageOrder.parse(request.productName(), request.quantity())) {
             case ParsedBeverageOrder.Invalid invalid -> badRequest(messagesOf(invalid.violations()));
             case BeverageOrder order -> {
-                beveragesAPI.order(order);
+                beveragesHandler.order(order);
                 yield Response.noContent().build();
             }
         };
@@ -151,7 +151,7 @@ public class ProductApiReceiver {
         return switch (MeatOrder.parse(request.productName(), request.quantity())) {
             case ParsedMeatOrder.Invalid invalid -> badRequest(messagesOf(invalid.violations()));
             case MeatOrder order -> {
-                meatAPI.order(order);
+                meatHandler.order(order);
                 yield Response.noContent().build();
             }
         };
@@ -167,7 +167,7 @@ public class ProductApiReceiver {
         return switch (BakeryOrder.parse(request.productName(), request.quantity())) {
             case ParsedBakeryOrder.Invalid invalid -> badRequest(messagesOf(invalid.violations()));
             case BakeryOrder order -> {
-                bakeryAPI.order(order);
+                bakeryHandler.order(order);
                 yield Response.noContent().build();
             }
         };
@@ -183,7 +183,7 @@ public class ProductApiReceiver {
         return switch (NonFoodOrder.parse(request.productName(), request.quantity())) {
             case ParsedNonFoodOrder.Invalid invalid -> badRequest(messagesOf(invalid.violations()));
             case NonFoodOrder order -> {
-                nonFoodAPI.order(order);
+                nonFoodHandler.order(order);
                 yield Response.noContent().build();
             }
         };
@@ -201,7 +201,7 @@ public class ProductApiReceiver {
             .toList();
         return switch (Purchase.parse(parsedItems)) {
             case ParsedPurchase.Invalid invalid -> badRequest(invalid.messages());
-            case Purchase purchase -> switch (purchaseAPI.checkout(purchase)) {
+            case Purchase purchase -> switch (purchaseHandler.checkout(purchase)) {
                 case PurchaseOutcome.Rejected rejected -> conflict(rejected.messages());
                 case PurchaseOutcome.Completed completed -> Response.noContent().build();
             };

@@ -27,157 +27,146 @@ This creates bidirectional flows through Kafka topics, connecting request/respon
 #### GET /admin - Admin Dashboard
 ```
 AdminReceiver.list()
-└─ ProductsAPI.listAll()
-   └─ ProductsHandler.listAll()
-      └─ InventoryRepositorySPI.findAll()
-         └─ InventoryService (outbound-postgres)
-            └─ PostgreSQL (ProductEntity.listAll())
+└─ ProductsHandler.listAll()
+   └─ InventoryRepositorySPI.findAll()
+      └─ InventoryService (outbound-postgres)
+         └─ PostgreSQL (ProductEntity.listAll())
 ```
 
 #### GET /admin/inventory-fragment - Inventory Update
 ```
 AdminReceiver.inventoryFragment()
-└─ ProductsAPI.listAll()
-   └─ ProductsHandler.listAll()
-      └─ InventoryRepositorySPI.findAll()
-         └─ InventoryService (outbound-postgres)
-            └─ PostgreSQL
+└─ ProductsHandler.listAll()
+   └─ InventoryRepositorySPI.findAll()
+      └─ InventoryService (outbound-postgres)
+         └─ PostgreSQL
 ```
 
 #### GET /admin/audit-fragment - Audit Log Update
 ```
 AdminReceiver.auditFragment()
-└─ AuditLogAPI.recent(limit)
-   └─ AuditLogHandler.recent()
-      └─ AuditLogSPI.findRecent()
-         └─ AuditLogService (outbound-mongodb)
-            └─ MongoDB (audit_log collection, AuditLogEntryEntity)
+└─ AuditLogHandler.recent(limit)
+   └─ AuditLogSPI.findRecent()
+      └─ AuditLogService (outbound-mongodb)
+         └─ MongoDB (audit_log collection, AuditLogEntryEntity)
 ```
 
 #### POST /admin/order-fruits - HTML Form → REST Client → Kafka Delivery Topic
 ```
 AdminReceiver.orderFruits()
-└─ FruitsAPI.order(productName, quantity)
-   └─ FruitsHandler.order()
-      ├─ AuditLogSPI.log("FRUITS_ORDER_RECEIVED")
-      │  └─ AuditLogService (outbound-mongodb)
-      │     └─ MongoDB
-      ├─ FruitSupplierSPI.placeOrder()
-      │  └─ FruitSupplierService (outbound-httpclient)
-      │     └─ FruitSupplierClient (REST)
-      │        └─ FruitSupplierStub (external-outbound-rest, same Quarkus instance)
-      │           └─ Emitter → fruit-deliveries-out channel
-      │              └─ Kafka Topic: fruit-deliveries
-      │                 └─ FruitDeliveryReceiver (@Incoming("fruit-deliveries"))
-      │                    └─ InventoryAPI.updateFruitAmount()
-      │                       └─ InventoryHandler.update()
-      │                          ├─ AuditLogSPI.log("FRUIT_DELIVERY_RECEIVED")
-      │                          ├─ InventoryRepositorySPI.addAmount()
-      │                          │  └─ InventoryService (outbound-postgres)
-      │                          │     └─ PostgreSQL
-      │                          └─ AuditLogSPI.log("FRUIT_INVENTORY_UPDATED")
-      └─ AuditLogSPI.log("FRUITS_ORDER_PLACED")
-         └─ AuditLogService (outbound-mongodb)
-            └─ MongoDB
+└─ FruitsHandler.order(productName, quantity)
+   ├─ AuditLogSPI.log("FRUITS_ORDER_RECEIVED")
+   │  └─ AuditLogService (outbound-mongodb)
+   │     └─ MongoDB
+   ├─ FruitSupplierSPI.placeOrder()
+   │  └─ FruitSupplierService (outbound-httpclient)
+   │     └─ FruitSupplierClient (REST)
+   │        └─ FruitSupplierStub (external-outbound-rest, same Quarkus instance)
+   │           └─ Emitter → fruit-deliveries-out channel
+   │              └─ Kafka Topic: fruit-deliveries
+   │                 └─ FruitDeliveryReceiver (@Incoming("fruit-deliveries"))
+   │                    └─ InventoryHandler.updateFruitAmount()
+   │                       ├─ AuditLogSPI.log("FRUIT_DELIVERY_RECEIVED")
+   │                       ├─ InventoryRepositorySPI.addAmount()
+   │                       │  └─ InventoryService (outbound-postgres)
+   │                       │     └─ PostgreSQL
+   │                       └─ AuditLogSPI.log("FRUIT_INVENTORY_UPDATED")
+   └─ AuditLogSPI.log("FRUITS_ORDER_PLACED")
+      └─ AuditLogService (outbound-mongodb)
+         └─ MongoDB
 ```
 
 #### POST /admin/order-vegetables - HTML Form → REST Client → Kafka Delivery Topic
 ```
 AdminReceiver.orderVegetables()
-└─ VegetablesAPI.order()
-   └─ VegetablesHandler.order()
-      ├─ AuditLogSPI.log("VEGETABLES_ORDER_RECEIVED")
-      ├─ VegetablesSupplierService (outbound-httpclient)
-      │  └─ REST → VegetablesSupplierStub
-      │     └─ Kafka: vegetables-deliveries-out
-      │        └─ Topic: vegetables-deliveries
-      │           └─ VegetablesDeliveryReceiver
-      │              └─ InventoryHandler.update()
-      │                 └─ InventoryService (PostgreSQL)
-      └─ AuditLogSPI.log("VEGETABLES_ORDER_PLACED")
+└─ VegetablesHandler.order()
+   ├─ AuditLogSPI.log("VEGETABLES_ORDER_RECEIVED")
+   ├─ VegetablesSupplierService (outbound-httpclient)
+   │  └─ REST → VegetablesSupplierStub
+   │     └─ Kafka: vegetables-deliveries-out
+   │        └─ Topic: vegetables-deliveries
+   │           └─ VegetablesDeliveryReceiver
+   │              └─ InventoryHandler.update()
+   │                 └─ InventoryService (PostgreSQL)
+   └─ AuditLogSPI.log("VEGETABLES_ORDER_PLACED")
 ```
 
 #### POST /admin/order-dairy - HTML Form → REST Client → Kafka Delivery Topic
 ```
 AdminReceiver.orderDairy()
-└─ DairyAPI.order()
-   └─ DairyHandler.order()
-      ├─ AuditLogSPI.log("DAIRY_ORDER_RECEIVED")
-      ├─ DairySupplierService (outbound-httpclient)
-      │  └─ REST → DairySupplierStub
-      │     └─ Kafka: dairy-deliveries-out
-      │        └─ Topic: dairy-deliveries
-      │           └─ DairyDeliveryReceiver
-      │              └─ InventoryHandler.update()
-      │                 └─ InventoryService (PostgreSQL)
-      └─ AuditLogSPI.log("DAIRY_ORDER_PLACED")
+└─ DairyHandler.order()
+   ├─ AuditLogSPI.log("DAIRY_ORDER_RECEIVED")
+   ├─ DairySupplierService (outbound-httpclient)
+   │  └─ REST → DairySupplierStub
+   │     └─ Kafka: dairy-deliveries-out
+   │        └─ Topic: dairy-deliveries
+   │           └─ DairyDeliveryReceiver
+   │              └─ InventoryHandler.update()
+   │                 └─ InventoryService (PostgreSQL)
+   └─ AuditLogSPI.log("DAIRY_ORDER_PLACED")
 ```
 
 #### POST /admin/order-beverages - HTML Form → SOAP Client → Kafka Delivery Topic
 ```
 AdminReceiver.orderBeverages()
-└─ BeveragesAPI.order()
-   └─ BeveragesHandler.order()
-      ├─ AuditLogSPI.log("BEVERAGES_ORDER_RECEIVED")
-      ├─ BeverageSupplierService (outbound-webservice)
-      │  └─ SOAP → BeverageSupplierStub
-      │     └─ Kafka: beverages-deliveries-out
-      │        └─ Topic: beverages-deliveries
-      │           └─ BeveragesDeliveryReceiver
-      │              └─ InventoryHandler.update()
-      │                 └─ InventoryService (PostgreSQL)
-      └─ AuditLogSPI.log("BEVERAGES_ORDER_PLACED")
+└─ BeveragesHandler.order()
+   ├─ AuditLogSPI.log("BEVERAGES_ORDER_RECEIVED")
+   ├─ BeverageSupplierService (outbound-webservice)
+   │  └─ SOAP → BeverageSupplierStub
+   │     └─ Kafka: beverages-deliveries-out
+   │        └─ Topic: beverages-deliveries
+   │           └─ BeveragesDeliveryReceiver
+   │              └─ InventoryHandler.update()
+   │                 └─ InventoryService (PostgreSQL)
+   └─ AuditLogSPI.log("BEVERAGES_ORDER_PLACED")
 ```
 
 #### POST /admin/order-meat - HTML Form → SOAP Client → Kafka Delivery Topic
 ```
 AdminReceiver.orderMeat()
-└─ MeatAPI.order()
-   └─ MeatHandler.order()
-      ├─ AuditLogSPI.log("MEAT_ORDER_RECEIVED")
-      ├─ MeatSupplierService (outbound-webservice)
-      │  └─ SOAP → MeatSupplierStub
-      │     └─ Kafka: meat-deliveries-out
-      │        └─ Topic: meat-deliveries
-      │           └─ MeatDeliveryReceiver
-      │              └─ InventoryHandler.update()
-      │                 └─ InventoryService (PostgreSQL)
-      └─ AuditLogSPI.log("MEAT_ORDER_PLACED")
+└─ MeatHandler.order()
+   ├─ AuditLogSPI.log("MEAT_ORDER_RECEIVED")
+   ├─ MeatSupplierService (outbound-webservice)
+   │  └─ SOAP → MeatSupplierStub
+   │     └─ Kafka: meat-deliveries-out
+   │        └─ Topic: meat-deliveries
+   │           └─ MeatDeliveryReceiver
+   │              └─ InventoryHandler.update()
+   │                 └─ InventoryService (PostgreSQL)
+   └─ AuditLogSPI.log("MEAT_ORDER_PLACED")
 ```
 
 #### POST /admin/order-bakery - HTML Form → SOAP Client → Kafka Delivery Topic
 ```
 AdminReceiver.orderBakery()
-└─ BakeryAPI.order()
-   └─ BakeryHandler.order()
-      ├─ AuditLogSPI.log("BAKERY_ORDER_RECEIVED")
-      ├─ BakerySupplierService (outbound-webservice)
-      │  └─ SOAP → BakerySupplierStub
-      │     └─ Kafka: bakery-deliveries-out
-      │        └─ Topic: bakery-deliveries
-      │           └─ BakeryDeliveryReceiver
-      │              └─ InventoryHandler.update()
-      │                 └─ InventoryService (PostgreSQL)
-      └─ AuditLogSPI.log("BAKERY_ORDER_PLACED")
+└─ BakeryHandler.order()
+   ├─ AuditLogSPI.log("BAKERY_ORDER_RECEIVED")
+   ├─ BakerySupplierService (outbound-webservice)
+   │  └─ SOAP → BakerySupplierStub
+   │     └─ Kafka: bakery-deliveries-out
+   │        └─ Topic: bakery-deliveries
+   │           └─ BakeryDeliveryReceiver
+   │              └─ InventoryHandler.update()
+   │                 └─ InventoryService (PostgreSQL)
+   └─ AuditLogSPI.log("BAKERY_ORDER_PLACED")
 ```
 
 #### POST /admin/order-nonfood - HTML Form → Kafka Order Topic → Kafka Delivery Topic
 ```
 AdminReceiver.orderNonFood()
-└─ NonFoodAPI.order()
-   └─ NonFoodHandler.order()
-      ├─ AuditLogSPI.log("NON_FOOD_ORDER_RECEIVED")
-      ├─ NonFoodSupplierService (outbound-kafka)
-      │  └─ Emitter → nonfood-orders-out channel
-      │     └─ Topic: nonfood-orders
-      │        └─ NonFoodSupplierStub (@Incoming("nonfood-orders"))
-      │           (external-outbound-kafka - reads orders from Kafka)
-      │           └─ Emitter → nonfood-deliveries-out channel
-      │              └─ Topic: nonfood-deliveries
-      │                 └─ NonFoodDeliveryReceiver
-      │                    └─ InventoryHandler.update()
-      │                       └─ InventoryService (PostgreSQL)
-      └─ AuditLogSPI.log("NON_FOOD_ORDER_PLACED")
+└─ NonFoodHandler.order()
+   ├─ AuditLogSPI.log("NON_FOOD_ORDER_RECEIVED")
+   ├─ NonFoodSupplierService (outbound-kafka)
+   │  └─ Emitter → nonfood-orders-out channel
+   │     └─ Topic: nonfood-orders
+   │        └─ NonFoodSupplierStub (@Incoming("nonfood-orders"))
+   │           (external-outbound-kafka - reads orders from Kafka)
+   │           └─ Emitter → nonfood-deliveries-out channel
+   │              └─ Topic: nonfood-deliveries
+   │                 └─ NonFoodDeliveryReceiver
+   │                    └─ InventoryHandler.update()
+   │                       └─ InventoryService (PostgreSQL)
+   └─ AuditLogSPI.log("NON_FOOD_ORDER_PLACED")
 ```
 
 ### ShopReceiver (/shop) - HTML Forms → PostgreSQL/MongoDB
@@ -185,39 +174,36 @@ AdminReceiver.orderNonFood()
 #### GET /shop - Shop Catalog
 ```
 ShopReceiver.list()
-└─ ProductsAPI.listAll()
-   └─ ProductsHandler.listAll()
-      └─ InventoryRepositorySPI.findAll()
-         └─ InventoryService (outbound-postgres)
-            └─ PostgreSQL
+└─ ProductsHandler.listAll()
+   └─ InventoryRepositorySPI.findAll()
+      └─ InventoryService (outbound-postgres)
+         └─ PostgreSQL
    └─ Filter in-stock products (availableAmount > 0)
 ```
 
 #### GET /shop/inventory-fragment - Inventory Fragment
 ```
 ShopReceiver.inventoryFragment()
-└─ ProductsAPI.listAll()
-   └─ ProductsHandler.listAll()
-      └─ InventoryRepositorySPI.findAll()
-         └─ InventoryService (outbound-postgres)
-            └─ PostgreSQL
+└─ ProductsHandler.listAll()
+   └─ InventoryRepositorySPI.findAll()
+      └─ InventoryService (outbound-postgres)
+         └─ PostgreSQL
 ```
 
 #### POST /shop/checkout - Customer Purchase
 ```
 ShopReceiver.checkout(productNames[], quantities[])
-└─ PurchaseAPI.checkout(purchase)
-   └─ PurchaseHandler.checkout()
-      ├─ AuditLogSPI.log("PURCHASE_RECEIVED")
-      │  └─ AuditLogService (outbound-mongodb)
-      │     └─ MongoDB
-      ├─ InventoryRepositorySPI.deductAll(quantities, REJECT)  (one transaction, all-or-nothing)
-      │  └─ InventoryService (outbound-postgres)
-      │     └─ PostgreSQL (SELECT ... FOR UPDATE per product, sorted by name)
-      └─ Completed: AuditLogSPI.log("INVENTORY_DEDUCTED") → 303 to /shop
-         Rejected:  AuditLogSPI.log("PURCHASE_REJECTED") → 409 with shortage messages, nothing deducted
-            └─ AuditLogService (outbound-mongodb)
-               └─ MongoDB
+└─ PurchaseHandler.checkout(purchase)
+   ├─ AuditLogSPI.log("PURCHASE_RECEIVED")
+   │  └─ AuditLogService (outbound-mongodb)
+   │     └─ MongoDB
+   ├─ InventoryRepositorySPI.deductAll(quantities, REJECT)  (one transaction, all-or-nothing)
+   │  └─ InventoryService (outbound-postgres)
+   │     └─ PostgreSQL (SELECT ... FOR UPDATE per product, sorted by name)
+   └─ Completed: AuditLogSPI.log("INVENTORY_DEDUCTED") → 303 to /shop
+      Rejected:  AuditLogSPI.log("PURCHASE_REJECTED") → 409 with shortage messages, nothing deducted
+         └─ AuditLogService (outbound-mongodb)
+            └─ MongoDB
 ```
 
 ### ProductApiReceiver (/api/products) - JSON API → REST/SOAP/Kafka → Kafka Delivery Topics
@@ -225,11 +211,10 @@ ShopReceiver.checkout(productNames[], quantities[])
 #### GET /api/products - Product List (JSON)
 ```
 ProductApiReceiver.list()
-└─ ProductsAPI.listAll()
-   └─ ProductsHandler.listAll()
-      └─ InventoryRepositorySPI.findAll()
-         └─ InventoryService (outbound-postgres)
-            └─ PostgreSQL
+└─ ProductsHandler.listAll()
+   └─ InventoryRepositorySPI.findAll()
+      └─ InventoryService (outbound-postgres)
+         └─ PostgreSQL
 ```
 
 #### POST /api/products/order-* (Fruits, Vegetables, Dairy, Beverages, Meat, Bakery, NonFood)
@@ -244,32 +229,30 @@ Same Kafka cycle flows as admin endpoints above. The order flows through the sam
 Example (REST order flow):
 ```
 ProductApiReceiver.orderFruits(request)
-└─ FruitsAPI.order()
-   └─ FruitsHandler.order()
-      ├─ AuditLogSPI.log("FRUITS_ORDER_RECEIVED")
-      ├─ FruitSupplierService (outbound-httpclient)
-      │  └─ REST Stub
-      │     └─ Kafka: fruit-deliveries topic
-      │        └─ FruitDeliveryReceiver
-      │           └─ Inventory updated (PostgreSQL)
-      └─ AuditLogSPI.log("FRUITS_ORDER_PLACED")
+└─ FruitsHandler.order()
+   ├─ AuditLogSPI.log("FRUITS_ORDER_RECEIVED")
+   ├─ FruitSupplierService (outbound-httpclient)
+   │  └─ REST Stub
+   │     └─ Kafka: fruit-deliveries topic
+   │        └─ FruitDeliveryReceiver
+   │           └─ Inventory updated (PostgreSQL)
+   └─ AuditLogSPI.log("FRUITS_ORDER_PLACED")
 ```
 
 #### POST /api/products/purchase - Purchase Request (JSON)
 ```
 ProductApiReceiver.purchase(request)
-└─ PurchaseAPI.checkout(purchase)
-   └─ PurchaseHandler.checkout()
-      ├─ AuditLogSPI.log("PURCHASE_RECEIVED")
-      │  └─ AuditLogService (outbound-mongodb)
-      │     └─ MongoDB
-      ├─ InventoryRepositorySPI.deductAll(quantities, REJECT)  (one transaction, all-or-nothing)
-      │  └─ InventoryService (outbound-postgres)
-      │     └─ PostgreSQL (SELECT ... FOR UPDATE per product, sorted by name)
-      └─ Completed: AuditLogSPI.log("INVENTORY_DEDUCTED") → 204
-         Rejected:  AuditLogSPI.log("PURCHASE_REJECTED") → 409 with shortage messages, nothing deducted
-            └─ AuditLogService (outbound-mongodb)
-               └─ MongoDB
+└─ PurchaseHandler.checkout(purchase)
+   ├─ AuditLogSPI.log("PURCHASE_RECEIVED")
+   │  └─ AuditLogService (outbound-mongodb)
+   │     └─ MongoDB
+   ├─ InventoryRepositorySPI.deductAll(quantities, REJECT)  (one transaction, all-or-nothing)
+   │  └─ InventoryService (outbound-postgres)
+   │     └─ PostgreSQL (SELECT ... FOR UPDATE per product, sorted by name)
+   └─ Completed: AuditLogSPI.log("INVENTORY_DEDUCTED") → 204
+      Rejected:  AuditLogSPI.log("PURCHASE_REJECTED") → 409 with shortage messages, nothing deducted
+         └─ AuditLogService (outbound-mongodb)
+            └─ MongoDB
 ```
 
 ## Note: Kafka Delivery Receivers

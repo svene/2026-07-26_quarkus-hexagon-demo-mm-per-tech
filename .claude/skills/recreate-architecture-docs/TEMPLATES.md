@@ -8,16 +8,15 @@ Sections: an "Original vs. Indirect Flows" remark (only primary, externally-trig
 
 ```
 Receiver.method()
-└─ API.method()
-   └─ Handler.method()
-      ├─ SPI.method()
-      │  └─ Service
-      │     └─ Database/External
-      └─ Another SPI
-         └─ Another Service
+└─ Handler.method()
+   ├─ SPI.method()
+   │  └─ Service
+   │     └─ Database/External
+   └─ Another SPI
+      └─ Another Service
 ```
 
-Extract from: `@Path`/`@GET`/`@POST` annotations and `@Inject` fields on each `*Receiver.java` (in a `feature.<name>` or `cross` package); the Handler each injected API resolves to; the SPIs each Handler injects; audit-log event strings (`auditLog.log("...")` calls) - reproduce them verbatim, they're part of the documented flow.
+Extract from: `@Path`/`@GET`/`@POST` annotations and `@Inject` fields on each `*Receiver.java` (in a `feature.<name>` or `cross` package); the Handlers each Receiver injects; the SPIs each Handler injects; audit-log event strings (`auditLog.log("...")` calls) - reproduce them verbatim, they're part of the documented flow.
 
 ## architecture-flow-kafka-reference.md
 

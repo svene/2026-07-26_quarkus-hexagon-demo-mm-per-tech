@@ -14,7 +14,7 @@ import java.util.Optional;
 /**
  * Asserts the "Triptych" architecture (see concepts.md): a hexagonal core sliced by <b>feature</b> (one
  * restricted package per commodity, e.g. {@code feature.fruit}) and <b>cross</b> (cross-cutting concerns
- * reachable from every feature, e.g. {@code cross.inventory}), with API/SPI/Handler/Receiver/Service
+ * reachable from every feature, e.g. {@code cross.inventory}), with SPI/Handler/Receiver/Service
  * naming determining where a class must live. Mirrors the usage style of ArchUnit's own
  * {@link com.tngtech.archunit.library.Architectures#onionArchitecture()}.
  * <pre>
@@ -24,11 +24,11 @@ import java.util.Optional;
  * <ol>
  *   <li>No two feature slices depend on each other - cross-cutting classes are exempt by construction,
  *       since they never match the feature slice pattern in the first place.</li>
- *   <li>{@code *API}/{@code *SPI} are public interfaces, and every {@code *API}/{@code *SPI}/
- *       {@code *Handler}/{@code *Receiver}/{@code *Service} class resides under a feature or cross
- *       package - nothing is left outside the scheme.</li>
+ *   <li>{@code *SPI}s are public interfaces, and every {@code *SPI}/{@code *Handler}/{@code *Receiver}/
+ *       {@code *Service} class resides under a feature or cross package - nothing is left outside the
+ *       scheme.</li>
  * </ol>
- * The root package, the feature/cross segment names, and the five naming suffixes all come from a
+ * The root package, the feature/cross segment names, and the four naming suffixes all come from a
  * {@link TriptychArchitectureConfig}, defaulting to this project's own convention via
  * {@link TriptychArchitectureConfig#defaultsFor(String)}; pass a customized config to
  * {@link #triptychArchitecture(TriptychArchitectureConfig)} for a non-default shape.
@@ -68,11 +68,9 @@ public final class TriptychArchitecture implements ArchRule {
 
 	private List<ArchRule> rules() {
 		List<ArchRule> rules = List.of(
-			classes().that().haveNameMatching(".*" + config.apiSuffix()).should().beInterfaces(),
-			classes().that().haveNameMatching(".*" + config.apiSuffix()).should().bePublic(),
 			classes().that().haveNameMatching(".*" + config.spiSuffix()).should().beInterfaces(),
 			classes().that().haveNameMatching(".*" + config.spiSuffix()).should().bePublic(),
-			classes().that().haveNameMatching(".*(" + config.apiSuffix() + "|" + config.spiSuffix() + "|"
+			classes().that().haveNameMatching(".*(" + config.spiSuffix() + "|"
 					+ config.handlerSuffix() + "|" + config.receiverSuffix() + "|" + config.serviceSuffix() + ")")
 				.should().resideInAnyPackage(featureBucketPackage(), crossBucketPackage()),
 			slices().matching(featureSlicePackage()).should().notDependOnEachOther()
@@ -114,8 +112,8 @@ public final class TriptychArchitecture implements ArchRule {
 	public String getDescription() {
 		return config.overriddenDescription().orElseGet(() -> "Triptych architecture rooted at '" + config.rootPackage() + "': "
 			+ "no two '" + config.featureSegment() + ".*' slices depend on each other; "
-			+ "'*" + config.apiSuffix() + "'/'*" + config.spiSuffix() + "' are public interfaces; "
-			+ "every '*" + config.apiSuffix() + "|*" + config.spiSuffix() + "|*" + config.handlerSuffix()
+			+ "'*" + config.spiSuffix() + "' are public interfaces; "
+			+ "every '*" + config.spiSuffix() + "|*" + config.handlerSuffix()
 			+ "|*" + config.receiverSuffix() + "|*" + config.serviceSuffix() + "' class "
 			+ "resides under '" + config.featureSegment() + "' or '" + config.crossSegment() + "'");
 	}

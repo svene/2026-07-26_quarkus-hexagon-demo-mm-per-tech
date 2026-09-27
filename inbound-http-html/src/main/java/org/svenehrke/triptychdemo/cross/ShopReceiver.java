@@ -1,7 +1,7 @@
 package org.svenehrke.triptychdemo.cross;
 
-import org.svenehrke.triptychdemo.cross.products.ProductsAPI;
-import org.svenehrke.triptychdemo.cross.purchase.PurchaseAPI;
+import org.svenehrke.triptychdemo.cross.products.ProductsHandler;
+import org.svenehrke.triptychdemo.cross.purchase.PurchaseHandler;
 
 import org.svenehrke.triptychdemo.cross.products.Product;
 import org.svenehrke.triptychdemo.cross.purchase.ParsedPurchase;
@@ -28,9 +28,9 @@ import java.util.List;
 public class ShopReceiver {
 
     @Inject
-    ProductsAPI productsAPI;
+    ProductsHandler productsHandler;
     @Inject
-    PurchaseAPI purchaseAPI;
+    PurchaseHandler purchaseHandler;
 
     @CheckedTemplate
     public static class Templates {
@@ -48,7 +48,7 @@ public class ShopReceiver {
     @Path("/inventory-fragment")
     @Produces(MediaType.TEXT_HTML)
     public TemplateInstance inventoryFragment() {
-        return Templates.inventoryFragment(productsAPI.listAll());
+        return Templates.inventoryFragment(productsHandler.listAll());
     }
 
     @POST
@@ -86,7 +86,7 @@ public class ShopReceiver {
             case Purchase purchase -> {
                 if (!errors.isEmpty()) yield badRequest(errors);
                 if (purchase.items().isEmpty()) yield Response.seeOther(URI.create("/shop")).build();
-                yield switch (purchaseAPI.checkout(purchase)) {
+                yield switch (purchaseHandler.checkout(purchase)) {
                     case PurchaseOutcome.Rejected rejected -> shopPage(Response.Status.CONFLICT, rejected.messages());
                     case PurchaseOutcome.Completed completed -> Response.seeOther(URI.create("/shop")).build();
                 };
@@ -106,7 +106,7 @@ public class ShopReceiver {
     }
 
     private List<Product> inStock() {
-        return productsAPI.listAll().stream()
+        return productsHandler.listAll().stream()
             .filter(p -> p.availableAmount() > 0)
             .toList();
     }

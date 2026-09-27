@@ -1,28 +1,28 @@
 package org.svenehrke.triptychdemo.cross;
 
-import org.svenehrke.triptychdemo.cross.auditlog.AuditLogAPI;
-import org.svenehrke.triptychdemo.cross.products.ProductsAPI;
-import org.svenehrke.triptychdemo.feature.bakery.BakeryAPI;
+import org.svenehrke.triptychdemo.cross.auditlog.AuditLogHandler;
+import org.svenehrke.triptychdemo.cross.products.ProductsHandler;
+import org.svenehrke.triptychdemo.feature.bakery.BakeryHandler;
 import org.svenehrke.triptychdemo.feature.bakery.BakeryOrder;
 import org.svenehrke.triptychdemo.feature.bakery.ParsedBakeryOrder;
 import org.svenehrke.triptychdemo.feature.beverage.BeverageOrder;
 import org.svenehrke.triptychdemo.feature.beverage.ParsedBeverageOrder;
-import org.svenehrke.triptychdemo.feature.beverage.BeveragesAPI;
-import org.svenehrke.triptychdemo.feature.dairy.DairyAPI;
+import org.svenehrke.triptychdemo.feature.beverage.BeveragesHandler;
+import org.svenehrke.triptychdemo.feature.dairy.DairyHandler;
 import org.svenehrke.triptychdemo.feature.dairy.DairyOrder;
 import org.svenehrke.triptychdemo.feature.dairy.ParsedDairyOrder;
 import org.svenehrke.triptychdemo.feature.fruit.FruitOrder;
 import org.svenehrke.triptychdemo.feature.fruit.ParsedFruitOrder;
-import org.svenehrke.triptychdemo.feature.fruit.FruitsAPI;
-import org.svenehrke.triptychdemo.feature.meat.MeatAPI;
+import org.svenehrke.triptychdemo.feature.fruit.FruitsHandler;
+import org.svenehrke.triptychdemo.feature.meat.MeatHandler;
 import org.svenehrke.triptychdemo.feature.meat.MeatOrder;
 import org.svenehrke.triptychdemo.feature.meat.ParsedMeatOrder;
-import org.svenehrke.triptychdemo.feature.nonfood.NonFoodAPI;
+import org.svenehrke.triptychdemo.feature.nonfood.NonFoodHandler;
 import org.svenehrke.triptychdemo.feature.nonfood.NonFoodOrder;
 import org.svenehrke.triptychdemo.feature.nonfood.ParsedNonFoodOrder;
 import org.svenehrke.triptychdemo.feature.vegetable.VegetableOrder;
 import org.svenehrke.triptychdemo.feature.vegetable.ParsedVegetableOrder;
-import org.svenehrke.triptychdemo.feature.vegetable.VegetablesAPI;
+import org.svenehrke.triptychdemo.feature.vegetable.VegetablesHandler;
 
 import org.svenehrke.triptychdemo.cross.auditlog.AuditLogEntry;
 import org.svenehrke.triptychdemo.cross.products.Product;
@@ -49,23 +49,23 @@ public class AdminReceiver {
     private static final int AUDIT_LOG_LIMIT = 100;
 
     @Inject
-    ProductsAPI productsAPI;
+    ProductsHandler productsHandler;
     @Inject
-    FruitsAPI fruitsAPI;
+    FruitsHandler fruitsHandler;
     @Inject
-    VegetablesAPI vegetablesAPI;
+    VegetablesHandler vegetablesHandler;
     @Inject
-    DairyAPI dairyAPI;
+    DairyHandler dairyHandler;
     @Inject
-    BeveragesAPI beveragesAPI;
+    BeveragesHandler beveragesHandler;
     @Inject
-    MeatAPI meatAPI;
+    MeatHandler meatHandler;
     @Inject
-    BakeryAPI bakeryAPI;
+    BakeryHandler bakeryHandler;
     @Inject
-    NonFoodAPI nonFoodAPI;
+    NonFoodHandler nonFoodHandler;
     @Inject
-    AuditLogAPI auditLogAPI;
+    AuditLogHandler auditLogHandler;
 
     @CheckedTemplate
     public static class Templates {
@@ -78,21 +78,21 @@ public class AdminReceiver {
     @GET
     @Produces(MediaType.TEXT_HTML)
     public TemplateInstance list() {
-        return Templates.admin(productsAPI.listAll(), auditLogAPI.recent(AUDIT_LOG_LIMIT));
+        return Templates.admin(productsHandler.listAll(), auditLogHandler.recent(AUDIT_LOG_LIMIT));
     }
 
     @GET
     @Path("/inventory-fragment")
     @Produces(MediaType.TEXT_HTML)
     public TemplateInstance inventoryFragment() {
-        return Templates.inventoryFragment(productsAPI.listAll());
+        return Templates.inventoryFragment(productsHandler.listAll());
     }
 
     @GET
     @Path("/audit-fragment")
     @Produces(MediaType.TEXT_HTML)
     public TemplateInstance auditFragment() {
-        return Templates.auditFragment(auditLogAPI.recent(AUDIT_LOG_LIMIT));
+        return Templates.auditFragment(auditLogHandler.recent(AUDIT_LOG_LIMIT));
     }
 
     @POST
@@ -104,7 +104,7 @@ public class AdminReceiver {
         return switch (FruitOrder.parse(productName, quantity)) {
             case ParsedFruitOrder.Invalid invalid -> badRequest(invalid.violations());
             case FruitOrder fruitOrder -> {
-                fruitsAPI.order(fruitOrder);
+                fruitsHandler.order(fruitOrder);
                 yield orderResponse(hxRequest);
             }
         };
@@ -119,7 +119,7 @@ public class AdminReceiver {
         return switch (VegetableOrder.parse(productName, quantity)) {
             case ParsedVegetableOrder.Invalid invalid -> badRequest(invalid.violations());
             case VegetableOrder vegetableOrder -> {
-                vegetablesAPI.order(vegetableOrder);
+                vegetablesHandler.order(vegetableOrder);
                 yield orderResponse(hxRequest);
             }
         };
@@ -134,7 +134,7 @@ public class AdminReceiver {
         return switch (DairyOrder.parse(productName, quantity)) {
             case ParsedDairyOrder.Invalid invalid -> badRequest(invalid.violations());
             case DairyOrder dairyOrder -> {
-                dairyAPI.order(dairyOrder);
+                dairyHandler.order(dairyOrder);
                 yield orderResponse(hxRequest);
             }
         };
@@ -149,7 +149,7 @@ public class AdminReceiver {
         return switch (BeverageOrder.parse(productName, quantity)) {
             case ParsedBeverageOrder.Invalid invalid -> badRequest(invalid.violations());
             case BeverageOrder beverageOrder -> {
-                beveragesAPI.order(beverageOrder);
+                beveragesHandler.order(beverageOrder);
                 yield orderResponse(hxRequest);
             }
         };
@@ -164,7 +164,7 @@ public class AdminReceiver {
         return switch (MeatOrder.parse(productName, quantity)) {
             case ParsedMeatOrder.Invalid invalid -> badRequest(invalid.violations());
             case MeatOrder meatOrder -> {
-                meatAPI.order(meatOrder);
+                meatHandler.order(meatOrder);
                 yield orderResponse(hxRequest);
             }
         };
@@ -179,7 +179,7 @@ public class AdminReceiver {
         return switch (BakeryOrder.parse(productName, quantity)) {
             case ParsedBakeryOrder.Invalid invalid -> badRequest(invalid.violations());
             case BakeryOrder bakeryOrder -> {
-                bakeryAPI.order(bakeryOrder);
+                bakeryHandler.order(bakeryOrder);
                 yield orderResponse(hxRequest);
             }
         };
@@ -194,7 +194,7 @@ public class AdminReceiver {
         return switch (NonFoodOrder.parse(productName, quantity)) {
             case ParsedNonFoodOrder.Invalid invalid -> badRequest(invalid.violations());
             case NonFoodOrder nonFoodOrder -> {
-                nonFoodAPI.order(nonFoodOrder);
+                nonFoodHandler.order(nonFoodOrder);
                 yield orderResponse(hxRequest);
             }
         };

@@ -1,7 +1,7 @@
 package org.svenehrke.triptychdemo.feature.bakery;
 
-import org.svenehrke.triptychdemo.cross.auditlog.AuditLogAPI;
-import org.svenehrke.triptychdemo.cross.inventory.InventoryAPI;
+import org.svenehrke.triptychdemo.cross.auditlog.AuditLogHandler;
+import org.svenehrke.triptychdemo.cross.inventory.InventoryHandler;
 
 import io.smallrye.reactive.messaging.annotations.Blocking;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -18,9 +18,9 @@ import java.util.stream.Collectors;
 public class BakeryDeliveryReceiver {
 
     @Inject
-    InventoryAPI inventoryAPI;
+    InventoryHandler inventoryHandler;
     @Inject
-    AuditLogAPI auditLog;
+    AuditLogHandler auditLog;
 
     @Incoming("bakery-deliveries")
     @Blocking
@@ -39,7 +39,7 @@ public class BakeryDeliveryReceiver {
             }
             case BakeryDelivery bakeryDelivery: {
                 auditLog.log("BakeryDeliveryReceiver: BAKERY_DELIVERY_RECEIVED", bakeryDelivery.productName() + " qty=" + bakeryDelivery.quantity());
-                inventoryAPI.updateBakeryAmount(bakeryDelivery);
+                inventoryHandler.updateBakeryAmount(bakeryDelivery);
                 auditLog.log("BakeryDeliveryReceiver: BAKERY_INVENTORY_UPDATED", bakeryDelivery.productName() + " +" + bakeryDelivery.quantity());
                 break;
             }

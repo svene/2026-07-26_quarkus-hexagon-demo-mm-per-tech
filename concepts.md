@@ -30,8 +30,9 @@ they have a variety of technologies in use.
 
 ## Other remarks
 
-This project already uses the Triptych naming conventions (API,SPI,Receiver,Service) as opposed to the
-ports and adapters naming conventions.
+This project uses the Triptych naming conventions (API,SPI,Receiver,Service) as opposed to the
+ports and adapters naming conventions - with one deliberate deviation: there are no `*API` interfaces;
+receivers call the `*Handler` classes directly (see "Why inbound ports have no interface" below).
 
 ## Goal
 
@@ -49,13 +50,14 @@ architecture is the thing worth studying, not the business rules.
 The core of the application (domain model + use cases) lives in isolation. It
 defines two kinds of contracts:
 
-- **Inbound ports (API)** — interfaces that *callers* invoke to drive the
-  application (REST endpoints, Kafka consumers, schedulers).
+- **Inbound ports** — the use cases that *callers* invoke to drive the
+  application (REST endpoints, Kafka consumers, schedulers). Here: the public
+  methods of a `*Handler` class, not a separate interface.
 - **Outbound ports (SPI)** — interfaces that the application *calls* to reach
   outside infrastructure (databases, messaging brokers, remote APIs).
 
 Adapters sit at the boundary. An inbound adapter translates an external event
-(HTTP request, Kafka message, timer tick) into a call on an API interface. An
+(HTTP request, Kafka message, timer tick) into a call on a Handler. An
 outbound adapter implements an SPI interface using a concrete technology
 (Hibernate, MongoDB, MicroProfile REST Client, CXF).
 
@@ -68,11 +70,28 @@ not about each other.
 
 | Layer | Java naming | Example |
 |---|---|---|
-| Inbound port | `*API` | `FruitsAPI`, `PurchaseAPI` |
+| Inbound port + use-case implementation | `*Handler` | `FruitsHandler`, `PurchaseHandler` |
 | Outbound port | `*SPI` | `FruitSupplierSPI`, `InventoryRepositorySPI` |
-| Use-case implementation | `*Handler` | `FruitsHandler`, `PurchaseHandler` |
 | Inbound adapter | `*Receiver` | `FruitDeliveryReceiver`, `ProductApiReceiver` |
 | Outbound adapter | `*Service` | `FruitSupplierService`, `InventoryService` |
+
+### Why inbound ports have no interface
+
+Outbound ports (`*SPI`) are essential: they invert the dependency, so `core` can
+call Postgres, Kafka or MongoDB without depending on any of them. Inbound ports
+invert nothing - a receiver depends on `core` whether it injects an interface or
+the Handler class itself. Every former `*API` interface had exactly one
+implementation, and tests always drive a receiver against the real Handler (and
+Quarkus' `@InjectMock`/`@InjectSpy` work on classes anyway), so the interfaces
+were ceremony without variation. Receivers therefore inject Handlers directly.
+
+The convention that replaces them: **a Handler's public methods are exactly its
+inbound port** - anything else is private.
+
+Receivers must not bypass a Handler by injecting an SPI. The module graph cannot
+prevent this (SPIs live in `core`, which every inbound module depends on - only the
+`*Service` implementations are out of reach), so `ArchitectureTest`
+(`inbound_adapters_do_not_use_spis`) enforces it.
 
 ---
 
@@ -114,8 +133,8 @@ beyond `@ApplicationScoped` and `@Inject`. This is deliberate: the domain logic
 must not depend on infrastructure choices, and must be testable without a
 container.
 
-All use-case interfaces (API) and all infrastructure contracts (SPI) are declared
-here. Adapter modules implement SPIs; inbound adapters call APIs.
+All use cases (Handlers) and all infrastructure contracts (SPI) are declared
+here. Outbound adapter modules implement SPIs; inbound adapters call Handlers.
 
 ---
 
@@ -177,7 +196,7 @@ outbound call is synchronous (REST/SOAP) or asynchronous (Kafka). The
 ## Audit log and the single-responsibility rule
 
 Only `core` writes to the audit log. Inbound adapters (Kafka receivers, REST
-endpoints) never call `AuditLogSPI` directly — they call an API method, and the
+endpoints) never call `AuditLogSPI` directly — they call a Handler method, and the
 handler logs inside its own boundary. This ensures the audit trail reflects
 **what the application decided to do**, not the raw events it received.
 
@@ -188,7 +207,7 @@ handler logs inside its own boundary. This ensures the audit trail reflects
 The customer purchase flow demonstrates the full event-driven path:
 
 ```
-CashpointStub (scheduler) → cashpoint-purchases (Kafka) → CashpointReceiver → PurchaseAPI
+CashpointStub (scheduler) → cashpoint-purchases (Kafka) → CashpointReceiver → PurchaseHandler
 ```
 
 `CashpointStub` lives in `external-inbound-kafka`. Like the supplier stubs it is not part of
@@ -197,21 +216,21 @@ customer pays at checkout. It calls `GET /api/products` via a MicroProfile REST 
 scheduler fires to discover which products are in stock, then picks 2–4 of them at random.
 
 `CashpointReceiver` in `inbound-kafka` is the actual inbound adapter: it receives the Kafka
-message and calls `PurchaseAPI`, exactly as a Kafka delivery receiver calls `InventoryAPI`.
+message and calls `PurchaseHandler`, exactly as a Kafka delivery receiver calls `InventoryHandler`.
 
-`PurchaseAPI` is also reachable directly via the REST endpoint (`/api/products/purchase`), which
+`PurchaseHandler` is also reachable directly via the REST endpoint (`/api/products/purchase`), which
 bypasses Kafka entirely and is what tests and tooling use to drive a purchase synchronously.
 
 The `/shop` HTML page reaches the same port for a different reason: it is not a simulation at all,
 but the actual online-shopping channel — a customer who is not physically in the store, buying
-through a browser instead of a till. See the next section for how `PurchaseAPI` serves both of these
+through a browser instead of a till. See the next section for how `PurchaseHandler` serves both of these
 callers, plus the physical cashpoint, without knowing which one it is.
 
 ---
 
 ## One inbound port, multiple adapters
 
-`PurchaseAPI` is a good example of how a single inbound port can be driven by more than one adapter
+`PurchaseHandler` is a good example of how a single inbound port can be driven by more than one adapter
 without any change to the core:
 
 | Adapter | Technology | Use case |
@@ -220,10 +239,11 @@ without any change to the core:
 | `ShopReceiver` | HTML form (`POST /shop/checkout`) | Online shop: a customer submits a basket through the browser |
 | `ProductApiReceiver` | REST (`POST /api/products/purchase`) | Any script or external frontend submitting a purchase directly |
 
-All three adapters translate a different external event into the same `PurchaseAPI.purchase()` call.
+All three adapters translate a different external event into a call on the same `PurchaseHandler`
+(`recordStoreSale()` for the cashpoint, `checkout()` for the two online channels).
 The core is unaware of how the purchase arrived. Adding a fourth channel — say a mobile push
 notification or a voice assistant — would mean adding one more adapter class with zero changes to
-`PurchaseHandler` or `PurchaseAPI`.
+`PurchaseHandler`.
 
 This is the central promise of hexagonal architecture: the application core defines *what* can happen;
 adapters decide *how* it is triggered.
@@ -272,15 +292,15 @@ There are two HTML pages, each aimed at a different kind of user, sharing the
 same core ports:
 
 - **`/admin`** — supermarket staff: inventory view, supplier ordering forms
-  grouped by technology, and an audit log view backed by `AuditLogAPI`.
-- **`/shop`** — customers: a cart-style purchase form over `PurchaseAPI`, plus
+  grouped by technology, and an audit log view backed by `AuditLogHandler`.
+- **`/shop`** — customers: a cart-style purchase form over `PurchaseHandler`, plus
   a dev-only "Randomize" button (pure client-side JavaScript, no server round
   trip) that fills in random quantities so testers don't have to type values
   by hand.
 
 Both pages are thin `Templates`-based Qute receivers in `inbound-http-html`; neither
 contains business logic, they only translate form submissions into calls on
-core API interfaces.
+core Handlers.
 
 The JSON API at `/api/products` serves a different purpose: it is aimed at
 tests and development tooling. During development of backend functionality —

@@ -5,14 +5,13 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 @ApplicationScoped
-public class MeatHandler implements MeatAPI {
+public class MeatHandler {
 
     @Inject
     MeatSupplierSPI meatSupplier;
     @Inject
     AuditLogSPI auditLog;
 
-    @Override
     public void order(MeatOrder meatOrder) {
         auditLog.log("MeatHandler: MEAT_ORDER_RECEIVED", meatOrder.productName() + " qty=" + meatOrder.quantity());
         meatSupplier.placeOrder(meatOrder);

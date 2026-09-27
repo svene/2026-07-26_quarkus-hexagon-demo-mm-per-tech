@@ -5,14 +5,13 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 @ApplicationScoped
-public class FruitsHandler implements FruitsAPI {
+public class FruitsHandler {
 
     @Inject
     FruitSupplierSPI fruitSupplier;
     @Inject
     AuditLogSPI auditLog;
 
-    @Override
     public void order(FruitOrder fruitOrder) {
         auditLog.log("FruitsHandler: FRUITS_ORDER_RECEIVED", fruitOrder.productName() + " qty=" + fruitOrder.quantity());
         fruitSupplier.placeOrder(fruitOrder);

@@ -1,9 +1,9 @@
 package org.svenehrke.triptychdemo.cross.cashpoint;
 
-import org.svenehrke.triptychdemo.cross.auditlog.AuditLogAPI;
+import org.svenehrke.triptychdemo.cross.auditlog.AuditLogHandler;
 import org.svenehrke.triptychdemo.cross.purchase.ParsedPurchase;
 import org.svenehrke.triptychdemo.cross.purchase.Purchase;
-import org.svenehrke.triptychdemo.cross.purchase.PurchaseAPI;
+import org.svenehrke.triptychdemo.cross.purchase.PurchaseHandler;
 
 import org.svenehrke.triptychdemo.cross.purchase.PurchaseItem;
 import io.smallrye.reactive.messaging.annotations.Blocking;
@@ -20,9 +20,9 @@ import java.util.stream.Collectors;
 public class CashpointReceiver {
 
     @Inject
-    PurchaseAPI purchaseAPI;
+    PurchaseHandler purchaseHandler;
     @Inject
-    AuditLogAPI auditLog;
+    AuditLogHandler auditLog;
 
     @Incoming("cashpoint-purchases")
     @Blocking
@@ -42,7 +42,7 @@ public class CashpointReceiver {
                 break;
             }
             case Purchase purchase: {
-                purchaseAPI.recordStoreSale(purchase);
+                purchaseHandler.recordStoreSale(purchase);
                 break;
             }
         }

@@ -118,6 +118,23 @@ class ArchitectureTest {
 			.check(importedClasses);
 	}
 
+	/**
+	 * Inbound adapters drive the domain through a {@code *Handler} only, never through an outbound port: a
+	 * receiver injecting e.g. {@code FruitSupplierSPI} would compile (SPIs live in core, which every inbound
+	 * module depends on) and CDI would hand it the outbound adapter directly, bypassing the use case. The
+	 * module graph already rules out referencing a {@code *Service} class, but not its SPI - hence this rule.
+	 * <p>
+	 * Module-based like {@link #inbound_adapters_construct_domain_values_only_via_parse()}, so helpers of a
+	 * receiver are covered too.
+	 */
+	@Test
+	void inbound_adapters_do_not_use_spis() {
+		noClasses().that(RESIDE_IN_INBOUND_MODULE)
+			.should().dependOnClassesThat().haveSimpleNameEndingWith("SPI")
+			.because("inbound adapters must go through a Handler, not bypass it via an outbound port")
+			.check(importedClasses);
+	}
+
 	private static boolean implementsParsedInterface(JavaClass javaClass) {
 		return javaClass.getAllRawInterfaces().stream()
 			.anyMatch(i -> i.getSimpleName().startsWith("Parsed"));

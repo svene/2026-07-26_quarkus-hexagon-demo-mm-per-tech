@@ -9,8 +9,8 @@ actual update workflow.
 
 **When adding a new commodity:**
 
-1. Create a new `feature.<name>` package in `core` with `<Name>API`, `<Name>SupplierSPI`, `<Name>Delivery`, `<Name>Handler` as standalone top-level types (no more `APIs.java`/`SPIs.java` containers to extend)
-2. Add the corresponding case to `InventoryAPI`/`InventoryHandler` in `cross.inventory` and to `ProductType` in `cross.products`
+1. Create a new `feature.<name>` package in `core` with `<Name>SupplierSPI`, `<Name>Delivery`, `<Name>Handler` as standalone top-level types (no more `APIs.java`/`SPIs.java` containers to extend)
+2. Add the corresponding case to `InventoryHandler` in `cross.inventory` and to `ProductType` in `cross.products`
 3. Create a `feature.<name>` package in the appropriate outbound module based on integration type:
    - REST: `outbound-httpclient/feature/<name>/<Name>SupplierService` + REST client
    - SOAP: `outbound-webservice/feature/<name>/<Name>SupplierService` + SOAP client
