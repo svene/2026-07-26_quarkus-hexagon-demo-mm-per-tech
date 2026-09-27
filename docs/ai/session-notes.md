@@ -3,9 +3,9 @@
 Session-to-session bookkeeping for the `docs/architecture/` doc set. See [README.md](README.md)
 for the actual maintenance process.
 
-**Last Updated**: 2026-09-14, commit `982b169` (split `docs/` into `docs/architecture/` (human-facing) and `docs/ai/` (Claude-facing maintenance instructions); moved `architecture-flow.md`, `architecture-flow-kafka-reference.md`, `architecture-module-participants.md`, and `flows/` under `architecture/`; extracted each file's maintenance/update-checklist content into `docs/ai/`)
+**Last Updated**: 2026-09-27, commit `e3d3c87` (baseline moved on request after the validation rollout, Kafka retry/fail-stop and purchase business rules; those commits updated `architecture-flow.md`, `validation.md`, `kafka-unprocessable-messages.md` and the purchase `flows/*.puml` alongside the code, but no full pass over every doc since `982b169` was done)
 
-**Diff baseline for the next update**: `git diff 982b169 HEAD -- . ':(exclude)docs'` to see what changed in code since the last content pass (the restructuring above moved doc files but changed no doc content, so this baseline is still valid), before deciding which doc section(s) need a surgical edit.
+**Diff baseline for the next update**: `git diff e3d3c87 HEAD -- . ':(exclude)docs'` to see what changed in code since the last content pass, before deciding which doc section(s) need a surgical edit. If a doc looks stale for something older, `git diff 982b169 e3d3c87 -- . ':(exclude)docs'` covers the period that was not fully re-checked.
 
 **By**: Claude (session analysis)
 
