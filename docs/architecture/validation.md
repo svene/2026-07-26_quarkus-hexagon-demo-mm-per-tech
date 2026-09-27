@@ -158,7 +158,9 @@ missing or `null` field is `"productName is required"` / `"quantity is required"
 A blank `productName` is not a structure error; the domain's `@NotBlank` reports it.
 `PurchaseRequest.structureErrors` additionally rejects a missing list (`["items is required"]`),
 `null` entries (`"items[1]: must not be null"`) and missing fields per item
-(`"items[0].productName is required"`, `"items[0].quantity is required"`), collected over all items. An explicit empty
+(`"items[0].productName is required"`, `"items[0].quantity is required"`), collected over all items.
+The per-item checks, `null` entries included, live in `PurchaseRequestItem.structureErrors(item, path)`;
+`PurchaseRequest` passes each item's path (`items[i]`) and concatenates the results. An explicit empty
 list `{"items": []}` is not an error — see "Multi-item input" below.
 
 Some input never reaches the resource method, because Jackson rejects it while deserializing. Two

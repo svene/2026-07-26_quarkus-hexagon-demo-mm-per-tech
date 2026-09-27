@@ -65,7 +65,7 @@ Complete inventory of all classes participating in the system flows, organized b
 - `PurchaseRequest` - Purchase request (List of PurchaseRequestItem)
 - `PurchaseRequestItem` - Purchase item (productName, quantity)
 - `RequestStructureErrorMessages` - shared structure-error messages
-- Each request record (except `PurchaseRequestItem`) has a static `structureErrors(request)`: structure checks only (missing body/field/entry, all errors collected); values are validated by the domain `parse()` in the receiver
+- Each request record has a static `structureErrors(request)`: structure checks only (missing body/field/entry, all errors collected); `PurchaseRequest` delegates each item (incl. `null` entries) to `PurchaseRequestItem.structureErrors(item, "items[i]")`, which prefixes its messages with that path; values are validated by the domain `parse()` in the receiver
 
 ### JSON input handling
 - `StrictJsonReader` - `@CustomDeserialization` reader without silent scalar coercions (global mapper untouched)
