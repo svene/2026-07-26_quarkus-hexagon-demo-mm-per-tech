@@ -1,5 +1,5 @@
 @startuml cashpoint_purchase_event
-!theme plain
+skinparam monochrome true
 skinparam sequenceMessageAlign center
 skinparam backgroundColor #ffffff
 

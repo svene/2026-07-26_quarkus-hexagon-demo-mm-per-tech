@@ -37,7 +37,7 @@ One file per unique flow (query flows, order flows per commodity/technology, pur
 
 ```puml
 @startuml flow_name
-!theme plain
+skinparam monochrome true
 skinparam sequenceMessageAlign center
 skinparam backgroundColor #ffffff
 

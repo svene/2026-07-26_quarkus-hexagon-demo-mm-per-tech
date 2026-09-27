@@ -1,5 +1,5 @@
 @startuml api_purchase
-!theme plain
+skinparam monochrome true
 skinparam sequenceMessageAlign center
 skinparam backgroundColor #ffffff
 

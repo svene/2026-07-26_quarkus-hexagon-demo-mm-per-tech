@@ -1,5 +1,5 @@
 @startuml admin_get_audit
-!theme plain
+skinparam monochrome true
 skinparam sequenceMessageAlign center
 skinparam backgroundColor #ffffff
 

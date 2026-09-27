@@ -20,6 +20,6 @@ disable-model-invocation: true
    - Every HTTP endpoint in the code has a matching flow tree in `docs/architecture/architecture-flow.md`.
    - Every Kafka topic in `application.properties` has a producer/consumer pair in `docs/architecture/architecture-flow-kafka-reference.md`, and the two files' topic cycles agree with each other.
    - Every module in `docs/architecture/architecture-module-participants.md` lists package paths that actually exist in the source tree (grep for them - don't trust the previous doc).
-   - `plantuml -checkonly docs/architecture/flows/*.puml` passes. If it reports "contains errors" with no other detail, don't assume the diagram syntax is broken - check whether the installed `plantuml` is simply too old for a directive the file uses (e.g. `!theme`) by testing a scratch copy with that line removed first.
+   - `plantuml -checkonly docs/architecture/flows/*.puml` passes.
 
 5. **Close the loop**: update `docs/ai/session-notes.md`'s "Last Updated" / "Synchronization status" fields, and update this project's Claude memory (`architecture-flow-maintenance` and/or a new entry) if what changed is worth remembering for next time - especially if this run's actual scope surprised you relative to what step 1 predicted. If content moved between `docs/architecture/` (human-facing) and `docs/ai/` (Claude-facing maintenance instructions) rather than just changing, keep that split intact - don't collapse the two back into one file.
