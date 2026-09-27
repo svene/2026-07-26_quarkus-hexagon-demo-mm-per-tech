@@ -23,8 +23,8 @@ Two kinds of failure behave differently:
 - **Retryable (transient) failures.** Something outside the record is the problem: a database is
   down, a downstream service times out. Retrying later can succeed.
 
-This document is about the first kind. For transient failures, retrying (with backoff, possibly
-through retry topics) is the usual answer.
+This document is mostly about the first kind. Transient failures need a different answer: see
+"Transient failures: retry, then stop" below.
 
 A third kind, messages that are read successfully but break a business rule, is covered in
 "Business rejections are not technical failures" below.
@@ -112,6 +112,38 @@ The usual answer is not to stop. It is the combination of:
 Some teams add a circuit breaker on top: if the failure *rate* goes over a threshold, stop after
 all, on the basis that a sudden flood of failures means something is broken systemically rather
 than one bad message.
+
+## Transient failures: retry, then stop
+
+A DLQ is the wrong place for a transient failure. The record is fine; the database it has to be
+written to is not. If the outage lasts longer than a few seconds, the *next* record fails for the
+same reason, and the one after that: every record that arrives during the outage ends up in the
+DLQ, and all of them need a manual replay afterwards, although nothing was wrong with any of them.
+
+The usual answer has two steps:
+
+1. **Retry in place, with a delay.** This covers short blips such as a connection reset or a
+   failover. The consumer stays on the record, so order is kept.
+2. **If the retries don't help, stop the consumer without committing the offset.** Every later
+   record would fail the same way, so there is nothing to gain from moving on. Because the offset
+   isn't committed, the consumer starts again at the failed record after a restart (or a
+   rebalance), and nothing is lost or needs replaying. The stopped consumer should make the
+   service unhealthy, so that the orchestrator restarts it and someone is alerted.
+
+This requires telling the two kinds apart at the point where a record fails: a non-retryable
+failure (the record's fault) goes to the DLQ at once, without retries, and anything else is
+treated as transient. A dedicated exception type for "this record can never be processed" makes
+that decision explicit. Most frameworks decide the failure strategy per consumer rather than per
+exception, so this split often needs a small custom error handler.
+
+Alternatives:
+
+- **Retry forever, with backoff.** It recovers on its own once the dependency is back, without a
+  restart. But the consumer may appear healthy while it isn't making progress, and frameworks
+  often have their own limits on how long a record may stay unprocessed.
+- **Retry topics** (the record is re-published to one or more delayed retry topics, then to the
+  DLQ). They survive restarts and don't block the partition, but give up ordering, and during a
+  long outage every record still ends up in the DLQ.
 
 ## Replaying DLQ records
 
@@ -233,7 +265,10 @@ event is common, because business users rely on it.
 3. **Is the message readable, but it breaks a business rule?** Then it is not a DLQ case. Log
    or audit it with its full content, send it to a separate rejected topic, or send a rejection
    event back to the producer (see "Business rejections are not technical failures").
-4. **In every case:** alert on the failure rate, and document who reviews the DLQ and how
+4. **Is the failure transient (a dependency is down), not the record's fault?** Then it is not a
+   DLQ case either. Retry in place, and if that doesn't help, stop without committing (see
+   "Transient failures: retry, then stop").
+5. **In every case:** alert on the failure rate, and document who reviews the DLQ and how
    records are replayed.
 
 ## References

@@ -51,20 +51,27 @@ shared `JsonInputErrors` (see `validation.md`, "Reference example: HTTP boundary
 One finding while implementing: inside a record, Jackson wraps parser errors (out-of-range number,
 truncated JSON) in a `JsonMappingException`, so the mapper unwraps one level and takes its path.
 
+## Kafka: transient failures (done 2026-09-27)
+
+`failure-strategy=dead-letter-queue` treated *every* nack as dead, including transient ones: a
+valid delivery that arrived during shutdown (`Session/EntityManager is closed`) went to
+`fruit-deliveries-dlq` and needed a manual replay, and during a longer database outage every
+message would have. Now the receivers carry `@Retry` (3 retries, 1 s apart), and the custom
+strategy `dead-letter-or-fail-stop` (`DeadLetterOrFailStop`, `inbound-kafka` `cross.kafka`) sends
+only undeserializable records and `UnprocessableMessageException` (tombstone, broken structure;
+formerly `IllegalArgumentException`) to the DLQ. Anything else stops the channel without
+committing, so the message is reprocessed after a restart. The strategy extends SmallRye's
+`KafkaDeadLetterQueue` and delegates to SmallRye's own DLQ and fail-stop handlers, because SmallRye
+routes deserialization failures to the handler only if it is an `instanceof KafkaDeadLetterQueue`.
+Rejected: `delayed-retry-topic` (can't tell retryable from non-retryable, extra topics, loses
+ordering) and retrying forever (SmallRye's throttled commit closes a consumer whose record stays
+unprocessed for 60 s anyway). Accepted trade-off: a stopped channel needs a restart.
+
 ## Next steps
 
 Every inbound boundary now sends its *values* through `parse()`, and Kafka's structural failures
-are handled. What's left are two smaller gaps plus the business-rule decisions:
+and transient failures are handled. What's left is one smaller gap plus the business-rule decisions:
 
-- **Kafka: transient failures go to the DLQ instead of being retried.** `failure-strategy=dead-letter-queue`
-  treats *every* nack as dead, including transient ones such as a database that is down or
-  shutting down. Observed during a test run: a valid delivery arrived while the app was shutting
-  down (`Session/EntityManager is closed`) and went to `fruit-deliveries-dlq`. Before the DLQ,
-  fail-stop left the offset uncommitted, so the message was reprocessed after a restart. Now it
-  needs a manual replay. `kafka-unprocessable-messages.md` says transient failures should be
-  retried. Options: SmallRye's `delayed-retry-topic` strategy (retry topics, then DLQ), or
-  MicroProfile Fault Tolerance `@Retry` on the receivers, plus distinguishing retryable from
-  non-retryable exceptions.
 - **ArchUnit rule scope.** `receivers_construct_domain_values_only_via_parse` only checks `*Receiver`
   classes; a receiver delegating to a helper class that calls the constructor would slip through.
   Nothing does this today. Closing it means checking every non-`core` class in the inbound modules.

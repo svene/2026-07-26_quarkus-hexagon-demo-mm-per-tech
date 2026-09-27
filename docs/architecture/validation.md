@@ -81,13 +81,21 @@ and cashpoint messages with `"items": null` or `null` entries. They are **not** 
 audit log. The DLQ is the single record of them, and it keeps the payload so it can be replayed.
 
 Two mechanisms work together, configured on every incoming channel with
-`fail-on-deserialization-failure=false` and `failure-strategy=dead-letter-queue`:
+`fail-on-deserialization-failure=false` and `failure-strategy=dead-letter-or-fail-stop` (a custom
+strategy, `DeadLetterOrFailStop` in `inbound-kafka`):
 
 - **Deserialization failures** are routed to the DLQ by SmallRye itself, with the original bytes.
   The receiver never sees them.
 - **Structural problems the receiver detects** (a `null` payload, or `items` missing or containing
-  `null` entries) make the receiver throw an `IllegalArgumentException`. The message is nacked,
-  and the exception message becomes the `dead-letter-reason` header.
+  `null` entries) make the receiver throw an `UnprocessableMessageException`. The message is
+  nacked, and the exception message becomes the `dead-letter-reason` header.
+
+Any *other* exception is treated as transient (for example, the database is down) and does
+**not** go to the DLQ: the receiver's `@Retry` (MicroProfile Fault Tolerance, 3 retries, 1 s
+apart, skipped for `UnprocessableMessageException`) tries again, and if that fails as well the
+channel stops without committing the offset, so the message is processed again after a restart.
+A retry runs the whole `receive()` again, so its audit entries (such as `…_DELIVERY_RECEIVED`) can
+appear more than once. `KafkaTransientFailureTest` (`app-server`) covers both outcomes.
 
 Without this, each of these cases permanently stops its channel. This was verified with a probe
 before the fix. `KafkaMalformedMessageTest` (`app-server`) sends each case to a probe topic, checks
