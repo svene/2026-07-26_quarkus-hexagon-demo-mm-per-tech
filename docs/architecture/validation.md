@@ -285,8 +285,9 @@ The invalid branch follows the usual boundary split:
 - `ShopReceiver.checkout` — re-renders the shop page with status `400` and a list of errors, each
   prefixed with the **product name** rather than `items[i]` (a shop user can't map an index to a
   row). Rows with a blank or `0` quantity are filtered out *before* parsing: that is cart semantics
-  ("not in the cart"), not validation. A non-numeric quantity can't reach `parse(String, int)`, so
-  the adapter reports it itself.
+  ("not in the cart"), not validation. The form's quantities are text, so the shop uses
+  `PurchaseItem.parse(String, String)` (same `@Pattern` text overload as the `XxxOrder`s): a
+  non-numeric quantity is reported as `"<name>: must be a number"` through the same `Invalid`.
 
 An empty item list is not a violation — it parses to an empty `Purchase`, which is a harmless no-op.
 

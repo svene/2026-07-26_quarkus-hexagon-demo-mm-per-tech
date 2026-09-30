@@ -103,7 +103,7 @@ class ShopReceiverTest {
         assertThat(response.asString())
             .contains("Purchase not processed")
             .contains("Milk: must be greater than or equal to 1")
-            .contains("Bread: quantity must be a number");
+            .contains("Bread: must be a number");
 
         assertThat(given().get("/api/products").asString())
             .contains("\"name\":\"Apple\",\"type\":\"FRUIT\",\"availableAmount\":10")

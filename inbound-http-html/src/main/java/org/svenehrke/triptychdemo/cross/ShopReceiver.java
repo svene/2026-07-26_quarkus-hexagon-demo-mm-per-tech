@@ -6,7 +6,6 @@ import org.svenehrke.triptychdemo.cross.purchase.PurchaseHandler;
 
 import org.svenehrke.triptychdemo.cross.products.Product;
 import org.svenehrke.triptychdemo.cross.purchase.ParsedPurchase;
-import org.svenehrke.triptychdemo.cross.purchase.ParsedPurchaseItem;
 import org.svenehrke.triptychdemo.cross.purchase.Purchase;
 import org.svenehrke.triptychdemo.cross.purchase.PurchaseItem;
 import org.svenehrke.triptychdemo.cross.purchase.PurchaseOutcome;
@@ -24,6 +23,7 @@ import jakarta.ws.rs.core.Response;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Path("/shop")
 public class ShopReceiver {
@@ -59,55 +59,52 @@ public class ShopReceiver {
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     public Response checkout(@FormParam("productName") List<String> productNames,
                              @FormParam("quantity") List<String> quantities) {
-        logReceived(productNames, quantities);
-        // Cart semantics (UI concern, not validation): a row with a blank or 0 quantity is simply not in the cart.
-        var errors = new ArrayList<String>();
-        var cartNames = new ArrayList<String>();
-        var parsedItems = new ArrayList<ParsedPurchaseItem>();
-        if (productNames != null) {
-            for (int i = 0; i < productNames.size(); i++) {
-                var name = productNames.get(i);
-                var qtyStr = quantities != null && i < quantities.size() ? quantities.get(i) : null;
-                if (qtyStr == null || qtyStr.isBlank()) continue;
-                int qty;
-                try {
-                    qty = Integer.parseInt(qtyStr.trim());
-                } catch (NumberFormatException e) {
-                    errors.add(name + ": quantity must be a number");
-                    continue;
-                }
-                if (qty == 0) continue;
-                cartNames.add(name);
-                parsedItems.add(PurchaseItem.parse(name, qty));
-            }
-        }
-        return switch (Purchase.parse(parsedItems)) {
-            case ParsedPurchase.Invalid invalid -> {
-                invalid.violationsByItemIndex().forEach((index, violations) ->
-                    violations.forEach(v -> errors.add(cartNames.get(index) + ": " + v.getMessage())));
-                yield badRequest(errors);
-            }
-            case Purchase purchase -> {
-                if (!errors.isEmpty()) yield badRequest(errors);
-                if (purchase.items().isEmpty()) yield Response.seeOther(URI.create("/shop")).build();
-                yield switch (purchaseHandler.checkout(purchase)) {
-                    case PurchaseOutcome.Rejected rejected -> shopPage(Response.Status.CONFLICT, rejected.messages());
-                    case PurchaseOutcome.Completed completed -> Response.seeOther(URI.create("/shop")).build();
-                };
-            }
+        var rows = cartRows(productNames, quantities);
+        logReceived(rows);
+        // Cart semantics (UI concern, not validation): a row with a 0 quantity is simply not in the cart.
+        var cart = rows.stream().filter(row -> !isZero(row.quantity())).toList();
+        if (cart.isEmpty()) return redirectToShop();
+        return switch (Purchase.parse(cart.stream().map(row -> PurchaseItem.parse(row.name(), row.quantity())).toList())) {
+            case ParsedPurchase.Invalid invalid -> badRequest(errorsOf(invalid, cart));
+            case Purchase purchase -> switch (purchaseHandler.checkout(purchase)) {
+                case PurchaseOutcome.Rejected rejected -> shopPage(Response.Status.CONFLICT, rejected.messages());
+                case PurchaseOutcome.Completed completed -> redirectToShop();
+            };
         };
     }
 
+    private record CartRow(String name, String quantity) {}
+
     // Only rows with a quantity entered: the form submits a row for every product in stock.
-    private void logReceived(List<String> productNames, List<String> quantities) {
-        var rows = new ArrayList<String>();
+    private static List<CartRow> cartRows(List<String> productNames, List<String> quantities) {
+        var rows = new ArrayList<CartRow>();
         if (productNames != null) {
             for (int i = 0; i < productNames.size(); i++) {
-                var qtyStr = quantities != null && i < quantities.size() ? quantities.get(i) : null;
-                if (qtyStr != null && !qtyStr.isBlank()) rows.add(productNames.get(i) + " qty=" + qtyStr);
+                var quantity = quantities != null && i < quantities.size() ? quantities.get(i) : null;
+                if (quantity != null && !quantity.isBlank()) rows.add(new CartRow(productNames.get(i), quantity));
             }
         }
-        auditLog.log("ShopReceiver: PURCHASE_RECEIVED", String.join(", ", rows));
+        return rows;
+    }
+
+    private static boolean isZero(String quantity) {
+        return quantity.trim().matches("[+-]?0+");
+    }
+
+    private void logReceived(List<CartRow> rows) {
+        auditLog.log("ShopReceiver: PURCHASE_RECEIVED",
+            rows.stream().map(row -> row.name() + " qty=" + row.quantity()).collect(Collectors.joining(", ")));
+    }
+
+    // Prefixed with the product name rather than items[i]: a shop user can't map an index to a row.
+    private static List<String> errorsOf(ParsedPurchase.Invalid invalid, List<CartRow> cart) {
+        return invalid.violationsByItemIndex().entrySet().stream()
+            .flatMap(e -> e.getValue().stream().map(v -> cart.get(e.getKey()).name() + ": " + v.getMessage()))
+            .toList();
+    }
+
+    private static Response redirectToShop() {
+        return Response.seeOther(URI.create("/shop")).build();
     }
 
     private Response badRequest(List<String> errors) {
