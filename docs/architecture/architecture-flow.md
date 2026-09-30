@@ -24,13 +24,19 @@ This creates bidirectional flows through Kafka topics, connecting request/respon
 
 ### AdminReceiver (/admin) - HTML Forms → REST/SOAP/Kafka → Kafka Delivery Topics
 
+The HTML receivers don't render HTML: `GET /admin` and `GET /shop` return a static page shell, and every
+view endpoint returns a JSON envelope `{route, vm}` (`UiResponse`) that the browser renders with the
+hono/html templates in `hx-hono.js` (see `docs/architecture/browser-templating_wip.md`).
+
 #### GET /admin - Admin Dashboard
 ```
-AdminReceiver.list()
-└─ ProductsHandler.listAll()
+AdminReceiver.shell()  → static shell (shells/admin.html), whose #app loads GET /admin/page
+AdminReceiver.page()   → UiResponse(AdminPage, {products, auditEntries})
+├─ ProductsHandler.listAll()
    └─ InventoryRepositorySPI.findAll()
       └─ InventoryService (outbound-postgres)
          └─ PostgreSQL (ProductEntity.listAll())
+└─ AuditLogHandler.recent(limit)  (as in GET /admin/audit-fragment)
 ```
 
 #### GET /admin/inventory-fragment - Inventory Update
@@ -180,7 +186,8 @@ AdminReceiver.orderNonFood()
 
 #### GET /shop - Shop Catalog
 ```
-ShopReceiver.list()
+ShopReceiver.shell()  → static shell (shells/shop.html), whose #app loads GET /shop/page
+ShopReceiver.page()   → UiResponse(ShopPage, {products, errors})
 └─ ProductsHandler.listAll()
    └─ InventoryRepositorySPI.findAll()
       └─ InventoryService (outbound-postgres)
@@ -208,8 +215,8 @@ ShopReceiver.checkout(productNames[], quantities[])
    ├─ InventoryRepositorySPI.deductAll(quantities, REJECT)  (one transaction, all-or-nothing)
    │  └─ InventoryService (outbound-postgres)
    │     └─ PostgreSQL (SELECT ... FOR UPDATE per product, sorted by name)
-   └─ Completed: AuditLogSPI.log("INVENTORY_DEDUCTED") → 303 to /shop
-      Rejected:  AuditLogSPI.log("PURCHASE_REJECTED") → 409 with shortage messages, nothing deducted
+   └─ Completed: AuditLogSPI.log("INVENTORY_DEDUCTED") → 200 UiResponse(ShopPage), fresh page
+      Rejected:  AuditLogSPI.log("PURCHASE_REJECTED") → 409 UiResponse(ShopPage) with shortage messages, nothing deducted
          └─ AuditLogService (outbound-mongodb)
             └─ MongoDB
 ```

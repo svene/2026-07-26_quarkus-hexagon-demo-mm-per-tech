@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Supermarket – Shop</title>
+    <link rel="stylesheet" href="/css/bulma.min.css">
+    <meta name="htmx-config" content='{"noSwap": [204, 304, "5xx"]}'>
+    <script src="/js/htmx.org/4.0.0/htmx.js"></script>
+    <!-- must load right after htmx.js: registers the `hono` extension that renders the { route, vm } responses -->
+    <script src="/js/hono/hx-hono.js"></script>
+</head>
+<body>
+<section class="section">
+<div class="container">
+    <h1 class="title">Supermarket – Shop</h1>
+    <div id="app" hx-get="/shop/page" hx-trigger="load" hx-swap="innerHTML"></div>
+</div>
+</section>
+
+<script>
+// Delegated: the button is rendered into #app after the page has loaded.
+document.addEventListener('click', function (event) {
+    if (!event.target.closest('#randomize-btn')) return;
+    var inputs = Array.from(document.querySelectorAll('.qty-input'));
+    inputs.forEach(function (input) { input.value = ''; });
+    if (inputs.length === 0) return;
+
+    var count = Math.min(inputs.length, 2 + Math.floor(Math.random() * 3)); // 2-4
+    var shuffled = inputs.slice().sort(function () { return Math.random() - 0.5; });
+    shuffled.slice(0, count).forEach(function (input) {
+        var max = Math.min(parseInt(input.dataset.max, 10) || 1, 10);
+        input.value = 1 + Math.floor(Math.random() * max);
+    });
+});
+</script>
+
+</body>
+</html>

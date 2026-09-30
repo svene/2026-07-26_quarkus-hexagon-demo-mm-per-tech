@@ -125,7 +125,7 @@ Split the monolithic `inbound-rest` module into cleanly separated concerns:
 - Updated `architecture.puml` and focused diagrams (kafka, rest, soap, persistence) to show `inbound-http.html` and `inbound-http.jsonapi` subpackages
 - All 30 tests pass (pure refactoring, no functional changes)
 
-## 9. Replace Qute with browser-side hono/html templating (NOT STARTED)
+## 9. Replace Qute with browser-side hono/html templating (DONE)
 
 Replace the Qute templates in `inbound-http-html` with the approach from
 [svene/2026-09-03_hypermedia-quarkus-browser-hono](https://github.com/svene/2026-09-03_hypermedia-quarkus-browser-hono):

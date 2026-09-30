@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Supermarket – Admin</title>
+    <link rel="stylesheet" href="/css/bulma.min.css">
+    <meta name="htmx-config" content='{"noSwap": [204, 304, "5xx"]}'>
+    <script src="/js/htmx.org/4.0.0/htmx.js"></script>
+    <!-- must load right after htmx.js: registers the `hono` extension that renders the { route, vm } responses -->
+    <script src="/js/hono/hx-hono.js"></script>
+</head>
+<body>
+<section class="section">
+<div class="container is-fluid">
+    <h1 class="title">Supermarket – Admin</h1>
+    <div id="app" hx-get="/admin/page" hx-trigger="load" hx-swap="innerHTML"></div>
+</div>
+</section>
+
+<script>
+// Delegated: the button is rendered into #app after the page has loaded.
+document.addEventListener('click', function (event) {
+    if (!event.target.closest('#randomize-btn')) return;
+    document.querySelectorAll('.order-form').forEach(function (form) {
+        var nameInput = form.querySelector('input[name="productName"]');
+        var qtyInput = form.querySelector('input[name="quantity"]');
+        if (nameInput) nameInput.value = form.dataset.defaultName;
+        if (qtyInput) qtyInput.value = 80 + Math.floor(Math.random() * 521); // 80-600
+        htmx.trigger(form, 'submit');
+    });
+});
+</script>
+
+</body>
+</html>

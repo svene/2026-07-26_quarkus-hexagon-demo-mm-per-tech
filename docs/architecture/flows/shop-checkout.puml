@@ -39,7 +39,7 @@ alt all in stock
   audit -> db_audit: Insert audit entry
   audit --> handler
   handler --> receiver: Completed
-  receiver --> user: Redirect to /shop (303 See Other)
+  receiver --> user: 200 JSON {route: ShopPage, vm} (fresh page)
 else any shortage (incl. unknown product)
   inventory -> db_inv: ROLLBACK (nothing deducted)
   inventory --> handler: StockDeduction(nothing updated, shortages)
@@ -47,7 +47,7 @@ else any shortage (incl. unknown product)
   audit -> db_audit: Insert audit entry
   audit --> handler
   handler --> receiver: Rejected(shortages)
-  receiver --> user: 409 Conflict\nshop page with shortage messages
+  receiver --> user: 409 JSON {route: ShopPage, vm}\nwith shortage messages
 end
 
 @enduml

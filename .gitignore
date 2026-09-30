@@ -11,3 +11,9 @@ target/
 
 # custom
 .not-commited/
+
+# inbound-http-html browser templating (frontend-maven-plugin, typescript-generator, esbuild output)
+/inbound-http-html/node/
+/inbound-http-html/node_modules/
+/inbound-http-html/src/main/java/org/svenehrke/triptychdemo/cross/generated/
+/inbound-http-html/src/main/resources/META-INF/resources/js/hono/

@@ -24,22 +24,17 @@ import org.svenehrke.triptychdemo.feature.vegetable.VegetableOrder;
 import org.svenehrke.triptychdemo.feature.vegetable.ParsedVegetableOrder;
 import org.svenehrke.triptychdemo.feature.vegetable.VegetablesHandler;
 
-import org.svenehrke.triptychdemo.cross.auditlog.AuditLogEntry;
-import org.svenehrke.triptychdemo.cross.products.Product;
-import io.quarkus.qute.CheckedTemplate;
-import io.quarkus.qute.TemplateInstance;
 import jakarta.validation.ConstraintViolation;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.FormParam;
 import jakarta.ws.rs.GET;
-import jakarta.ws.rs.HeaderParam;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import java.net.URI;
+import java.io.InputStream;
 import java.util.List;
 import java.util.Set;
 
@@ -67,46 +62,45 @@ public class AdminReceiver {
     @Inject
     AuditLogHandler auditLogHandler;
 
-    @CheckedTemplate
-    public static class Templates {
-        public static native TemplateInstance admin(List<Product> products, List<AuditLogEntry> auditEntries);
-        public static native TemplateInstance inventoryFragment(List<Product> products);
-        public static native TemplateInstance auditFragment(List<AuditLogEntry> auditEntries);
-        public static native TemplateInstance orderErrors(List<String> messages);
+    /** The static page shell; its {@code #app} element loads {@link #page()} and renders it in the browser. */
+    @GET
+    @Produces(MediaType.TEXT_HTML)
+    public InputStream shell() {
+        return AdminReceiver.class.getResourceAsStream("/shells/admin.html");
     }
 
     @GET
-    @Produces(MediaType.TEXT_HTML)
-    public TemplateInstance list() {
-        return Templates.admin(productsHandler.listAll(), auditLogHandler.recent(AUDIT_LOG_LIMIT));
+    @Path("/page")
+    @Produces(MediaType.APPLICATION_JSON)
+    public UiResponse page() {
+        return UiResponse.of(UiRoute.AdminPage, new AdminPageModel(products(), auditEntries()));
     }
 
     @GET
     @Path("/inventory-fragment")
-    @Produces(MediaType.TEXT_HTML)
-    public TemplateInstance inventoryFragment() {
-        return Templates.inventoryFragment(productsHandler.listAll());
+    @Produces(MediaType.APPLICATION_JSON)
+    public UiResponse inventoryFragment() {
+        return UiResponse.of(UiRoute.AdminInventory, new AdminInventoryModel(products()));
     }
 
     @GET
     @Path("/audit-fragment")
-    @Produces(MediaType.TEXT_HTML)
-    public TemplateInstance auditFragment() {
-        return Templates.auditFragment(auditLogHandler.recent(AUDIT_LOG_LIMIT));
+    @Produces(MediaType.APPLICATION_JSON)
+    public UiResponse auditFragment() {
+        return UiResponse.of(UiRoute.AuditPanel, new AuditPanelModel(auditEntries()));
     }
 
     @POST
     @Path("/order-fruits")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     public Response orderFruits(@FormParam("productName") String productName,
-                                @FormParam("quantity") String quantity,
-                                @HeaderParam("HX-Request") String hxRequest) {
+                                @FormParam("quantity") String quantity) {
         logReceived("FRUITS_ORDER_RECEIVED", productName, quantity);
         return switch (FruitOrder.parse(productName, quantity)) {
             case ParsedFruitOrder.Invalid invalid -> badRequest(invalid.violations());
             case FruitOrder fruitOrder -> {
                 fruitsHandler.order(fruitOrder);
-                yield orderResponse(hxRequest);
+                yield orderAccepted();
             }
         };
     }
@@ -115,14 +109,13 @@ public class AdminReceiver {
     @Path("/order-vegetables")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     public Response orderVegetables(@FormParam("productName") String productName,
-                                    @FormParam("quantity") String quantity,
-                                    @HeaderParam("HX-Request") String hxRequest) {
+                                    @FormParam("quantity") String quantity) {
         logReceived("VEGETABLES_ORDER_RECEIVED", productName, quantity);
         return switch (VegetableOrder.parse(productName, quantity)) {
             case ParsedVegetableOrder.Invalid invalid -> badRequest(invalid.violations());
             case VegetableOrder vegetableOrder -> {
                 vegetablesHandler.order(vegetableOrder);
-                yield orderResponse(hxRequest);
+                yield orderAccepted();
             }
         };
     }
@@ -131,14 +124,13 @@ public class AdminReceiver {
     @Path("/order-dairy")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     public Response orderDairy(@FormParam("productName") String productName,
-                               @FormParam("quantity") String quantity,
-                               @HeaderParam("HX-Request") String hxRequest) {
+                               @FormParam("quantity") String quantity) {
         logReceived("DAIRY_ORDER_RECEIVED", productName, quantity);
         return switch (DairyOrder.parse(productName, quantity)) {
             case ParsedDairyOrder.Invalid invalid -> badRequest(invalid.violations());
             case DairyOrder dairyOrder -> {
                 dairyHandler.order(dairyOrder);
-                yield orderResponse(hxRequest);
+                yield orderAccepted();
             }
         };
     }
@@ -147,14 +139,13 @@ public class AdminReceiver {
     @Path("/order-beverages")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     public Response orderBeverages(@FormParam("productName") String productName,
-                                   @FormParam("quantity") String quantity,
-                                   @HeaderParam("HX-Request") String hxRequest) {
+                                   @FormParam("quantity") String quantity) {
         logReceived("BEVERAGES_ORDER_RECEIVED", productName, quantity);
         return switch (BeverageOrder.parse(productName, quantity)) {
             case ParsedBeverageOrder.Invalid invalid -> badRequest(invalid.violations());
             case BeverageOrder beverageOrder -> {
                 beveragesHandler.order(beverageOrder);
-                yield orderResponse(hxRequest);
+                yield orderAccepted();
             }
         };
     }
@@ -163,14 +154,13 @@ public class AdminReceiver {
     @Path("/order-meat")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     public Response orderMeat(@FormParam("productName") String productName,
-                              @FormParam("quantity") String quantity,
-                              @HeaderParam("HX-Request") String hxRequest) {
+                              @FormParam("quantity") String quantity) {
         logReceived("MEAT_ORDER_RECEIVED", productName, quantity);
         return switch (MeatOrder.parse(productName, quantity)) {
             case ParsedMeatOrder.Invalid invalid -> badRequest(invalid.violations());
             case MeatOrder meatOrder -> {
                 meatHandler.order(meatOrder);
-                yield orderResponse(hxRequest);
+                yield orderAccepted();
             }
         };
     }
@@ -179,14 +169,13 @@ public class AdminReceiver {
     @Path("/order-bakery")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     public Response orderBakery(@FormParam("productName") String productName,
-                                @FormParam("quantity") String quantity,
-                                @HeaderParam("HX-Request") String hxRequest) {
+                                @FormParam("quantity") String quantity) {
         logReceived("BAKERY_ORDER_RECEIVED", productName, quantity);
         return switch (BakeryOrder.parse(productName, quantity)) {
             case ParsedBakeryOrder.Invalid invalid -> badRequest(invalid.violations());
             case BakeryOrder bakeryOrder -> {
                 bakeryHandler.order(bakeryOrder);
-                yield orderResponse(hxRequest);
+                yield orderAccepted();
             }
         };
     }
@@ -195,14 +184,13 @@ public class AdminReceiver {
     @Path("/order-nonfood")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     public Response orderNonFood(@FormParam("productName") String productName,
-                                 @FormParam("quantity") String quantity,
-                                 @HeaderParam("HX-Request") String hxRequest) {
+                                 @FormParam("quantity") String quantity) {
         logReceived("NONFOOD_ORDER_RECEIVED", productName, quantity);
         return switch (NonFoodOrder.parse(productName, quantity)) {
             case ParsedNonFoodOrder.Invalid invalid -> badRequest(invalid.violations());
             case NonFoodOrder nonFoodOrder -> {
                 nonFoodHandler.order(nonFoodOrder);
-                yield orderResponse(hxRequest);
+                yield orderAccepted();
             }
         };
     }
@@ -212,17 +200,20 @@ public class AdminReceiver {
     }
 
     private static Response badRequest(Set<? extends ConstraintViolation<?>> violations) {
-        return Response.status(Response.Status.BAD_REQUEST)
-            .type(MediaType.TEXT_HTML)
-            .entity(Templates.orderErrors(violations.stream().map(ConstraintViolation::getMessage).toList()))
-            .build();
+        return UiResponse.response(Response.Status.BAD_REQUEST, UiRoute.OrderErrors,
+            new OrderErrorsModel(violations.stream().map(ConstraintViolation::getMessage).toList()));
     }
 
-    private Response orderResponse(String hxRequest) {
-        if ("true".equals(hxRequest)) {
-            // 200 with an empty body (not 204, which htmx never swaps) clears a previous error below the form
-            return Response.ok("", MediaType.TEXT_HTML).build();
-        }
-        return Response.seeOther(URI.create("/admin")).build();
+    private static Response orderAccepted() {
+        // 200 with an empty body (not 204, which htmx never swaps) clears a previous error below the form
+        return Response.ok("", MediaType.TEXT_HTML).build();
+    }
+
+    private List<ProductRowModel> products() {
+        return productsHandler.listAll().stream().map(ProductRowModel::of).toList();
+    }
+
+    private List<AuditEntryModel> auditEntries() {
+        return auditLogHandler.recent(AUDIT_LOG_LIMIT).stream().map(AuditEntryModel::of).toList();
     }
 }

@@ -3,9 +3,9 @@
 Session-to-session bookkeeping for the `docs/architecture/` doc set. See [README.md](README.md)
 for the actual maintenance process.
 
-**Last Updated**: 2026-09-30, on top of commit `f63b54f` - the commit that extracted the checkout form's cart logic from `ShopReceiver.checkout` into a new package-private `ShopCart` (`inbound-http-html`, first unit test in that module: `ShopCartTest`; `assertj-core` added to its pom) updated `architecture-module-participants.md` (table + participant list; also added the previously missing `OrderRequest` interface from `e4f87f1`) and one sentence of `validation.md`'s `ShopReceiver.checkout` bullet. No flow/tree/diagram changed. `f63b54f` (`PurchaseItem.parse(String, String)`) was committed with its docs.
+**Last Updated**: 2026-09-30, on top of commit `97af239` plus the uncommitted PLAN.md § 9 change (Qute → browser-side hono/html in `inbound-http-html`): `architecture-flow.md` (intro note + `GET /admin`, `GET /shop` trees, checkout outcome), `architecture-module-participants.md` (`inbound-http-html` section), `architecture-flow-kafka-reference.md` (endpoint table: shells + `/admin/page`, `/shop/page`), `flows/README.md` and `admin-get-dashboard.puml`, `shop-get-catalog.puml`, `shop-checkout.puml` (shell → JSON view → browser render; checkout returns the ShopPage envelope instead of 303).
 
-**Diff baseline for the next update**: `git diff f63b54f HEAD -- . ':(exclude)docs'` to see what changed in code since the last content pass (its first commit on top, the `ShopCart` extraction, is already reflected), before deciding which doc section(s) need a surgical edit. If a doc looks stale for something older, `git diff 982b169 e3d3c87 -- . ':(exclude)docs'` covers the period that was not fully re-checked.
+**Diff baseline for the next update**: `git diff <commit containing § 9> HEAD -- . ':(exclude)docs'` - replace with that commit's hash once committed. If a doc looks stale for something older, `git diff 982b169 e3d3c87 -- . ':(exclude)docs'` covers the period that was not fully re-checked.
 
 **By**: Claude (session analysis)
 

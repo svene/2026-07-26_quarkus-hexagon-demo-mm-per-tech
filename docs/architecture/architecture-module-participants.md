@@ -33,17 +33,19 @@ Complete inventory of all classes participating in the system flows, organized b
 **Package**: `org.svenehrke.triptychdemo.cross` (both receivers are cross-cutting aggregators — Admin touches every commodity's ordering Handler, Shop touches Products+Purchase — so neither lives in a `feature.<name>` package)
 
 ### Receivers
-- `AdminReceiver` - Admin dashboard and ordering endpoints (GET /admin, POST /admin/order-*)
-- `ShopReceiver` - Customer shopping interface (GET /shop, POST /shop/checkout)
+- `AdminReceiver` - Admin dashboard and ordering endpoints (GET /admin shell, GET /admin/page and fragments, POST /admin/order-*)
+- `ShopReceiver` - Customer shopping interface (GET /shop shell, GET /shop/page and fragment, POST /shop/checkout)
+- `UiRoute`, `UiResponse`, `*Model` records - the `{route, vm}` JSON envelope and the view models (TS types generated from them)
+- `*.ts` next to the receivers - hono/html templates + the `hono` htmx extension, bundled into `hx-hono.js`
 - `ShopCart` (package-private) - the checkout form's cart: pairs names with quantities, drops blank/`0` rows, parses to a `ParsedPurchase`, maps violations back to product names
 
 **Responsibilities**:
 - Parse HTTP form requests (APPLICATION_FORM_URLENCODED)
 - Route to the appropriate core Handlers
-- Return HTML responses via Qute templates
+- Return a static page shell, then `{route, vm}` JSON that the browser renders with hono/html templates
 - Manage session state for browser interactions
 
-**Technology**: Quarkus REST (JAX-RS), Qute templating engine
+**Technology**: Quarkus REST (JAX-RS) + Jackson; hono/html templates bundled by esbuild (frontend-maven-plugin), VM types via typescript-generator, checked by tsc
 
 ---
 

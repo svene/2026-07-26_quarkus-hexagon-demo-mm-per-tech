@@ -8,9 +8,9 @@ PlantUML sequence diagrams for all primary flows in the supermarket inventory sy
 
 ### Admin Dashboard
 **File**: `admin-get-dashboard.puml`
-- **Trigger**: GET /admin
+- **Trigger**: GET /admin (static shell) → GET /admin/page
 - **Flow**: Browser → AdminReceiver → ProductsHandler → InventoryService → PostgreSQL
-- **Returns**: Product list for dashboard display
+- **Returns**: `{route: AdminPage, vm}` JSON, rendered in the browser (hono/html)
 - **Participants**: 1 (Admin)
 
 ### Admin Audit Log Fragment
@@ -22,9 +22,9 @@ PlantUML sequence diagrams for all primary flows in the supermarket inventory sy
 
 ### Shop Catalog
 **File**: `shop-get-catalog.puml`
-- **Trigger**: GET /shop
+- **Trigger**: GET /shop (static shell) → GET /shop/page
 - **Flow**: Browser → ShopReceiver → ProductsHandler → InventoryService → PostgreSQL
-- **Returns**: In-stock products (availableAmount > 0) only
+- **Returns**: `{route: ShopPage, vm}` JSON with in-stock products (availableAmount > 0) only, rendered in the browser
 - **Participants**: 1 (Customer)
 
 ### API Product List
@@ -88,7 +88,7 @@ PlantUML sequence diagrams for all primary flows in the supermarket inventory sy
 - **Trigger**: POST /shop/checkout
 - **Flow**: HTML Form → ShopReceiver → PurchaseHandler → InventoryService → PostgreSQL + AuditLogService → MongoDB
 - **Actions**: For each item in cart: deduct from inventory, log to audit
-- **Returns**: Redirect to /shop (303 See Other)
+- **Returns**: `{route: ShopPage, vm}` JSON (200 fresh page; 400/409 with errors), rendered into `#app`
 - **Participants**: 1 (Customer)
 - **Databases**: PostgreSQL (inventory deduction), MongoDB (audit log)
 

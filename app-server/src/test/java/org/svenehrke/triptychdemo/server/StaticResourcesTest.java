@@ -23,4 +23,13 @@ class StaticResourcesTest {
 
         assertThat(response.statusCode()).isEqualTo(200);
     }
+
+    /** Built by esbuild during the inbound-http-html Maven build - proves the bundle made it into the jar. */
+    @Test
+    void hono_bundle_is_served() {
+        var response = given().get("/js/hono/hx-hono.js");
+
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(response.asString()).contains("registerExtension(\"hono\"");
+    }
 }

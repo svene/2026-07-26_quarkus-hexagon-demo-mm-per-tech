@@ -131,7 +131,8 @@ These cycles show how external supplier integrations (REST/SOAP stubs) are decou
 
 | Receiver | Route | Method | Flow Type | Kafka Topic Connection | Data Sinks |
 |----------|-------|--------|-----------|------------------------|-----------|
-| AdminReceiver | /admin | GET | Query | - | PostgreSQL (read) |
+| AdminReceiver | /admin | GET | Static page shell | - | - |
+| AdminReceiver | /admin/page | GET | Query | - | PostgreSQL + MongoDB (read) |
 | AdminReceiver | /admin/inventory-fragment | GET | Query | - | PostgreSQL (read) |
 | AdminReceiver | /admin/audit-fragment | GET | Query | - | MongoDB (read) |
 | AdminReceiver | /admin/order-fruits | POST | Command | **→ fruit-deliveries** (stub publishes) | PostgreSQL + MongoDB |
@@ -141,7 +142,8 @@ These cycles show how external supplier integrations (REST/SOAP stubs) are decou
 | AdminReceiver | /admin/order-meat | POST | Command | **→ meat-deliveries** (stub publishes) | PostgreSQL + MongoDB |
 | AdminReceiver | /admin/order-bakery | POST | Command | **→ bakery-deliveries** (stub publishes) | PostgreSQL + MongoDB |
 | AdminReceiver | /admin/order-nonfood | POST | Command | **→ nonfood-orders** → **← nonfood-deliveries** | PostgreSQL + MongoDB |
-| ShopReceiver | /shop | GET | Query | - | PostgreSQL (read) |
+| ShopReceiver | /shop | GET | Static page shell | - | - |
+| ShopReceiver | /shop/page | GET | Query | - | PostgreSQL (read) |
 | ShopReceiver | /shop/inventory-fragment | GET | Query | - | PostgreSQL (read) |
 | ShopReceiver | /shop/checkout | POST | Command | - | PostgreSQL + MongoDB |
 | ProductApiReceiver | /api/products | GET | Query | - | PostgreSQL (read) |

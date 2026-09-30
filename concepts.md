@@ -298,9 +298,10 @@ same core ports:
   trip) that fills in random quantities so testers don't have to type values
   by hand.
 
-Both pages are thin `Templates`-based Qute receivers in `inbound-http-html`; neither
-contains business logic, they only translate form submissions into calls on
-core Handlers.
+Both pages are thin receivers in `inbound-http-html`; neither contains business
+logic, they only translate form submissions into calls on core Handlers. They
+don't render HTML either: they return view models as `{route, vm}` JSON, and the
+browser renders them with hono/html templates (`hx-hono.js`, an htmx extension).
 
 The JSON API at `/api/products` serves a different purpose: it is aimed at
 tests and development tooling. During development of backend functionality —

@@ -10,12 +10,15 @@ participant "InventoryService\n(PostgreSQL)" as inventory
 database "PostgreSQL\n(Products)" as db
 
 user -> receiver: GET /shop
+receiver --> user: static page shell
+user -> receiver: GET /shop/page (hx-trigger=load)
 receiver -> handler: listAll()
 handler -> inventory: findAll()
 inventory -> db: SELECT * FROM products
 db --> inventory: Product[]
 inventory --> handler: Product[]
 receiver -> receiver: filter in-stock\n(availableAmount > 0)
-receiver --> user: HTML (Shop Catalog with In-Stock Products)
+receiver --> user: JSON {route: ShopPage, vm}\n(in-stock products)
+user -> user: render with hono/html\n(hx-hono.js)
 
 @enduml

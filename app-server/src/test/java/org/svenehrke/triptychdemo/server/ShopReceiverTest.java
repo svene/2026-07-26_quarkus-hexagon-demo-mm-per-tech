@@ -34,27 +34,37 @@ class ShopReceiverTest {
     }
 
     @Test
-    void get_empty_inventory_shows_no_products_message() {
+    void get_shop_serves_the_page_shell_that_loads_the_page_view() {
         var response = given().get("/shop");
 
         assertThat(response.statusCode()).isEqualTo(200);
         assertThat(response.contentType()).contains("text/html");
-        assertThat(response.asString()).contains("No products available to purchase right now.");
+        assertThat(response.asString())
+            .contains("<script src=\"/js/hono/hx-hono.js\">")
+            .contains("hx-get=\"/shop/page\"");
     }
 
     @Test
-    void get_with_products_shows_a_cart_row_per_product() {
-        inventory.addAmount("Apple", ProductType.FRUIT, 10);
-        inventory.addAmount("Milk", ProductType.DAIRY, 6);
-
-        var response = given().get("/shop");
-        var body = response.asString();
+    void page_view_with_empty_inventory_has_no_products() {
+        var response = given().get("/shop/page");
 
         assertThat(response.statusCode()).isEqualTo(200);
-        assertThat(body).contains("Apple", "FRUIT", "Milk", "DAIRY");
-        assertThat(body).contains("name=\"productName\" value=\"Apple\"");
-        assertThat(body).contains("name=\"productName\" value=\"Milk\"");
-        assertThat(body).contains("name=\"quantity\"");
+        assertThat(response.contentType()).contains("application/json");
+        assertThat(response.jsonPath().getString("route")).isEqualTo("ShopPage");
+        assertThat(response.jsonPath().getList("vm.products")).isEmpty();
+        assertThat(response.jsonPath().getList("vm.errors")).isEmpty();
+    }
+
+    @Test
+    void page_view_lists_only_products_in_stock() {
+        inventory.addAmount("Apple", ProductType.FRUIT, 10);
+        inventory.addAmount("Milk", ProductType.DAIRY, 6);
+        inventory.addAmount("Bread", ProductType.BAKERY, 0);
+
+        var json = given().get("/shop/page").jsonPath();
+
+        assertThat(json.getList("vm.products.name")).containsExactlyInAnyOrder("Apple", "Milk");
+        assertThat(json.getString("vm.products.find { it.name == 'Milk' }.type")).isEqualTo("DAIRY");
     }
 
     @Test
@@ -68,11 +78,12 @@ class ShopReceiverTest {
             .formParam("productName", "Milk")
             .formParam("quantity", "3")
             .formParam("quantity", "2")
-            .redirects().follow(false)
             .post("/shop/checkout");
 
-        assertThat(response.statusCode()).isEqualTo(303);
-        assertThat(response.header("Location")).contains("/shop");
+        // the fresh page, rendered into #app in place of the old one
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(response.jsonPath().getString("route")).isEqualTo("ShopPage");
+        assertThat(response.jsonPath().getList("vm.errors")).isEmpty();
         assertThat(auditLogHelper.findEventDetails("ShopReceiver: PURCHASE_RECEIVED"))
             .containsExactly("Apple qty=3, Milk qty=2");
 
@@ -95,15 +106,12 @@ class ShopReceiverTest {
             .formParam("quantity", "3")
             .formParam("quantity", "-2")
             .formParam("quantity", "abc")
-            .redirects().follow(false)
             .post("/shop/checkout");
 
         assertThat(response.statusCode()).isEqualTo(400);
-        assertThat(response.contentType()).contains("text/html");
-        assertThat(response.asString())
-            .contains("Purchase not processed")
-            .contains("Milk: must be greater than or equal to 1")
-            .contains("Bread: must be a number");
+        assertThat(response.jsonPath().getString("route")).isEqualTo("ShopPage");
+        assertThat(response.jsonPath().getList("vm.errors"))
+            .contains("Milk: must be greater than or equal to 1", "Bread: must be a number");
 
         assertThat(given().get("/api/products").asString())
             .contains("\"name\":\"Apple\",\"type\":\"FRUIT\",\"availableAmount\":10")
@@ -121,10 +129,9 @@ class ShopReceiverTest {
             .formParam("productName", "Milk")
             .formParam("quantity", "")
             .formParam("quantity", "0")
-            .redirects().follow(false)
             .post("/shop/checkout");
 
-        assertThat(response.statusCode()).isEqualTo(303);
+        assertThat(response.statusCode()).isEqualTo(200);
         // Blank rows are not in the cart and not logged; "0" is logged as submitted.
         assertThat(auditLogHelper.findEventDetails("ShopReceiver: PURCHASE_RECEIVED"))
             .containsExactly("Milk qty=0");
@@ -135,16 +142,15 @@ class ShopReceiverTest {
     }
 
     @Test
-    void inventory_fragment_returns_a_partial_per_product() {
+    void inventory_fragment_returns_the_amount_per_product() {
         inventory.addAmount("Apple", ProductType.FRUIT, 10);
 
         var response = given().get("/shop/inventory-fragment");
 
         assertThat(response.statusCode()).isEqualTo(200);
-        assertThat(response.contentType()).contains("text/html");
-        assertThat(response.asString())
-            .contains("<hx-partial id=\"avail-Apple\"")
-            .contains(">10<");
+        assertThat(response.jsonPath().getString("route")).isEqualTo("ShopAvailability");
+        assertThat(response.jsonPath().getList("vm.products.name")).containsExactly("Apple");
+        assertThat(response.jsonPath().getInt("vm.products[0].availableAmount")).isEqualTo(10);
     }
 
     @Test
@@ -158,14 +164,11 @@ class ShopReceiverTest {
             .formParam("productName", "Milk")
             .formParam("quantity", "3")
             .formParam("quantity", "5")
-            .redirects().follow(false)
             .post("/shop/checkout");
 
         assertThat(response.statusCode()).isEqualTo(409);
-        assertThat(response.contentType()).contains("text/html");
-        assertThat(response.asString())
-            .contains("Purchase not processed")
-            .contains("Milk: only 2 in stock (requested 5)");
+        assertThat(response.jsonPath().getString("route")).isEqualTo("ShopPage");
+        assertThat(response.jsonPath().getList("vm.errors")).containsExactly("Milk: only 2 in stock (requested 5)");
 
         assertThat(given().get("/api/products").asString())
             .contains("\"name\":\"Apple\",\"type\":\"FRUIT\",\"availableAmount\":10")

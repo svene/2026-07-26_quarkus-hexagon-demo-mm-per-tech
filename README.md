@@ -113,7 +113,7 @@ serves automatically at the web root (`/css/bulma.min.css`,
 
 ```
 core/                       Domain model, use cases (Handlers), SPI
-inbound-http-html/          JAX-RS + Qute — HTML UI (/admin, /shop)
+inbound-http-html/          JAX-RS + hono/html (rendered in the browser) — HTML UI (/admin, /shop)
 inbound-http-jsonapi/       JAX-RS — JSON API (/api/products)
 inbound-kafka/              Kafka @Incoming — delivery events + purchase events
 outbound-postgres/          Hibernate ORM / Panache — inventory persistence
@@ -138,7 +138,7 @@ stubs.
 | Module | Role | Technology |
 |---|---|---|
 | `core` | Domain + application (use cases + ports) | plain Java + CDI |
-| `inbound-http-html` | Inbound adapter | JAX-RS + Qute templates |
+| `inbound-http-html` | Inbound adapter | JAX-RS + hono/html templates rendered in the browser (esbuild via frontend-maven-plugin) |
 | `inbound-http-jsonapi` | Inbound adapter | JAX-RS (JSON) |
 | `inbound-kafka` | Inbound adapter | SmallRye Reactive Messaging |
 | `outbound-postgres` | Outbound adapter | Hibernate ORM / Panache |
@@ -192,8 +192,8 @@ not by port/application/domain layer — see [concepts.md](concepts.md) and
 5. Add an external stub (or extend an existing one).
 6. Wire Kafka channel names and REST/SOAP client keys in
    `app-server/application.properties`.
-7. Add a form to
-   `inbound-http-html/src/main/resources/templates/AdminReceiver/admin.html`.
+7. Add a form entry to `SUPPLIER_BOXES` in
+   `inbound-http-html/src/main/java/org/svenehrke/triptychdemo/cross/admin.ts`.
 
 ### Adding a new adapter technology
 

@@ -31,38 +31,49 @@ class AdminReceiverTest {
     }
 
     @Test
-    void get_empty_inventory_shows_no_products_message() {
+    void get_admin_serves_the_page_shell_that_loads_the_page_view() {
         var response = given().get("/admin");
 
         assertThat(response.statusCode()).isEqualTo(200);
         assertThat(response.contentType()).contains("text/html");
-        assertThat(response.asString()).contains("No products in inventory yet.");
+        assertThat(response.asString())
+            .contains("<script src=\"/js/hono/hx-hono.js\">")
+            .contains("hx-get=\"/admin/page\"");
     }
 
     @Test
-    void get_with_products_shows_them_in_html_table() {
+    void page_view_with_empty_inventory_has_no_products() {
+        var response = given().get("/admin/page");
+
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(response.contentType()).contains("application/json");
+        assertThat(response.jsonPath().getString("route")).isEqualTo("AdminPage");
+        assertThat(response.jsonPath().getList("vm.products")).isEmpty();
+    }
+
+    @Test
+    void page_view_lists_products() {
         inventory.addAmount("Apple", ProductType.FRUIT, 10);
         inventory.addAmount("Cola", ProductType.BEVERAGE, 5);
 
-        var response = given().get("/admin");
+        var json = given().get("/admin/page").jsonPath();
 
-        assertThat(response.statusCode()).isEqualTo(200);
-        assertThat(response.asString())
-            .contains("Apple", "FRUIT", "10")
-            .contains("Cola", "BEVERAGE", "5");
+        assertThat(json.getList("vm.products.name")).containsExactlyInAnyOrder("Apple", "Cola");
+        assertThat(json.getString("vm.products.find { it.name == 'Apple' }.type")).isEqualTo("FRUIT");
+        assertThat(json.getInt("vm.products.find { it.name == 'Apple' }.availableAmount")).isEqualTo(10);
     }
 
     @Test
-    void order_fruits_form_post_redirects_to_admin() {
+    void order_fruits_returns_200_with_empty_body() {
         var response = given()
             .contentType("application/x-www-form-urlencoded")
             .formParam("productName", "Banana")
             .formParam("quantity", 20)
-            .redirects().follow(false)
             .post("/admin/order-fruits");
 
-        assertThat(response.statusCode()).isEqualTo(303);
-        assertThat(response.header("Location")).contains("/admin");
+        // not 204: htmx never swaps a 204, and the empty swap is what clears a previous error below the form
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(response.asString()).isEmpty();
         assertThat(auditLogHelper.findEventDetails("AdminReceiver: FRUITS_ORDER_RECEIVED"))
             .containsExactly("Banana qty=20");
     }
@@ -73,12 +84,11 @@ class AdminReceiverTest {
             .contentType("application/x-www-form-urlencoded")
             .formParam("productName", "Banana")
             .formParam("quantity", 0)
-            .redirects().follow(false)
             .post("/admin/order-fruits");
 
         assertThat(response.statusCode()).isEqualTo(400);
-        assertThat(response.contentType()).contains("text/html");
-        assertThat(response.asString()).contains("must be greater than or equal to 1");
+        assertThat(response.jsonPath().getString("route")).isEqualTo("OrderErrors");
+        assertThat(response.jsonPath().getList("vm.messages")).contains("must be greater than or equal to 1");
     }
 
     @Test
@@ -87,12 +97,11 @@ class AdminReceiverTest {
             .contentType("application/x-www-form-urlencoded")
             .formParam("productName", "Banana")
             .formParam("quantity", "abc")
-            .redirects().follow(false)
             .post("/admin/order-fruits");
 
         assertThat(response.statusCode()).isEqualTo(400);
-        assertThat(response.contentType()).contains("text/html");
-        assertThat(response.asString()).contains("must be a number");
+        assertThat(response.jsonPath().getString("route")).isEqualTo("OrderErrors");
+        assertThat(response.jsonPath().getList("vm.messages")).contains("must be a number");
         // The receipt is logged with the raw input, before validation.
         assertThat(auditLogHelper.findEventDetails("AdminReceiver: FRUITS_ORDER_RECEIVED"))
             .containsExactly("Banana qty=abc");
@@ -104,43 +113,28 @@ class AdminReceiverTest {
             .contentType("application/x-www-form-urlencoded")
             .formParam("productName", "Banana")
             .formParam("quantity", "")
-            .redirects().follow(false)
             .post("/admin/order-fruits");
 
         assertThat(response.statusCode()).isEqualTo(400);
-        assertThat(response.contentType()).contains("text/html");
-        assertThat(response.asString()).contains("must not be blank");
+        assertThat(response.jsonPath().getString("route")).isEqualTo("OrderErrors");
+        assertThat(response.jsonPath().getList("vm.messages")).contains("must not be blank");
     }
 
     @Test
-    void order_fruits_htmx_post_returns_200_with_empty_body() {
-        var response = given()
-            .contentType("application/x-www-form-urlencoded")
-            .header("HX-Request", "true")
-            .formParam("productName", "Banana")
-            .formParam("quantity", 20)
-            .post("/admin/order-fruits");
+    void page_view_has_no_audit_entries_when_empty() {
+        var json = given().get("/admin/page").jsonPath();
 
-        // not 204: htmx never swaps a 204, and the empty swap is what clears a previous error below the form
-        assertThat(response.statusCode()).isEqualTo(200);
-        assertThat(response.asString()).isEmpty();
+        assertThat(json.getList("vm.auditEntries")).isEmpty();
     }
 
     @Test
-    void admin_page_shows_no_audit_entries_message_when_empty() {
-        var response = given().get("/admin");
-
-        assertThat(response.statusCode()).isEqualTo(200);
-        assertThat(response.asString()).contains("No audit log entries yet.");
-    }
-
-    @Test
-    void audit_fragment_shows_no_entries_message_when_empty() {
+    void audit_fragment_has_no_entries_when_empty() {
         var response = given().get("/admin/audit-fragment");
 
         assertThat(response.statusCode()).isEqualTo(200);
-        assertThat(response.contentType()).contains("text/html");
-        assertThat(response.asString()).contains("No audit log entries yet.");
+        assertThat(response.contentType()).contains("application/json");
+        assertThat(response.jsonPath().getString("route")).isEqualTo("AuditPanel");
+        assertThat(response.jsonPath().getList("vm.auditEntries")).isEmpty();
     }
 
     @Test
@@ -153,13 +147,12 @@ class AdminReceiverTest {
 
         await().atMost(5, SECONDS).until(() -> !auditLogHelper.findEventDetails("FruitsHandler: FRUITS_ORDER_PLACED").isEmpty());
 
-        var adminResponse = given().get("/admin");
-        assertThat(adminResponse.statusCode()).isEqualTo(200);
-        assertThat(adminResponse.asString()).contains("FruitsHandler: FRUITS_ORDER_PLACED", "Banana");
+        var pageEntries = given().get("/admin/page").jsonPath().getList("vm.auditEntries.event");
+        assertThat(pageEntries).contains("FruitsHandler: FRUITS_ORDER_PLACED");
 
-        var fragmentResponse = given().get("/admin/audit-fragment");
-        assertThat(fragmentResponse.statusCode()).isEqualTo(200);
-        assertThat(fragmentResponse.asString()).contains("FruitsHandler: FRUITS_ORDER_PLACED", "Banana");
+        var fragment = given().get("/admin/audit-fragment").jsonPath();
+        assertThat(fragment.getList("vm.auditEntries.event")).contains("FruitsHandler: FRUITS_ORDER_PLACED");
+        assertThat(fragment.getList("vm.auditEntries.details", String.class)).anyMatch(d -> d.contains("Banana"));
     }
 
     @Test
@@ -169,8 +162,9 @@ class AdminReceiverTest {
         var response = given().get("/admin/inventory-fragment");
 
         assertThat(response.statusCode()).isEqualTo(200);
-        assertThat(response.contentType()).contains("text/html");
-        assertThat(response.asString()).contains("Apple", "FRUIT", "10");
+        assertThat(response.jsonPath().getString("route")).isEqualTo("AdminInventory");
+        assertThat(response.jsonPath().getList("vm.products.name")).containsExactly("Apple");
+        assertThat(response.jsonPath().getInt("vm.products[0].availableAmount")).isEqualTo(10);
     }
 
     @Test
@@ -179,10 +173,9 @@ class AdminReceiverTest {
             .contentType("application/x-www-form-urlencoded")
             .formParam("productName", "Banana")
             .formParam("quantity", "2001")
-            .redirects().follow(false)
             .post("/admin/order-fruits");
 
         assertThat(response.statusCode()).isEqualTo(400);
-        assertThat(response.asString()).contains("must be less than or equal to 2000");
+        assertThat(response.jsonPath().getList("vm.messages")).contains("must be less than or equal to 2000");
     }
 }

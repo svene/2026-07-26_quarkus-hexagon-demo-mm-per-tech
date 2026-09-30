@@ -5,7 +5,7 @@ Replaces Qute in `inbound-http-html` with the approach from
 the server returns a JSON `{ route, vm }` envelope, and a small htmx 4 extension (`hono`) renders the
 matching hono/html template **in the browser** before htmx swaps it in. Tracked as `PLAN.md` § 9.
 
-Status: **NOT STARTED** — plan only, not yet approved for implementation.
+Status: **DONE** (2026-09-30) — see progress log. Optional dev live-reload (step 9) not done.
 
 ## Current state (what gets replaced)
 
@@ -65,22 +65,41 @@ Status: **NOT STARTED** — plan only, not yet approved for implementation.
 
 ## Open questions / decisions needed
 
-- **Bundle build**: the reference repo builds `hx-hono.js` outside Maven (`npm run build` / Bun
-  watcher). Here Quarkus tests and Playwright need the bundle, so either (a) run esbuild from Maven
-  (`frontend-maven-plugin` or `exec-maven-plugin`), or (b) commit the bundle. Recommendation: (a).
-- **No-JS fallback**: `AdminReceiver` currently answers plain form posts with `303` and htmx posts
-  with `204`. With browser-rendered templates a page without JS renders nothing, so the plain-form
-  branch loses its purpose. Recommendation: drop it and accept "JS required" (it's a demo).
-- **First-paint flash**: the shell renders empty until `/uiroute/Page` returns — acceptable per the
-  reference repo; a server-inlined bootstrap VM would be a follow-up.
+- ~~Bundle build~~ — decided: `frontend-maven-plugin` (pinned Node) runs esbuild in
+  `generate-resources`; `tsc --noEmit` runs in `process-classes` after typescript-generator.
+- ~~No-JS fallback~~ — decided: dropped (the `303` branch and the `HX-Request` parameter are gone).
+- ~~First-paint flash~~ — accepted.
 - **Interaction with § 10 (live updates)**: `hx-multipart` swaps each part via `htmx.swap()`
   directly, **bypassing `htmx_after_request`**, so the `hono` extension as written will not render
   JSON parts. It needs a second hook (e.g. on `htmx:multipart:before:part`, replacing the part's
   text with the rendered HTML) — verify in a spike. Recommendation: do § 9 first, so § 10 is built
   on JSON parts from the start rather than converted twice.
-- Alpine.js (`js/alpinejs/3.15.4`) is vendored but appears unused — remove as part of this, or
-  leave it to § 10 (hx-live)?
+- ~~Alpine.js~~ — left for § 10 (it and `main.js` aren't loaded by either page).
 
 ## Progress log
 
-_(append dated entries as steps land)_
+**2026-09-30 — implemented.**
+- `inbound-http-html`: `quarkus-rest-qute` replaced by `quarkus-rest-jackson`; `templates/` deleted.
+  `package.json` (hono, esbuild, typescript), `tsconfig.json`, and in the pom typescript-generator
+  (declared first) + frontend-maven-plugin (Node v24.21.0: `npm ci`, `npm run build`,
+  `npm run typecheck`). Git-ignored: `node/`, `node_modules/`, `cross/generated/`, `js/hono/`.
+- Java: `UiRoute` enum, `UiResponse` envelope, view models `ProductRowModel`, `AuditEntryModel`,
+  `AdminPageModel`, `AdminInventoryModel`, `AuditPanelModel`, `OrderErrorsModel`, `ShopPageModel`,
+  `ShopAvailabilityModel`. Receivers map core types to them.
+- Endpoints: `GET /admin`, `GET /shop` serve `shells/*.html` from the classpath (not under
+  `META-INF/resources`); new `GET /admin/page`, `GET /shop/page`; the fragment endpoints keep their
+  URLs but return envelopes; explicit endpoints instead of the reference repo's generic
+  `/uiroute/{name}` dispatcher (none of the views takes parameters).
+- Shop checkout is now `hx-post` → `#app`, returning the `ShopPage` envelope (200 / 400 / 409)
+  instead of a `303`.
+- TS: `hx-hono.ts`, `render.ts`, `routes.ts` (`satisfies Record<UiRoute, …>`), `route-types.ts`,
+  `admin.ts` (the 7 order forms come from one `SUPPLIER_BOXES` list instead of 7 copies), `shop.ts`.
+  Forms keep `method`/`action` for the Playwright selectors. The Randomize scripts live in the
+  shells and use a delegated click listener.
+- Tests: `AdminReceiverTest`/`ShopReceiverTest` assert JSON envelopes (redirect test removed, shell
+  tests added); `StaticResourcesTest` checks `hx-hono.js` is served. `mvn verify` green, Playwright
+  10 passed + 1 flaky (the first `shop.spec.ts` test hits a dev-mode live reload caused by
+  `package-info.class` changing during the global-setup `mvn install`; passes on its retry).
+- Verified that `tsc` fails the build when a `UiRoute` has no template.
+- Observation: npm 11 warns that esbuild's postinstall script isn't in `allowScripts`; harmless
+  (esbuild's platform binary comes via an optional dependency), but noisy in the Maven log.
