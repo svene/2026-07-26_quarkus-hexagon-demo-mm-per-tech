@@ -12,6 +12,7 @@ import org.eclipse.microprofile.reactive.messaging.Incoming;
 import org.svenehrke.triptychdemo.cross.kafka.UnprocessableMessageException;
 
 import java.time.temporal.ChronoUnit;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
@@ -26,24 +27,30 @@ public class NonFoodDeliveryReceiver {
     @Blocking
     @Retry(maxRetries = 3, delay = 1, delayUnit = ChronoUnit.SECONDS, abortOn = UnprocessableMessageException.class)
     public void receive(RawNonFoodDelivery message) {
+        logReceived(message);
+        validated(message).ifPresent(inventoryHandler::updateNonFoodAmount);
+    }
+
+    private void logReceived(RawNonFoodDelivery message) {
+        auditLog.log("NonFoodDeliveryReceiver: NON_FOOD_DELIVERY_RECEIVED",
+            message == null ? "null payload (tombstone)" : message.productName() + " qty=" + message.quantity());
+    }
+
+    // Empty if the message is invalid (audit-logged, then skipped).
+    private Optional<NonFoodDelivery> validated(RawNonFoodDelivery message) {
         rejectUnprocessable(message);
         // Mapping: RawNonFoodDelivery -> NonFoodDelivery:
-        switch (NonFoodDelivery.parse(message.productName(), message.quantity())) {
-            case ParsedNonFoodDelivery.Invalid invalid: {
+        return switch (NonFoodDelivery.parse(message.productName(), message.quantity())) {
+            case ParsedNonFoodDelivery.Invalid invalid -> {
                 String errors = invalid.violations().stream()
                     .map(ConstraintViolation::getMessage)
                     .collect(Collectors.joining(", "));
-                auditLog.log("NonFoodDeliveryReceiver: NON_FOOD_DELIVERY_RECEIVED",
-                    "INVALID: %s, %d: %s".formatted(message.productName(), message.quantity(), errors));
-                break;
+                auditLog.log("NonFoodDeliveryReceiver: INVALID",
+                    "%s, %d: %s".formatted(message.productName(), message.quantity(), errors));
+                yield Optional.empty();
             }
-            case NonFoodDelivery nonFoodDelivery: {
-                auditLog.log("NonFoodDeliveryReceiver: NON_FOOD_DELIVERY_RECEIVED", nonFoodDelivery.productName() + " qty=" + nonFoodDelivery.quantity());
-                inventoryHandler.updateNonFoodAmount(nonFoodDelivery);
-                auditLog.log("NonFoodDeliveryReceiver: NON_FOOD_INVENTORY_UPDATED", nonFoodDelivery.productName() + " +" + nonFoodDelivery.quantity());
-                break;
-            }
-        }
+            case NonFoodDelivery nonFoodDelivery -> Optional.of(nonFoodDelivery);
+        };
     }
 
     // UnprocessableMessageException skips @Retry and sends the message to the dead-letter topic (see DeadLetterOrFailStop).

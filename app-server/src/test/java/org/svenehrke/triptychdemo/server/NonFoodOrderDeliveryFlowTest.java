@@ -53,7 +53,7 @@ class NonFoodOrderDeliveryFlowTest {
 
             assertThat(auditHelper.findEventDetails("NonFoodDeliveryReceiver: NON_FOOD_DELIVERY_RECEIVED"))
                 .containsExactly("Detergent qty=3");
-            assertThat(auditHelper.findEventDetails("NonFoodDeliveryReceiver: NON_FOOD_INVENTORY_UPDATED"))
+            assertThat(auditHelper.findEventDetails("InventoryHandler: NON_FOOD_INVENTORY_UPDATED"))
                 .containsExactly("Detergent +3");
         });
     }

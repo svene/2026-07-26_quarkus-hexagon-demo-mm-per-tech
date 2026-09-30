@@ -9,7 +9,7 @@ rolled out across the codebase, and what's left. Update this file as boundaries 
 Implemented for all seven commodities: `feature.fruit`/`meat`/`dairy`/`bakery`/`vegetable`/
 `beverage`/`nonfood`. Each `XxxDelivery` carries Bean Validation annotations, implements a sibling
 `ParsedXxxDelivery`, and each `*DeliveryReceiver` (`inbound-kafka`) `switch`es exhaustively, logging
-`Invalid` messages to the audit trail (`"INVALID: <name>, <qty>: <violation messages>"`) instead of
+`Invalid` messages to the audit trail (event `"<Receiver>: INVALID"`, details `"<name>, <qty>: <violation messages>"`) instead of
 silently dropping them the way the pre-rollout `Optional`-returning `parse()` did.
 
 Messages that fail *before* `parse()` are handled too: undeserializable messages, tombstones,

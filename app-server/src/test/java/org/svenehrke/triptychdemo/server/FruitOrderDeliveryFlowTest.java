@@ -50,19 +50,19 @@ class FruitOrderDeliveryFlowTest {
 
         // Wait for: FruitSupplierStub → Kafka → FruitDeliveryReceiver → InventoryHandler.
         // FRUIT_DELIVERY_RECEIVED and FRUIT_INVENTORY_UPDATED are inside untilAsserted because
-        // FruitDeliveryReceiver writes to MongoDB around its call into InventoryHandler, which commits
-        // to Postgres — the inventory may be visible slightly before the audit entries appear.
+        // they are written to MongoDB around the Postgres update in InventoryHandler — the inventory
+        // may be visible slightly before the audit entries appear.
         await().atMost(10, SECONDS).untilAsserted(() -> {
             var response = given().get("/api/products");
             assertThat(response.statusCode()).isEqualTo(200);
             assertThat(response.asString()).isEqualTo("""
                 [{"name":"Mango","type":"FRUIT","availableAmount":5}]""");
 
-            // FRUIT_DELIVERY_RECEIVED proves FruitDeliveryReceiver called updateFruitAmount.
+            // FRUIT_DELIVERY_RECEIVED proves FruitDeliveryReceiver consumed the message.
             assertThat(auditHelper.findEventDetails("FruitDeliveryReceiver: FRUIT_DELIVERY_RECEIVED"))
                 .containsExactly("Mango qty=5");
-            // FRUIT_INVENTORY_UPDATED proves FruitDeliveryReceiver's call to InventoryHandler returned.
-            assertThat(auditHelper.findEventDetails("FruitDeliveryReceiver: FRUIT_INVENTORY_UPDATED"))
+            // FRUIT_INVENTORY_UPDATED proves InventoryHandler's call to InventoryRepositorySPI returned.
+            assertThat(auditHelper.findEventDetails("InventoryHandler: FRUIT_INVENTORY_UPDATED"))
                 .containsExactly("Mango +5");
         });
     }

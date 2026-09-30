@@ -12,6 +12,7 @@ import org.eclipse.microprofile.reactive.messaging.Incoming;
 import org.svenehrke.triptychdemo.cross.kafka.UnprocessableMessageException;
 
 import java.time.temporal.ChronoUnit;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
@@ -26,24 +27,30 @@ public class DairyDeliveryReceiver {
     @Blocking
     @Retry(maxRetries = 3, delay = 1, delayUnit = ChronoUnit.SECONDS, abortOn = UnprocessableMessageException.class)
     public void receive(RawDairyDelivery message) {
+        logReceived(message);
+        validated(message).ifPresent(inventoryHandler::updateDairyAmount);
+    }
+
+    private void logReceived(RawDairyDelivery message) {
+        auditLog.log("DairyDeliveryReceiver: DAIRY_DELIVERY_RECEIVED",
+            message == null ? "null payload (tombstone)" : message.productName() + " qty=" + message.quantity());
+    }
+
+    // Empty if the message is invalid (audit-logged, then skipped).
+    private Optional<DairyDelivery> validated(RawDairyDelivery message) {
         rejectUnprocessable(message);
         // Mapping: RawDairyDelivery -> DairyDelivery:
-        switch (DairyDelivery.parse(message.productName(), message.quantity())) {
-            case ParsedDairyDelivery.Invalid invalid: {
+        return switch (DairyDelivery.parse(message.productName(), message.quantity())) {
+            case ParsedDairyDelivery.Invalid invalid -> {
                 String errors = invalid.violations().stream()
                     .map(ConstraintViolation::getMessage)
                     .collect(Collectors.joining(", "));
-                auditLog.log("DairyDeliveryReceiver: DAIRY_DELIVERY_RECEIVED",
-                    "INVALID: %s, %d: %s".formatted(message.productName(), message.quantity(), errors));
-                break;
+                auditLog.log("DairyDeliveryReceiver: INVALID",
+                    "%s, %d: %s".formatted(message.productName(), message.quantity(), errors));
+                yield Optional.empty();
             }
-            case DairyDelivery dairyDelivery: {
-                auditLog.log("DairyDeliveryReceiver: DAIRY_DELIVERY_RECEIVED", dairyDelivery.productName() + " qty=" + dairyDelivery.quantity());
-                inventoryHandler.updateDairyAmount(dairyDelivery);
-                auditLog.log("DairyDeliveryReceiver: DAIRY_INVENTORY_UPDATED", dairyDelivery.productName() + " +" + dairyDelivery.quantity());
-                break;
-            }
-        }
+            case DairyDelivery dairyDelivery -> Optional.of(dairyDelivery);
+        };
     }
 
     // UnprocessableMessageException skips @Retry and sends the message to the dead-letter topic (see DeadLetterOrFailStop).

@@ -53,7 +53,7 @@ class BakeryOrderDeliveryFlowTest {
 
             assertThat(auditHelper.findEventDetails("BakeryDeliveryReceiver: BAKERY_DELIVERY_RECEIVED"))
                 .containsExactly("Bread qty=10");
-            assertThat(auditHelper.findEventDetails("BakeryDeliveryReceiver: BAKERY_INVENTORY_UPDATED"))
+            assertThat(auditHelper.findEventDetails("InventoryHandler: BAKERY_INVENTORY_UPDATED"))
                 .containsExactly("Bread +10");
         });
     }

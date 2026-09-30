@@ -12,6 +12,7 @@ import org.eclipse.microprofile.reactive.messaging.Incoming;
 import org.svenehrke.triptychdemo.cross.kafka.UnprocessableMessageException;
 
 import java.time.temporal.ChronoUnit;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
@@ -26,24 +27,30 @@ public class BeveragesDeliveryReceiver {
     @Blocking
     @Retry(maxRetries = 3, delay = 1, delayUnit = ChronoUnit.SECONDS, abortOn = UnprocessableMessageException.class)
     public void receive(RawBeverageDelivery message) {
+        logReceived(message);
+        validated(message).ifPresent(inventoryHandler::updateBeverageAmount);
+    }
+
+    private void logReceived(RawBeverageDelivery message) {
+        auditLog.log("BeveragesDeliveryReceiver: BEVERAGE_DELIVERY_RECEIVED",
+            message == null ? "null payload (tombstone)" : message.productName() + " qty=" + message.quantity());
+    }
+
+    // Empty if the message is invalid (audit-logged, then skipped).
+    private Optional<BeverageDelivery> validated(RawBeverageDelivery message) {
         rejectUnprocessable(message);
         // Mapping: RawBeverageDelivery -> BeverageDelivery:
-        switch (BeverageDelivery.parse(message.productName(), message.quantity())) {
-            case ParsedBeverageDelivery.Invalid invalid: {
+        return switch (BeverageDelivery.parse(message.productName(), message.quantity())) {
+            case ParsedBeverageDelivery.Invalid invalid -> {
                 String errors = invalid.violations().stream()
                     .map(ConstraintViolation::getMessage)
                     .collect(Collectors.joining(", "));
-                auditLog.log("BeveragesDeliveryReceiver: BEVERAGE_DELIVERY_RECEIVED",
-                    "INVALID: %s, %d: %s".formatted(message.productName(), message.quantity(), errors));
-                break;
+                auditLog.log("BeveragesDeliveryReceiver: INVALID",
+                    "%s, %d: %s".formatted(message.productName(), message.quantity(), errors));
+                yield Optional.empty();
             }
-            case BeverageDelivery beverageDelivery: {
-                auditLog.log("BeveragesDeliveryReceiver: BEVERAGE_DELIVERY_RECEIVED", beverageDelivery.productName() + " qty=" + beverageDelivery.quantity());
-                inventoryHandler.updateBeverageAmount(beverageDelivery);
-                auditLog.log("BeveragesDeliveryReceiver: BEVERAGE_INVENTORY_UPDATED", beverageDelivery.productName() + " +" + beverageDelivery.quantity());
-                break;
-            }
-        }
+            case BeverageDelivery beverageDelivery -> Optional.of(beverageDelivery);
+        };
     }
 
     // UnprocessableMessageException skips @Retry and sends the message to the dead-letter topic (see DeadLetterOrFailStop).

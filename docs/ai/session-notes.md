@@ -3,9 +3,9 @@
 Session-to-session bookkeeping for the `docs/architecture/` doc set. See [README.md](README.md)
 for the actual maintenance process.
 
-**Last Updated**: 2026-09-27, on top of commit `865b81b` - the commit that removed the inbound `*API` interfaces (receivers now inject `*Handler`s directly; new ArchUnit rule `inbound_adapters_do_not_use_spis`) updated every doc alongside the code: `concepts.md`, `README.md`, `architecture-flow.md` (API nodes collapsed into their Handler node), `architecture-module-participants.md`, `validation.md`, `docs/ai/*` and both architecture-docs skills. `865b81b` itself was docs-only, so no code since `e3d3c87` is unaccounted for. `wip_validation.md` and `PLAN.md` were deliberately left untouched (historical/WIP).
+**Last Updated**: 2026-09-30, on top of commit `32eac5b` - the commit that restructured the 7 Kafka `*DeliveryReceiver`s' audit logging (`receive()` = `logReceived()` + `validated().ifPresent(inventoryHandler::updateXxxAmount)`; tombstones now logged as `…_DELIVERY_RECEIVED` "null payload (tombstone)"; invalid messages logged as `"<Receiver>: INVALID"`; `…_INVENTORY_UPDATED` moved into `InventoryHandler`) updated the docs alongside the code: `validation.md` (Kafka reference example + DLQ/audit paragraph), `architecture-flow.md` (fruit delivery tree), the four delivery `.puml` flows, and one sentence of `wip_validation.md`. Everything up to `32eac5b` was already covered by the 2026-09-27 pass (`32eac5b` is the `*API` removal).
 
-**Diff baseline for the next update**: `git diff 865b81b HEAD -- . ':(exclude)docs'` to see what changed in code since the last content pass (its first commit on top, the `*API` removal, is already reflected), before deciding which doc section(s) need a surgical edit. If a doc looks stale for something older, `git diff 982b169 e3d3c87 -- . ':(exclude)docs'` covers the period that was not fully re-checked.
+**Diff baseline for the next update**: `git diff 32eac5b HEAD -- . ':(exclude)docs'` to see what changed in code since the last content pass (its first commit on top, the receiver audit-logging restructuring, is already reflected), before deciding which doc section(s) need a surgical edit. If a doc looks stale for something older, `git diff 982b169 e3d3c87 -- . ':(exclude)docs'` covers the period that was not fully re-checked.
 
 **By**: Claude (session analysis)
 

@@ -53,7 +53,7 @@ class MeatOrderDeliveryFlowTest {
 
             assertThat(auditHelper.findEventDetails("MeatDeliveryReceiver: MEAT_DELIVERY_RECEIVED"))
                 .containsExactly("Chicken qty=4");
-            assertThat(auditHelper.findEventDetails("MeatDeliveryReceiver: MEAT_INVENTORY_UPDATED"))
+            assertThat(auditHelper.findEventDetails("InventoryHandler: MEAT_INVENTORY_UPDATED"))
                 .containsExactly("Chicken +4");
         });
     }

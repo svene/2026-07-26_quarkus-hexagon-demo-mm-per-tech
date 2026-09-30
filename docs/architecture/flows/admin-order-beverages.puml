@@ -37,10 +37,10 @@ note right of kafka_out
 end note
 
 kafka_out -> kafka_receiver: consume delivery message
-kafka_receiver -> inv_handler: updateBeverageAmount(productName, quantity)
-inv_handler -> audit: log("BEVERAGE_DELIVERY_RECEIVED")
+kafka_receiver -> audit: log("BEVERAGE_DELIVERY_RECEIVED")
 audit -> db_audit: Insert audit entry
-audit --> inv_handler
+audit --> kafka_receiver
+kafka_receiver -> inv_handler: updateBeverageAmount(productName, quantity)
 inv_handler -> inventory: addAmount(productName, quantity)
 inventory -> db_inv: UPDATE products SET availableAmount += quantity
 db_inv --> inventory

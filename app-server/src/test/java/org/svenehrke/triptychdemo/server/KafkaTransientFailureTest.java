@@ -105,7 +105,7 @@ class KafkaTransientFailureTest {
             {"productName": "Mango", "quantity": 5}""");
 
         await().atMost(15, SECONDS).untilAsserted(() ->
-            assertThat(auditHelper.findEventDetails("FruitDeliveryReceiver: FRUIT_INVENTORY_UPDATED"))
+            assertThat(auditHelper.findEventDetails("InventoryHandler: FRUIT_INVENTORY_UPDATED"))
                 .containsExactly("Mango +5"));
         // @Retry runs the whole receive() again, so the receipt is logged once per attempt.
         assertThat(auditHelper.findEventDetails("FruitDeliveryReceiver: FRUIT_DELIVERY_RECEIVED"))

@@ -114,7 +114,8 @@ class KafkaMalformedMessageTest {
         send("probe-dairy-deliveries", """
             {"productName": "Milk", "quantity": 5}""");
 
-        assertProcessed("DairyDeliveryReceiver: DAIRY_DELIVERY_RECEIVED", "Milk qty=5");
+        // The receipt is logged before the tombstone is rejected.
+        assertProcessed("DairyDeliveryReceiver: DAIRY_DELIVERY_RECEIVED", "null payload (tombstone)", "Milk qty=5");
         var dead = readDlq("probe-dairy-deliveries-dlq", 1);
         // The DLQ's ObjectMapperSerializer writes the null payload as JSON "null", not as a tombstone.
         assertDeadLetter(dead.getFirst(), "null", "probe-dairy-deliveries");
@@ -143,7 +144,7 @@ class KafkaMalformedMessageTest {
         producer.send(new ProducerRecord<>(topic, value)).get();
     }
 
-    private void assertProcessed(String event, String details) {
+    private void assertProcessed(String event, String... details) {
         await().atMost(15, SECONDS).untilAsserted(() ->
             assertThat(auditHelper.findEventDetails(event)).containsExactly(details));
     }

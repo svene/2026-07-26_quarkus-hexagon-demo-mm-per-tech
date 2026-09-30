@@ -12,6 +12,7 @@ import org.eclipse.microprofile.reactive.messaging.Incoming;
 import org.svenehrke.triptychdemo.cross.kafka.UnprocessableMessageException;
 
 import java.time.temporal.ChronoUnit;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
@@ -26,24 +27,30 @@ public class BakeryDeliveryReceiver {
     @Blocking
     @Retry(maxRetries = 3, delay = 1, delayUnit = ChronoUnit.SECONDS, abortOn = UnprocessableMessageException.class)
     public void receive(RawBakeryDelivery message) {
+        logReceived(message);
+        validated(message).ifPresent(inventoryHandler::updateBakeryAmount);
+    }
+
+    private void logReceived(RawBakeryDelivery message) {
+        auditLog.log("BakeryDeliveryReceiver: BAKERY_DELIVERY_RECEIVED",
+            message == null ? "null payload (tombstone)" : message.productName() + " qty=" + message.quantity());
+    }
+
+    // Empty if the message is invalid (audit-logged, then skipped).
+    private Optional<BakeryDelivery> validated(RawBakeryDelivery message) {
         rejectUnprocessable(message);
         // Mapping: RawBakeryDelivery -> BakeryDelivery:
-        switch (BakeryDelivery.parse(message.productName(), message.quantity())) {
-            case ParsedBakeryDelivery.Invalid invalid: {
+        return switch (BakeryDelivery.parse(message.productName(), message.quantity())) {
+            case ParsedBakeryDelivery.Invalid invalid -> {
                 String errors = invalid.violations().stream()
                     .map(ConstraintViolation::getMessage)
                     .collect(Collectors.joining(", "));
-                auditLog.log("BakeryDeliveryReceiver: BAKERY_DELIVERY_RECEIVED",
-                    "INVALID: %s, %d: %s".formatted(message.productName(), message.quantity(), errors));
-                break;
+                auditLog.log("BakeryDeliveryReceiver: INVALID",
+                    "%s, %d: %s".formatted(message.productName(), message.quantity(), errors));
+                yield Optional.empty();
             }
-            case BakeryDelivery bakeryDelivery: {
-                auditLog.log("BakeryDeliveryReceiver: BAKERY_DELIVERY_RECEIVED", bakeryDelivery.productName() + " qty=" + bakeryDelivery.quantity());
-                inventoryHandler.updateBakeryAmount(bakeryDelivery);
-                auditLog.log("BakeryDeliveryReceiver: BAKERY_INVENTORY_UPDATED", bakeryDelivery.productName() + " +" + bakeryDelivery.quantity());
-                break;
-            }
-        }
+            case BakeryDelivery bakeryDelivery -> Optional.of(bakeryDelivery);
+        };
     }
 
     // UnprocessableMessageException skips @Retry and sends the message to the dead-letter topic (see DeadLetterOrFailStop).

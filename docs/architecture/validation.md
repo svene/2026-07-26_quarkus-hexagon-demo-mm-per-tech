@@ -69,16 +69,30 @@ public record FruitDelivery(@NotBlank String productName, @Min(1) @Max(MAX_QUANT
 ```
 
 ```java
-switch (FruitDelivery.parse(message.productName(), message.quantity())) {
-    case ParsedFruitDelivery.Invalid invalid -> { /* log to audit trail, keep consuming */ }
-    case FruitDelivery fruitDelivery -> { /* update inventory */ }
+public void receive(RawFruitDelivery message) {
+    logReceived(message);   // FRUIT_DELIVERY_RECEIVED, before any validation
+    validated(message).ifPresent(inventoryHandler::updateFruitAmount);
+}
+
+private Optional<FruitDelivery> validated(RawFruitDelivery message) {
+    rejectUnprocessable(message);   // null payload -> UnprocessableMessageException -> DLQ
+    return switch (FruitDelivery.parse(message.productName(), message.quantity())) {
+        case ParsedFruitDelivery.Invalid invalid -> { /* audit-log "FruitDeliveryReceiver: INVALID" */ yield Optional.empty(); }
+        case FruitDelivery fruitDelivery -> Optional.of(fruitDelivery);
+    };
 }
 ```
+
+Every message is audit-logged as `…_DELIVERY_RECEIVED` first, purely for information. An invalid
+one then gets a second entry, `"<Receiver>: INVALID"` with details `"<name>, <qty>: <violation
+messages>"`, and is skipped.
 
 A message that fails *before* `parse()` goes to the channel's dead-letter topic, `<topic>-dlq`.
 This covers messages that can't be deserialized (invalid JSON, `"quantity": "abc"`), tombstones,
 and cashpoint messages with `"items": null` or `null` entries. They are **not** written to the
-audit log. The DLQ is the single record of them, and it keeps the payload so it can be replayed.
+audit log, except that a delivery receiver's `…_DELIVERY_RECEIVED` entry (logged before any check)
+records a tombstone as `"null payload (tombstone)"`. The DLQ is the authoritative record of them,
+and it keeps the payload so it can be replayed.
 
 Two mechanisms work together, configured on every incoming channel with
 `fail-on-deserialization-failure=false` and `failure-strategy=dead-letter-or-fail-stop` (a custom

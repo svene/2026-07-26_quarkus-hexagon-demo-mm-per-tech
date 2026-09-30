@@ -12,6 +12,7 @@ import org.eclipse.microprofile.reactive.messaging.Incoming;
 import org.svenehrke.triptychdemo.cross.kafka.UnprocessableMessageException;
 
 import java.time.temporal.ChronoUnit;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
@@ -26,24 +27,30 @@ public class MeatDeliveryReceiver {
     @Blocking
     @Retry(maxRetries = 3, delay = 1, delayUnit = ChronoUnit.SECONDS, abortOn = UnprocessableMessageException.class)
     public void receive(RawMeatDelivery message) {
+        logReceived(message);
+        validated(message).ifPresent(inventoryHandler::updateMeatAmount);
+    }
+
+    private void logReceived(RawMeatDelivery message) {
+        auditLog.log("MeatDeliveryReceiver: MEAT_DELIVERY_RECEIVED",
+            message == null ? "null payload (tombstone)" : message.productName() + " qty=" + message.quantity());
+    }
+
+    // Empty if the message is invalid (audit-logged, then skipped).
+    private Optional<MeatDelivery> validated(RawMeatDelivery message) {
         rejectUnprocessable(message);
         // Mapping: RawMeatDelivery -> MeatDelivery:
-        switch (MeatDelivery.parse(message.productName(), message.quantity())) {
-            case ParsedMeatDelivery.Invalid invalid: {
+        return switch (MeatDelivery.parse(message.productName(), message.quantity())) {
+            case ParsedMeatDelivery.Invalid invalid -> {
                 String errors = invalid.violations().stream()
                     .map(ConstraintViolation::getMessage)
                     .collect(Collectors.joining(", "));
-                auditLog.log("MeatDeliveryReceiver: MEAT_DELIVERY_RECEIVED",
-                    "INVALID: %s, %d: %s".formatted(message.productName(), message.quantity(), errors));
-                break;
+                auditLog.log("MeatDeliveryReceiver: INVALID",
+                    "%s, %d: %s".formatted(message.productName(), message.quantity(), errors));
+                yield Optional.empty();
             }
-            case MeatDelivery meatDelivery: {
-                auditLog.log("MeatDeliveryReceiver: MEAT_DELIVERY_RECEIVED", meatDelivery.productName() + " qty=" + meatDelivery.quantity());
-                inventoryHandler.updateMeatAmount(meatDelivery);
-                auditLog.log("MeatDeliveryReceiver: MEAT_INVENTORY_UPDATED", meatDelivery.productName() + " +" + meatDelivery.quantity());
-                break;
-            }
-        }
+            case MeatDelivery meatDelivery -> Optional.of(meatDelivery);
+        };
     }
 
     // UnprocessableMessageException skips @Retry and sends the message to the dead-letter topic (see DeadLetterOrFailStop).

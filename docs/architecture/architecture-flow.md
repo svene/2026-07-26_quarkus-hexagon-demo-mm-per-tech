@@ -65,8 +65,8 @@ AdminReceiver.orderFruits()
    │           └─ Emitter → fruit-deliveries-out channel
    │              └─ Kafka Topic: fruit-deliveries
    │                 └─ FruitDeliveryReceiver (@Incoming("fruit-deliveries"))
+   │                    ├─ AuditLogHandler.log("FRUIT_DELIVERY_RECEIVED")
    │                    └─ InventoryHandler.updateFruitAmount()
-   │                       ├─ AuditLogSPI.log("FRUIT_DELIVERY_RECEIVED")
    │                       ├─ InventoryRepositorySPI.addAmount()
    │                       │  └─ InventoryService (outbound-postgres)
    │                       │     └─ PostgreSQL
