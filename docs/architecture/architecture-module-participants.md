@@ -11,8 +11,8 @@ Complete inventory of all classes participating in the system flows, organized b
 
 | Module | Participants |
 |--------|--------------|
-| **inbound-http-html** | `AdminReceiver`<br>`ShopReceiver` |
-| **inbound-http-jsonapi** | `ProductApiReceiver`<br>`XxxOrderRequest`/`PurchaseRequest`/`PurchaseRequestItem`/`RequestStructureErrorMessages`<br>`JsonInputErrors`/`StrictJsonReader`/`JsonResponses` |
+| **inbound-http-html** | `AdminReceiver`<br>`ShopReceiver`<br>`ShopCart` |
+| **inbound-http-jsonapi** | `ProductApiReceiver`<br>`XxxOrderRequest` (+ `OrderRequest`)/`PurchaseRequest`/`PurchaseRequestItem`/`RequestStructureErrorMessages`<br>`JsonInputErrors`/`StrictJsonReader`/`JsonResponses` |
 | **inbound-kafka** | `FruitDeliveryReceiver`<br>`VegetablesDeliveryReceiver`<br>`DairyDeliveryReceiver`<br>`BeveragesDeliveryReceiver`<br>`MeatDeliveryReceiver`<br>`BakeryDeliveryReceiver`<br>`NonFoodDeliveryReceiver`<br>`CashpointReceiver` |
 | **core** | `FruitSupplierSPI`/`FruitDelivery`/`FruitsHandler`<br>`VegetablesSupplierSPI`/`VegetableDelivery`/`VegetablesHandler`<br>`DairySupplierSPI`/`DairyDelivery`/`DairyHandler`<br>`BeverageSupplierSPI`/`BeverageDelivery`/`BeveragesHandler`<br>`MeatSupplierSPI`/`MeatDelivery`/`MeatHandler`<br>`BakerySupplierSPI`/`BakeryDelivery`/`BakeryHandler`<br>`NonFoodSupplierSPI`/`NonFoodDelivery`/`NonFoodHandler`<br>`InventoryRepositorySPI`/`InventoryHandler`<br>`AuditLogSPI`/`AuditLogHandler`/`AuditLogEntry`<br>`ProductsHandler`/`Product`/`ProductType`<br>`PurchaseHandler`/`PurchaseItem` |
 | **outbound-postgres** | `InventoryService`<br>`ProductEntity` |
@@ -35,6 +35,7 @@ Complete inventory of all classes participating in the system flows, organized b
 ### Receivers
 - `AdminReceiver` - Admin dashboard and ordering endpoints (GET /admin, POST /admin/order-*)
 - `ShopReceiver` - Customer shopping interface (GET /shop, POST /shop/checkout)
+- `ShopCart` (package-private) - the checkout form's cart: pairs names with quantities, drops blank/`0` rows, parses to a `ParsedPurchase`, maps violations back to product names
 
 **Responsibilities**:
 - Parse HTTP form requests (APPLICATION_FORM_URLENCODED)
@@ -65,6 +66,7 @@ Complete inventory of all classes participating in the system flows, organized b
 - `PurchaseRequest` - Purchase request (List of PurchaseRequestItem)
 - `PurchaseRequestItem` - Purchase item (productName, quantity)
 - `RequestStructureErrorMessages` - shared structure-error messages
+- `OrderRequest` (package-private interface) - common shape of the seven `XxxOrderRequest`s, used to log the raw request
 - Each request record has a static `structureErrors(request)`: structure checks only (missing body/field/entry, all errors collected); `PurchaseRequest` delegates each item (incl. `null` entries) to `PurchaseRequestItem.structureErrors(item, "items[i]")`, which prefixes its messages with that path; values are validated by the domain `parse()` in the receiver
 
 ### JSON input handling

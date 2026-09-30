@@ -3,9 +3,9 @@
 Session-to-session bookkeeping for the `docs/architecture/` doc set. See [README.md](README.md)
 for the actual maintenance process.
 
-**Last Updated**: 2026-09-30, on top of commit `e4f87f1` - the commit that refactored `ShopReceiver.checkout` (`cartRows()`/`CartRow`, early return for an empty cart, `errorsOf()`, `redirectToShop()`; the hand-written `try/catch` number check replaced by the new `PurchaseItem.parse(String, String)` text overload in `core`) updated `validation.md`'s `ShopReceiver.checkout` bullet alongside the code. No flow/tree/diagram changed (same calls, same audit events). `e4f87f1` itself (HTTP receivers log `…_RECEIVED`, order handlers `…_PROCESSING`) was committed with its docs, so nothing up to it is unaccounted for.
+**Last Updated**: 2026-09-30, on top of commit `f63b54f` - the commit that extracted the checkout form's cart logic from `ShopReceiver.checkout` into a new package-private `ShopCart` (`inbound-http-html`, first unit test in that module: `ShopCartTest`; `assertj-core` added to its pom) updated `architecture-module-participants.md` (table + participant list; also added the previously missing `OrderRequest` interface from `e4f87f1`) and one sentence of `validation.md`'s `ShopReceiver.checkout` bullet. No flow/tree/diagram changed. `f63b54f` (`PurchaseItem.parse(String, String)`) was committed with its docs.
 
-**Diff baseline for the next update**: `git diff e4f87f1 HEAD -- . ':(exclude)docs'` to see what changed in code since the last content pass (its first commit on top, the `ShopReceiver.checkout` refactoring, is already reflected), before deciding which doc section(s) need a surgical edit. If a doc looks stale for something older, `git diff 982b169 e3d3c87 -- . ':(exclude)docs'` covers the period that was not fully re-checked.
+**Diff baseline for the next update**: `git diff f63b54f HEAD -- . ':(exclude)docs'` to see what changed in code since the last content pass (its first commit on top, the `ShopCart` extraction, is already reflected), before deciding which doc section(s) need a surgical edit. If a doc looks stale for something older, `git diff 982b169 e3d3c87 -- . ':(exclude)docs'` covers the period that was not fully re-checked.
 
 **By**: Claude (session analysis)
 
