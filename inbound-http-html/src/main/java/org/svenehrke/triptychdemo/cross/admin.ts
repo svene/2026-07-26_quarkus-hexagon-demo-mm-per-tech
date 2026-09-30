@@ -1,11 +1,11 @@
 import {html} from "hono/html";
 import type {
-	AdminInventoryModel,
-	AdminPageModel,
-	AuditEntryModel,
-	AuditPanelModel,
-	OrderErrorsModel,
-	ProductRowModel
+	AdminInventoryVM,
+	AdminPageVM,
+	AuditEntryVM,
+	AuditPanelVM,
+	OrderErrorsVM,
+	ProductRowVM
 } from "./generated/vm-types";
 import type {HtmlResult} from "./route-types";
 
@@ -34,7 +34,7 @@ const SUPPLIER_BOXES: SupplierBox[] = [
 	},
 ];
 
-export const AdminPage = (vm: AdminPageModel): HtmlResult => html`
+export const AdminPage = (vm: AdminPageVM): HtmlResult => html`
 	<div class="columns">
 		<div class="column is-half">
 			<h2 class="title is-4">Current Inventory</h2>
@@ -62,13 +62,13 @@ export const AdminPage = (vm: AdminPageModel): HtmlResult => html`
 `;
 
 // Polls itself and is replaced wholesale (outerHTML) - it contains no user input.
-export const AdminInventory = (vm: AdminInventoryModel): HtmlResult => html`
+export const AdminInventory = (vm: AdminInventoryVM): HtmlResult => html`
 	<tbody id="inventory-body" hx-get="/admin/inventory-fragment" hx-trigger="every 3s" hx-swap="outerHTML">
 		${vm.products.map(InventoryRow)}
 	</tbody>
 `;
 
-const InventoryRow = (p: ProductRowModel): HtmlResult => html`
+const InventoryRow = (p: ProductRowVM): HtmlResult => html`
 	<tr>
 		<td>${p.name}</td>
 		<td>${p.type}</td>
@@ -94,7 +94,7 @@ const OrderFormRow = (f: OrderForm): HtmlResult => html`
 	<p class="help is-danger order-error"></p>
 `;
 
-export const AuditPanel = (vm: AuditPanelModel): HtmlResult => html`
+export const AuditPanel = (vm: AuditPanelVM): HtmlResult => html`
 	<div id="audit-panel" hx-get="/admin/audit-fragment" hx-trigger="every 3s" hx-swap="outerHTML">
 		<h2 class="title is-4">Audit Log</h2>
 		${vm.auditEntries.length === 0
@@ -113,7 +113,7 @@ export const AuditPanel = (vm: AuditPanelModel): HtmlResult => html`
 	</div>
 `;
 
-const AuditRow = (e: AuditEntryModel): HtmlResult => html`
+const AuditRow = (e: AuditEntryVM): HtmlResult => html`
 	<tr>
 		<td>${e.timestamp}</td>
 		<td>${e.event}</td>
@@ -121,5 +121,5 @@ const AuditRow = (e: AuditEntryModel): HtmlResult => html`
 	</tr>
 `;
 
-export const OrderErrors = (vm: OrderErrorsModel): HtmlResult =>
+export const OrderErrors = (vm: OrderErrorsVM): HtmlResult =>
 	html`${vm.messages.map((m, i) => i === 0 ? html`${m}` : html`<br>${m}`)}`;

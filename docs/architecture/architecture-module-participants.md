@@ -35,7 +35,7 @@ Complete inventory of all classes participating in the system flows, organized b
 ### Receivers
 - `AdminReceiver` - Admin dashboard and ordering endpoints (GET /admin shell, GET /admin/page and fragments, POST /admin/order-*)
 - `ShopReceiver` - Customer shopping interface (GET /shop shell, GET /shop/page and fragment, POST /shop/checkout)
-- `UiRoute`, `UiResponse`, `*Model` records - the `{route, vm}` JSON envelope and the view models (TS types generated from them)
+- `UiRoute`, `UiResponse`, `*VM` records - the `{route, vm}` JSON envelope and the view models (TS types generated from them)
 - `*.ts` next to the receivers - hono/html templates + the `hono` htmx extension, bundled into `hx-hono.js`
 - `ShopCart` (package-private) - the checkout form's cart: pairs names with quantities, drops blank/`0` rows, parses to a `ParsedPurchase`, maps violations back to product names
 

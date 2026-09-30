@@ -73,21 +73,21 @@ public class AdminReceiver {
     @Path("/page")
     @Produces(MediaType.APPLICATION_JSON)
     public UiResponse page() {
-        return UiResponse.of(UiRoute.AdminPage, new AdminPageModel(products(), auditEntries()));
+        return UiResponse.of(UiRoute.AdminPage, new AdminPageVM(products(), auditEntries()));
     }
 
     @GET
     @Path("/inventory-fragment")
     @Produces(MediaType.APPLICATION_JSON)
     public UiResponse inventoryFragment() {
-        return UiResponse.of(UiRoute.AdminInventory, new AdminInventoryModel(products()));
+        return UiResponse.of(UiRoute.AdminInventory, new AdminInventoryVM(products()));
     }
 
     @GET
     @Path("/audit-fragment")
     @Produces(MediaType.APPLICATION_JSON)
     public UiResponse auditFragment() {
-        return UiResponse.of(UiRoute.AuditPanel, new AuditPanelModel(auditEntries()));
+        return UiResponse.of(UiRoute.AuditPanel, new AuditPanelVM(auditEntries()));
     }
 
     @POST
@@ -201,7 +201,7 @@ public class AdminReceiver {
 
     private static Response badRequest(Set<? extends ConstraintViolation<?>> violations) {
         return UiResponse.response(Response.Status.BAD_REQUEST, UiRoute.OrderErrors,
-            new OrderErrorsModel(violations.stream().map(ConstraintViolation::getMessage).toList()));
+            new OrderErrorsVM(violations.stream().map(ConstraintViolation::getMessage).toList()));
     }
 
     private static Response orderAccepted() {
@@ -209,11 +209,11 @@ public class AdminReceiver {
         return Response.ok("", MediaType.TEXT_HTML).build();
     }
 
-    private List<ProductRowModel> products() {
-        return productsHandler.listAll().stream().map(ProductRowModel::of).toList();
+    private List<ProductRowVM> products() {
+        return productsHandler.listAll().stream().map(ProductRowVM::of).toList();
     }
 
-    private List<AuditEntryModel> auditEntries() {
-        return auditLogHandler.recent(AUDIT_LOG_LIMIT).stream().map(AuditEntryModel::of).toList();
+    private List<AuditEntryVM> auditEntries() {
+        return auditLogHandler.recent(AUDIT_LOG_LIMIT).stream().map(AuditEntryVM::of).toList();
     }
 }

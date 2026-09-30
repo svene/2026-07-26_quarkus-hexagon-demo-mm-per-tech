@@ -29,7 +29,7 @@ Status: **DONE** (2026-09-30) — see progress log. Optional dev live-reload (st
   `hx-get="/…/uiroute/<Page>" hx-trigger="load"`.
 - **`UiResponse(String route, Object vm)`** JSON envelope returned by every fragment/page GET and by
   the 400 error responses.
-- **View-model records** (`*Model`/`*VM`) owned by `inbound-http-html` — not core's `Product` /
+- **View-model records** (`*VM`) owned by `inbound-http-html` — not core's `Product` /
   `AuditLogEntry`, so the TS types are generated from the adapter's own records and core stays
   free of UI concerns.
 - **Route-name enum** (e.g. `AdminRouteName`, `ShopRouteName`) → TS string-union via
@@ -83,9 +83,9 @@ Status: **DONE** (2026-09-30) — see progress log. Optional dev live-reload (st
   `package.json` (hono, esbuild, typescript), `tsconfig.json`, and in the pom typescript-generator
   (declared first) + frontend-maven-plugin (Node v24.21.0: `npm ci`, `npm run build`,
   `npm run typecheck`). Git-ignored: `node/`, `node_modules/`, `cross/generated/`, `js/hono/`.
-- Java: `UiRoute` enum, `UiResponse` envelope, view models `ProductRowModel`, `AuditEntryModel`,
-  `AdminPageModel`, `AdminInventoryModel`, `AuditPanelModel`, `OrderErrorsModel`, `ShopPageModel`,
-  `ShopAvailabilityModel`. Receivers map core types to them.
+- Java: `UiRoute` enum, `UiResponse` envelope, view models `ProductRowVM`, `AuditEntryVM`,
+  `AdminPageVM`, `AdminInventoryVM`, `AuditPanelVM`, `OrderErrorsVM`, `ShopPageVM`,
+  `ShopAvailabilityVM`. Receivers map core types to them.
 - Endpoints: `GET /admin`, `GET /shop` serve `shells/*.html` from the classpath (not under
   `META-INF/resources`); new `GET /admin/page`, `GET /shop/page`; the fragment endpoints keep their
   URLs but return envelopes; explicit endpoints instead of the reference repo's generic

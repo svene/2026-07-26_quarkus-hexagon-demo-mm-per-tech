@@ -41,7 +41,7 @@ public class ShopReceiver {
     @Path("/page")
     @Produces(MediaType.APPLICATION_JSON)
     public UiResponse page() {
-        return shopPageModel(List.of());
+        return shopPageView(List.of());
     }
 
     @GET
@@ -49,7 +49,7 @@ public class ShopReceiver {
     @Produces(MediaType.APPLICATION_JSON)
     public UiResponse inventoryFragment() {
         return UiResponse.of(UiRoute.ShopAvailability,
-            new ShopAvailabilityModel(productsHandler.listAll().stream().map(ProductRowModel::of).toList()));
+            new ShopAvailabilityVM(productsHandler.listAll().stream().map(ProductRowVM::of).toList()));
     }
 
     @POST
@@ -79,14 +79,14 @@ public class ShopReceiver {
     }
 
     private Response shopPage(Response.Status status, List<String> errors) {
-        return Response.status(status).type(MediaType.APPLICATION_JSON).entity(shopPageModel(errors)).build();
+        return Response.status(status).type(MediaType.APPLICATION_JSON).entity(shopPageView(errors)).build();
     }
 
-    private UiResponse shopPageModel(List<String> errors) {
+    private UiResponse shopPageView(List<String> errors) {
         var inStock = productsHandler.listAll().stream()
             .filter(p -> p.availableAmount() > 0)
-            .map(ProductRowModel::of)
+            .map(ProductRowVM::of)
             .toList();
-        return UiResponse.of(UiRoute.ShopPage, new ShopPageModel(inStock, errors));
+        return UiResponse.of(UiRoute.ShopPage, new ShopPageVM(inStock, errors));
     }
 }

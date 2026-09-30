@@ -1,9 +1,9 @@
 import {html} from "hono/html";
-import type {ProductRowModel, ShopAvailabilityModel, ShopPageModel} from "./generated/vm-types";
+import type {ProductRowVM, ShopAvailabilityVM, ShopPageVM} from "./generated/vm-types";
 import type {HtmlResult} from "./route-types";
 
 // Checkout re-renders the whole page into #app (with errors on 400/409, fresh after a purchase).
-export const ShopPage = (vm: ShopPageModel): HtmlResult => html`
+export const ShopPage = (vm: ShopPageVM): HtmlResult => html`
 	${vm.errors.length === 0 ? '' : html`
 		<div class="notification is-danger" id="checkout-errors">
 			<p><strong>Purchase not processed:</strong></p>
@@ -33,7 +33,7 @@ export const ShopPage = (vm: ShopPageModel): HtmlResult => html`
 			</form>`}
 `;
 
-const CartRow = (p: ProductRowModel): HtmlResult => html`
+const CartRow = (p: ProductRowVM): HtmlResult => html`
 	<tr>
 		<td>${p.name}</td>
 		<td>${p.type}</td>
@@ -46,6 +46,6 @@ const CartRow = (p: ProductRowModel): HtmlResult => html`
 `;
 
 // Partials update only the "Available" cells, so the poll never wipes a customer's typed quantities.
-export const ShopAvailability = (vm: ShopAvailabilityModel): HtmlResult => html`
+export const ShopAvailability = (vm: ShopAvailabilityVM): HtmlResult => html`
 	${vm.products.map(p => html`<hx-partial id="avail-${p.name}" hx-swap="innerHTML">${p.availableAmount}</hx-partial>`)}
 `;

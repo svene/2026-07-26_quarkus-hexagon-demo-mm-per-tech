@@ -64,7 +64,7 @@
         <configuration>
           <jsonLibrary>jackson2</jsonLibrary>
           <classPatterns>
-            <pattern>org.svenehrke.triptychdemo.cross.*Model</pattern>
+            <pattern>org.svenehrke.triptychdemo.cross.*VM</pattern>
           </classPatterns>
           <classes>
             <class>org.svenehrke.triptychdemo.cross.UiRoute</class>
