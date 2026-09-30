@@ -40,7 +40,9 @@ class MeatOrderDeliveryFlowTest {
             .post("/api/products/order-meat");
         assertThat(orderResponse.statusCode()).isEqualTo(204);
 
-        assertThat(auditHelper.findEventDetails("MeatHandler: MEAT_ORDER_RECEIVED"))
+        assertThat(auditHelper.findEventDetails("ProductApiReceiver: MEAT_ORDER_RECEIVED"))
+            .containsExactly("Chicken qty=4");
+        assertThat(auditHelper.findEventDetails("MeatHandler: MEAT_ORDER_PROCESSING"))
             .containsExactly("Chicken qty=4");
         assertThat(auditHelper.findEventDetails("MeatHandler: MEAT_ORDER_PLACED"))
             .containsExactly("Chicken qty=4");

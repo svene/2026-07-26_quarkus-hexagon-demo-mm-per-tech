@@ -54,6 +54,11 @@ mechanism for a domain type `Xxx`:
 | HTTP/REST endpoint (`inbound-http-jsonapi`, `inbound-http-html`) | Yes — the HTTP client | Build a `400 Response` from the violations, right there in the resource method |
 | Kafka consumer (`@Incoming`, `inbound-kafka`) | No — nobody to reject a message to | Log to the audit trail and keep consuming |
 
+Independently of validation, every receiver audit-logs `"<Receiver>: …_RECEIVED"` with the raw
+input as the first thing it does (HTTP: state-changing `POST`s only). Handlers log
+`…_PROCESSING` instead, so a `…_RECEIVED` entry always comes from the inbound adapter. Invalid HTTP
+input is not audit-logged beyond that receipt: the caller already gets the `400`.
+
 ---
 
 ## Reference example: Kafka boundary

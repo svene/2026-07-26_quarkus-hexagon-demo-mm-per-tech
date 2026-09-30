@@ -13,7 +13,7 @@ public class NonFoodHandler {
     AuditLogSPI auditLog;
 
     public void order(NonFoodOrder nonFoodOrder) {
-        auditLog.log("NonFoodHandler: NONFOOD_ORDER_RECEIVED", nonFoodOrder.productName() + " qty=" + nonFoodOrder.quantity());
+        auditLog.log("NonFoodHandler: NONFOOD_ORDER_PROCESSING", nonFoodOrder.productName() + " qty=" + nonFoodOrder.quantity());
         nonFoodSupplier.placeOrder(nonFoodOrder);
         auditLog.log("NonFoodHandler: NONFOOD_ORDER_PLACED", nonFoodOrder.productName() + " qty=" + nonFoodOrder.quantity());
     }

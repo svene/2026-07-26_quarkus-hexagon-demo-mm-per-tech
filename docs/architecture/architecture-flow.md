@@ -54,8 +54,9 @@ AdminReceiver.auditFragment()
 #### POST /admin/order-fruits - HTML Form → REST Client → Kafka Delivery Topic
 ```
 AdminReceiver.orderFruits()
+├─ AuditLogHandler.log("FRUITS_ORDER_RECEIVED")
 └─ FruitsHandler.order(productName, quantity)
-   ├─ AuditLogSPI.log("FRUITS_ORDER_RECEIVED")
+   ├─ AuditLogSPI.log("FRUITS_ORDER_PROCESSING")
    │  └─ AuditLogService (outbound-mongodb)
    │     └─ MongoDB
    ├─ FruitSupplierSPI.placeOrder()
@@ -79,8 +80,9 @@ AdminReceiver.orderFruits()
 #### POST /admin/order-vegetables - HTML Form → REST Client → Kafka Delivery Topic
 ```
 AdminReceiver.orderVegetables()
+├─ AuditLogHandler.log("VEGETABLES_ORDER_RECEIVED")
 └─ VegetablesHandler.order()
-   ├─ AuditLogSPI.log("VEGETABLES_ORDER_RECEIVED")
+   ├─ AuditLogSPI.log("VEGETABLES_ORDER_PROCESSING")
    ├─ VegetablesSupplierService (outbound-httpclient)
    │  └─ REST → VegetablesSupplierStub
    │     └─ Kafka: vegetables-deliveries-out
@@ -94,8 +96,9 @@ AdminReceiver.orderVegetables()
 #### POST /admin/order-dairy - HTML Form → REST Client → Kafka Delivery Topic
 ```
 AdminReceiver.orderDairy()
+├─ AuditLogHandler.log("DAIRY_ORDER_RECEIVED")
 └─ DairyHandler.order()
-   ├─ AuditLogSPI.log("DAIRY_ORDER_RECEIVED")
+   ├─ AuditLogSPI.log("DAIRY_ORDER_PROCESSING")
    ├─ DairySupplierService (outbound-httpclient)
    │  └─ REST → DairySupplierStub
    │     └─ Kafka: dairy-deliveries-out
@@ -109,8 +112,9 @@ AdminReceiver.orderDairy()
 #### POST /admin/order-beverages - HTML Form → SOAP Client → Kafka Delivery Topic
 ```
 AdminReceiver.orderBeverages()
+├─ AuditLogHandler.log("BEVERAGES_ORDER_RECEIVED")
 └─ BeveragesHandler.order()
-   ├─ AuditLogSPI.log("BEVERAGES_ORDER_RECEIVED")
+   ├─ AuditLogSPI.log("BEVERAGES_ORDER_PROCESSING")
    ├─ BeverageSupplierService (outbound-webservice)
    │  └─ SOAP → BeverageSupplierStub
    │     └─ Kafka: beverages-deliveries-out
@@ -124,8 +128,9 @@ AdminReceiver.orderBeverages()
 #### POST /admin/order-meat - HTML Form → SOAP Client → Kafka Delivery Topic
 ```
 AdminReceiver.orderMeat()
+├─ AuditLogHandler.log("MEAT_ORDER_RECEIVED")
 └─ MeatHandler.order()
-   ├─ AuditLogSPI.log("MEAT_ORDER_RECEIVED")
+   ├─ AuditLogSPI.log("MEAT_ORDER_PROCESSING")
    ├─ MeatSupplierService (outbound-webservice)
    │  └─ SOAP → MeatSupplierStub
    │     └─ Kafka: meat-deliveries-out
@@ -139,8 +144,9 @@ AdminReceiver.orderMeat()
 #### POST /admin/order-bakery - HTML Form → SOAP Client → Kafka Delivery Topic
 ```
 AdminReceiver.orderBakery()
+├─ AuditLogHandler.log("BAKERY_ORDER_RECEIVED")
 └─ BakeryHandler.order()
-   ├─ AuditLogSPI.log("BAKERY_ORDER_RECEIVED")
+   ├─ AuditLogSPI.log("BAKERY_ORDER_PROCESSING")
    ├─ BakerySupplierService (outbound-webservice)
    │  └─ SOAP → BakerySupplierStub
    │     └─ Kafka: bakery-deliveries-out
@@ -154,8 +160,9 @@ AdminReceiver.orderBakery()
 #### POST /admin/order-nonfood - HTML Form → Kafka Order Topic → Kafka Delivery Topic
 ```
 AdminReceiver.orderNonFood()
+├─ AuditLogHandler.log("NONFOOD_ORDER_RECEIVED")
 └─ NonFoodHandler.order()
-   ├─ AuditLogSPI.log("NON_FOOD_ORDER_RECEIVED")
+   ├─ AuditLogSPI.log("NONFOOD_ORDER_PROCESSING")
    ├─ NonFoodSupplierService (outbound-kafka)
    │  └─ Emitter → nonfood-orders-out channel
    │     └─ Topic: nonfood-orders
@@ -193,6 +200,7 @@ ShopReceiver.inventoryFragment()
 #### POST /shop/checkout - Customer Purchase
 ```
 ShopReceiver.checkout(productNames[], quantities[])
+├─ AuditLogHandler.log("PURCHASE_RECEIVED")
 └─ PurchaseHandler.checkout(purchase)
    ├─ AuditLogSPI.log("PURCHASE_PROCESSING")
    │  └─ AuditLogService (outbound-mongodb)
@@ -229,8 +237,9 @@ Same Kafka cycle flows as admin endpoints above. The order flows through the sam
 Example (REST order flow):
 ```
 ProductApiReceiver.orderFruits(request)
+├─ AuditLogHandler.log("FRUITS_ORDER_RECEIVED")
 └─ FruitsHandler.order()
-   ├─ AuditLogSPI.log("FRUITS_ORDER_RECEIVED")
+   ├─ AuditLogSPI.log("FRUITS_ORDER_PROCESSING")
    ├─ FruitSupplierService (outbound-httpclient)
    │  └─ REST Stub
    │     └─ Kafka: fruit-deliveries topic
@@ -242,6 +251,7 @@ ProductApiReceiver.orderFruits(request)
 #### POST /api/products/purchase - Purchase Request (JSON)
 ```
 ProductApiReceiver.purchase(request)
+├─ AuditLogHandler.log("PURCHASE_RECEIVED")
 └─ PurchaseHandler.checkout(purchase)
    ├─ AuditLogSPI.log("PURCHASE_PROCESSING")
    │  └─ AuditLogService (outbound-mongodb)

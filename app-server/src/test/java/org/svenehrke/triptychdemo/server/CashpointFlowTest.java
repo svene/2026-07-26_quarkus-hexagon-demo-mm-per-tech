@@ -61,6 +61,8 @@ class CashpointFlowTest {
             .post("/api/products/purchase");
         assertThat(purchaseResponse.statusCode()).isEqualTo(204);
 
+        assertThat(auditHelper.findEventDetails("ProductApiReceiver: PURCHASE_RECEIVED"))
+            .containsExactly("Apple qty=3");
         assertThat(auditHelper.findEventDetails("PurchaseHandler: PURCHASE_PROCESSING"))
             .containsExactly("Apple qty=3");
         assertThat(auditHelper.findEventDetails("PurchaseHandler: INVENTORY_DEDUCTED"))
@@ -250,6 +252,8 @@ class CashpointFlowTest {
 
         assertThat(response.statusCode()).isEqualTo(400);
         assertThat(response.asString()).contains("items[1]: must be greater than or equal to 1");
+        assertThat(auditHelper.findEventDetails("ProductApiReceiver: PURCHASE_RECEIVED"))
+            .containsExactly("Apple qty=3, Apple qty=-5");
         assertThat(auditHelper.findEventDetails("PurchaseHandler: PURCHASE_PROCESSING")).isEmpty();
         assertThat(given().get("/api/products").asString())
             .isEqualTo("""

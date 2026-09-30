@@ -17,8 +17,11 @@ database "PostgreSQL\n(Inventory)" as db_inv
 database "MongoDB\n(Audit)" as db_audit
 
 user -> receiver: POST /admin/order-beverages\n(productName, quantity)
+receiver -> audit: log("BEVERAGES_ORDER_RECEIVED")
+audit -> db_audit: Insert audit entry
+audit --> receiver
 receiver -> handler: order(productName, quantity)
-handler -> audit: log("BEVERAGES_ORDER_RECEIVED")
+handler -> audit: log("BEVERAGES_ORDER_PROCESSING")
 audit -> db_audit: Insert audit entry
 audit --> handler
 handler -> service: placeOrder(productName, quantity)

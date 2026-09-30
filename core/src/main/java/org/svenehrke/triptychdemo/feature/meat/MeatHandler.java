@@ -13,7 +13,7 @@ public class MeatHandler {
     AuditLogSPI auditLog;
 
     public void order(MeatOrder meatOrder) {
-        auditLog.log("MeatHandler: MEAT_ORDER_RECEIVED", meatOrder.productName() + " qty=" + meatOrder.quantity());
+        auditLog.log("MeatHandler: MEAT_ORDER_PROCESSING", meatOrder.productName() + " qty=" + meatOrder.quantity());
         meatSupplier.placeOrder(meatOrder);
         auditLog.log("MeatHandler: MEAT_ORDER_PLACED", meatOrder.productName() + " qty=" + meatOrder.quantity());
     }

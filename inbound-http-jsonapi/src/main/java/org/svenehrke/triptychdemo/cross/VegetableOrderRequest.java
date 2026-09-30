@@ -8,7 +8,7 @@ import static org.svenehrke.triptychdemo.cross.RequestStructureErrorMessages.PRO
 import static org.svenehrke.triptychdemo.cross.RequestStructureErrorMessages.QUANTITY_REQUIRED;
 
 /** JSON body of {@code POST /api/products/order-...}. See {@link RequestStructureErrorMessages}. */
-public record VegetableOrderRequest(String productName, Integer quantity) {
+public record VegetableOrderRequest(String productName, Integer quantity) implements OrderRequest {
 
     public static List<String> structureErrors(VegetableOrderRequest request) {
         if (request == null) return List.of(BODY_REQUIRED);

@@ -40,7 +40,9 @@ class BakeryOrderDeliveryFlowTest {
             .post("/api/products/order-bakery");
         assertThat(orderResponse.statusCode()).isEqualTo(204);
 
-        assertThat(auditHelper.findEventDetails("BakeryHandler: BAKERY_ORDER_RECEIVED"))
+        assertThat(auditHelper.findEventDetails("ProductApiReceiver: BAKERY_ORDER_RECEIVED"))
+            .containsExactly("Bread qty=10");
+        assertThat(auditHelper.findEventDetails("BakeryHandler: BAKERY_ORDER_PROCESSING"))
             .containsExactly("Bread qty=10");
         assertThat(auditHelper.findEventDetails("BakeryHandler: BAKERY_ORDER_PLACED"))
             .containsExactly("Bread qty=10");

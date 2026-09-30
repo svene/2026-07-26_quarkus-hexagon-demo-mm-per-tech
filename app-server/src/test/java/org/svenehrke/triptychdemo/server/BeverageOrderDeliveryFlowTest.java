@@ -40,10 +40,13 @@ class BeverageOrderDeliveryFlowTest {
             .post("/api/products/order-beverages");
         assertThat(orderResponse.statusCode()).isEqualTo(204);
 
-        // Both written synchronously inside BeveragesHandler during the HTTP request:
-        // BEVERAGES_ORDER_RECEIVED proves ProductApiReceiver delegated to BeveragesHandler.
+        // All written synchronously during the HTTP request:
+        // BEVERAGES_ORDER_RECEIVED proves ProductApiReceiver received the request.
+        // BEVERAGES_ORDER_PROCESSING proves ProductApiReceiver delegated to BeveragesHandler.
         // BEVERAGES_ORDER_PLACED proves BeveragesHandler called BeverageSupplierSPI.
-        assertThat(auditHelper.findEventDetails("BeveragesHandler: BEVERAGES_ORDER_RECEIVED"))
+        assertThat(auditHelper.findEventDetails("ProductApiReceiver: BEVERAGES_ORDER_RECEIVED"))
+            .containsExactly("Cola qty=12");
+        assertThat(auditHelper.findEventDetails("BeveragesHandler: BEVERAGES_ORDER_PROCESSING"))
             .containsExactly("Cola qty=12");
         assertThat(auditHelper.findEventDetails("BeveragesHandler: BEVERAGES_ORDER_PLACED"))
             .containsExactly("Cola qty=12");

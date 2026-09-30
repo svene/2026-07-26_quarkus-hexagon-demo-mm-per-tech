@@ -40,7 +40,9 @@ class NonFoodOrderDeliveryFlowTest {
             .post("/api/products/order-nonfood");
         assertThat(orderResponse.statusCode()).isEqualTo(204);
 
-        assertThat(auditHelper.findEventDetails("NonFoodHandler: NONFOOD_ORDER_RECEIVED"))
+        assertThat(auditHelper.findEventDetails("ProductApiReceiver: NONFOOD_ORDER_RECEIVED"))
+            .containsExactly("Detergent qty=3");
+        assertThat(auditHelper.findEventDetails("NonFoodHandler: NONFOOD_ORDER_PROCESSING"))
             .containsExactly("Detergent qty=3");
         assertThat(auditHelper.findEventDetails("NonFoodHandler: NONFOOD_ORDER_PLACED"))
             .containsExactly("Detergent qty=3");

@@ -17,6 +17,7 @@ import static org.awaitility.Awaitility.await;
 class ShopReceiverTest {
 
     @Inject TestInventoryHelper inventoryHelper;
+    @Inject TestAuditLogHelper auditLogHelper;
     @Inject
     InventoryRepositorySPI inventory;
 
@@ -25,6 +26,10 @@ class ShopReceiverTest {
         await().atMost(5, SECONDS).until(() -> {
             inventoryHelper.resetInventory();
             return given().get("/api/products").asString().equals("[]");
+        });
+        await().atMost(5, SECONDS).until(() -> {
+            auditLogHelper.clearAuditLog();
+            return auditLogHelper.isEmpty();
         });
     }
 
@@ -68,6 +73,8 @@ class ShopReceiverTest {
 
         assertThat(response.statusCode()).isEqualTo(303);
         assertThat(response.header("Location")).contains("/shop");
+        assertThat(auditLogHelper.findEventDetails("ShopReceiver: PURCHASE_RECEIVED"))
+            .containsExactly("Apple qty=3, Milk qty=2");
 
         assertThat(given().get("/api/products").asString())
             .contains("\"name\":\"Apple\",\"type\":\"FRUIT\",\"availableAmount\":7")
@@ -118,6 +125,9 @@ class ShopReceiverTest {
             .post("/shop/checkout");
 
         assertThat(response.statusCode()).isEqualTo(303);
+        // Blank rows are not in the cart and not logged; "0" is logged as submitted.
+        assertThat(auditLogHelper.findEventDetails("ShopReceiver: PURCHASE_RECEIVED"))
+            .containsExactly("Milk qty=0");
 
         assertThat(given().get("/api/products").asString())
             .contains("\"name\":\"Apple\",\"type\":\"FRUIT\",\"availableAmount\":10")

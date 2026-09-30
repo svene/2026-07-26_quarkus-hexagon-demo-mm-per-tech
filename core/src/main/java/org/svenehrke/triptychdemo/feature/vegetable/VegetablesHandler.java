@@ -13,7 +13,7 @@ public class VegetablesHandler {
     AuditLogSPI auditLog;
 
     public void order(VegetableOrder vegetableOrder) {
-        auditLog.log("VegetablesHandler: VEGETABLES_ORDER_RECEIVED", vegetableOrder.productName() + " qty=" + vegetableOrder.quantity());
+        auditLog.log("VegetablesHandler: VEGETABLES_ORDER_PROCESSING", vegetableOrder.productName() + " qty=" + vegetableOrder.quantity());
         vegetablesSupplier.placeOrder(vegetableOrder);
         auditLog.log("VegetablesHandler: VEGETABLES_ORDER_PLACED", vegetableOrder.productName() + " qty=" + vegetableOrder.quantity());
     }

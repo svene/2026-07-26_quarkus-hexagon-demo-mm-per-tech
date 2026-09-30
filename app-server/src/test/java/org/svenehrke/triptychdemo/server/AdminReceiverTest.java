@@ -63,6 +63,8 @@ class AdminReceiverTest {
 
         assertThat(response.statusCode()).isEqualTo(303);
         assertThat(response.header("Location")).contains("/admin");
+        assertThat(auditLogHelper.findEventDetails("AdminReceiver: FRUITS_ORDER_RECEIVED"))
+            .containsExactly("Banana qty=20");
     }
 
     @Test
@@ -91,6 +93,9 @@ class AdminReceiverTest {
         assertThat(response.statusCode()).isEqualTo(400);
         assertThat(response.contentType()).contains("text/html");
         assertThat(response.asString()).contains("must be a number");
+        // The receipt is logged with the raw input, before validation.
+        assertThat(auditLogHelper.findEventDetails("AdminReceiver: FRUITS_ORDER_RECEIVED"))
+            .containsExactly("Banana qty=abc");
     }
 
     @Test

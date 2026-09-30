@@ -101,6 +101,7 @@ public class AdminReceiver {
     public Response orderFruits(@FormParam("productName") String productName,
                                 @FormParam("quantity") String quantity,
                                 @HeaderParam("HX-Request") String hxRequest) {
+        logReceived("FRUITS_ORDER_RECEIVED", productName, quantity);
         return switch (FruitOrder.parse(productName, quantity)) {
             case ParsedFruitOrder.Invalid invalid -> badRequest(invalid.violations());
             case FruitOrder fruitOrder -> {
@@ -116,6 +117,7 @@ public class AdminReceiver {
     public Response orderVegetables(@FormParam("productName") String productName,
                                     @FormParam("quantity") String quantity,
                                     @HeaderParam("HX-Request") String hxRequest) {
+        logReceived("VEGETABLES_ORDER_RECEIVED", productName, quantity);
         return switch (VegetableOrder.parse(productName, quantity)) {
             case ParsedVegetableOrder.Invalid invalid -> badRequest(invalid.violations());
             case VegetableOrder vegetableOrder -> {
@@ -131,6 +133,7 @@ public class AdminReceiver {
     public Response orderDairy(@FormParam("productName") String productName,
                                @FormParam("quantity") String quantity,
                                @HeaderParam("HX-Request") String hxRequest) {
+        logReceived("DAIRY_ORDER_RECEIVED", productName, quantity);
         return switch (DairyOrder.parse(productName, quantity)) {
             case ParsedDairyOrder.Invalid invalid -> badRequest(invalid.violations());
             case DairyOrder dairyOrder -> {
@@ -146,6 +149,7 @@ public class AdminReceiver {
     public Response orderBeverages(@FormParam("productName") String productName,
                                    @FormParam("quantity") String quantity,
                                    @HeaderParam("HX-Request") String hxRequest) {
+        logReceived("BEVERAGES_ORDER_RECEIVED", productName, quantity);
         return switch (BeverageOrder.parse(productName, quantity)) {
             case ParsedBeverageOrder.Invalid invalid -> badRequest(invalid.violations());
             case BeverageOrder beverageOrder -> {
@@ -161,6 +165,7 @@ public class AdminReceiver {
     public Response orderMeat(@FormParam("productName") String productName,
                               @FormParam("quantity") String quantity,
                               @HeaderParam("HX-Request") String hxRequest) {
+        logReceived("MEAT_ORDER_RECEIVED", productName, quantity);
         return switch (MeatOrder.parse(productName, quantity)) {
             case ParsedMeatOrder.Invalid invalid -> badRequest(invalid.violations());
             case MeatOrder meatOrder -> {
@@ -176,6 +181,7 @@ public class AdminReceiver {
     public Response orderBakery(@FormParam("productName") String productName,
                                 @FormParam("quantity") String quantity,
                                 @HeaderParam("HX-Request") String hxRequest) {
+        logReceived("BAKERY_ORDER_RECEIVED", productName, quantity);
         return switch (BakeryOrder.parse(productName, quantity)) {
             case ParsedBakeryOrder.Invalid invalid -> badRequest(invalid.violations());
             case BakeryOrder bakeryOrder -> {
@@ -191,6 +197,7 @@ public class AdminReceiver {
     public Response orderNonFood(@FormParam("productName") String productName,
                                  @FormParam("quantity") String quantity,
                                  @HeaderParam("HX-Request") String hxRequest) {
+        logReceived("NONFOOD_ORDER_RECEIVED", productName, quantity);
         return switch (NonFoodOrder.parse(productName, quantity)) {
             case ParsedNonFoodOrder.Invalid invalid -> badRequest(invalid.violations());
             case NonFoodOrder nonFoodOrder -> {
@@ -198,6 +205,10 @@ public class AdminReceiver {
                 yield orderResponse(hxRequest);
             }
         };
+    }
+
+    private void logReceived(String event, String productName, String quantity) {
+        auditLogHandler.log("AdminReceiver: " + event, productName + " qty=" + quantity);
     }
 
     private static Response badRequest(Set<? extends ConstraintViolation<?>> violations) {

@@ -40,10 +40,13 @@ class FruitOrderDeliveryFlowTest {
             .post("/api/products/order-fruits");
         assertThat(orderResponse.statusCode()).isEqualTo(204);
 
-        // Both written synchronously inside FruitsHandler during the HTTP request:
-        // FRUITS_ORDER_RECEIVED proves ProductApiReceiver delegated to FruitsHandler.
+        // All written synchronously during the HTTP request:
+        // FRUITS_ORDER_RECEIVED proves ProductApiReceiver received the request.
+        // FRUITS_ORDER_PROCESSING proves ProductApiReceiver delegated to FruitsHandler.
         // FRUITS_ORDER_PLACED proves FruitsHandler called FruitSupplierSPI.
-        assertThat(auditHelper.findEventDetails("FruitsHandler: FRUITS_ORDER_RECEIVED"))
+        assertThat(auditHelper.findEventDetails("ProductApiReceiver: FRUITS_ORDER_RECEIVED"))
+            .containsExactly("Mango qty=5");
+        assertThat(auditHelper.findEventDetails("FruitsHandler: FRUITS_ORDER_PROCESSING"))
             .containsExactly("Mango qty=5");
         assertThat(auditHelper.findEventDetails("FruitsHandler: FRUITS_ORDER_PLACED"))
             .containsExactly("Mango qty=5");

@@ -1,5 +1,6 @@
 package org.svenehrke.triptychdemo.cross;
 
+import org.svenehrke.triptychdemo.cross.auditlog.AuditLogHandler;
 import org.svenehrke.triptychdemo.cross.products.Product;
 import org.svenehrke.triptychdemo.cross.products.ProductsHandler;
 import org.svenehrke.triptychdemo.cross.purchase.ParsedPurchase;
@@ -43,6 +44,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.util.Collection;
 import java.util.List;
+import java.util.stream.Collectors;
 import org.jboss.resteasy.reactive.server.ServerExceptionMapper;
 
 import static org.svenehrke.triptychdemo.cross.JsonResponses.badRequest;
@@ -70,6 +72,8 @@ public class ProductApiReceiver {
     NonFoodHandler nonFoodHandler;
     @Inject
     PurchaseHandler purchaseHandler;
+    @Inject
+    AuditLogHandler auditLog;
 
     @GET
     @Produces(MediaType.APPLICATION_JSON)
@@ -82,6 +86,7 @@ public class ProductApiReceiver {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public Response orderFruits(FruitOrderRequest request) {
+        logReceived("FRUITS_ORDER_RECEIVED", request);
         var structureErrors = FruitOrderRequest.structureErrors(request);
         if (!structureErrors.isEmpty()) return badRequest(structureErrors);
         return switch (FruitOrder.parse(request.productName(), request.quantity())) {
@@ -98,6 +103,7 @@ public class ProductApiReceiver {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public Response orderVegetables(VegetableOrderRequest request) {
+        logReceived("VEGETABLES_ORDER_RECEIVED", request);
         var structureErrors = VegetableOrderRequest.structureErrors(request);
         if (!structureErrors.isEmpty()) return badRequest(structureErrors);
         return switch (VegetableOrder.parse(request.productName(), request.quantity())) {
@@ -114,6 +120,7 @@ public class ProductApiReceiver {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public Response orderDairy(DairyOrderRequest request) {
+        logReceived("DAIRY_ORDER_RECEIVED", request);
         var structureErrors = DairyOrderRequest.structureErrors(request);
         if (!structureErrors.isEmpty()) return badRequest(structureErrors);
         return switch (DairyOrder.parse(request.productName(), request.quantity())) {
@@ -130,6 +137,7 @@ public class ProductApiReceiver {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public Response orderBeverages(BeverageOrderRequest request) {
+        logReceived("BEVERAGES_ORDER_RECEIVED", request);
         var structureErrors = BeverageOrderRequest.structureErrors(request);
         if (!structureErrors.isEmpty()) return badRequest(structureErrors);
         return switch (BeverageOrder.parse(request.productName(), request.quantity())) {
@@ -146,6 +154,7 @@ public class ProductApiReceiver {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public Response orderMeat(MeatOrderRequest request) {
+        logReceived("MEAT_ORDER_RECEIVED", request);
         var structureErrors = MeatOrderRequest.structureErrors(request);
         if (!structureErrors.isEmpty()) return badRequest(structureErrors);
         return switch (MeatOrder.parse(request.productName(), request.quantity())) {
@@ -162,6 +171,7 @@ public class ProductApiReceiver {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public Response orderBakery(BakeryOrderRequest request) {
+        logReceived("BAKERY_ORDER_RECEIVED", request);
         var structureErrors = BakeryOrderRequest.structureErrors(request);
         if (!structureErrors.isEmpty()) return badRequest(structureErrors);
         return switch (BakeryOrder.parse(request.productName(), request.quantity())) {
@@ -178,6 +188,7 @@ public class ProductApiReceiver {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public Response orderNonFood(NonFoodOrderRequest request) {
+        logReceived("NONFOOD_ORDER_RECEIVED", request);
         var structureErrors = NonFoodOrderRequest.structureErrors(request);
         if (!structureErrors.isEmpty()) return badRequest(structureErrors);
         return switch (NonFoodOrder.parse(request.productName(), request.quantity())) {
@@ -194,6 +205,7 @@ public class ProductApiReceiver {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public Response purchase(PurchaseRequest request) {
+        logReceived(request);
         var structureErrors = PurchaseRequest.structureErrors(request);
         if (!structureErrors.isEmpty()) return badRequest(structureErrors);
         var parsedItems = request.items().stream()
@@ -219,6 +231,21 @@ public class ProductApiReceiver {
     @ServerExceptionMapper
     public Response mapWebApplicationException(WebApplicationException e) {
         return JsonInputErrors.messageFor(e).map(message -> badRequest(List.of(message))).orElseGet(e::getResponse);
+    }
+
+    private void logReceived(String event, OrderRequest request) {
+        auditLog.log("ProductApiReceiver: " + event,
+            request == null ? "null body" : request.productName() + " qty=" + request.quantity());
+    }
+
+    private void logReceived(PurchaseRequest request) {
+        String details;
+        if (request == null) details = "null body";
+        else if (request.items() == null) details = "items: null";
+        else details = request.items().stream()
+            .map(i -> i == null ? "null" : i.productName() + " qty=" + i.quantity())
+            .collect(Collectors.joining(", "));
+        auditLog.log("ProductApiReceiver: PURCHASE_RECEIVED", details);
     }
 
     private static List<String> messagesOf(Collection<? extends ConstraintViolation<?>> violations) {

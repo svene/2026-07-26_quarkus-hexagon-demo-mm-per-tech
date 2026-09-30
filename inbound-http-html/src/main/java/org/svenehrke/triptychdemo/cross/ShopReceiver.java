@@ -1,5 +1,6 @@
 package org.svenehrke.triptychdemo.cross;
 
+import org.svenehrke.triptychdemo.cross.auditlog.AuditLogHandler;
 import org.svenehrke.triptychdemo.cross.products.ProductsHandler;
 import org.svenehrke.triptychdemo.cross.purchase.PurchaseHandler;
 
@@ -31,6 +32,8 @@ public class ShopReceiver {
     ProductsHandler productsHandler;
     @Inject
     PurchaseHandler purchaseHandler;
+    @Inject
+    AuditLogHandler auditLog;
 
     @CheckedTemplate
     public static class Templates {
@@ -56,6 +59,7 @@ public class ShopReceiver {
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     public Response checkout(@FormParam("productName") List<String> productNames,
                              @FormParam("quantity") List<String> quantities) {
+        logReceived(productNames, quantities);
         // Cart semantics (UI concern, not validation): a row with a blank or 0 quantity is simply not in the cart.
         var errors = new ArrayList<String>();
         var cartNames = new ArrayList<String>();
@@ -92,6 +96,18 @@ public class ShopReceiver {
                 };
             }
         };
+    }
+
+    // Only rows with a quantity entered: the form submits a row for every product in stock.
+    private void logReceived(List<String> productNames, List<String> quantities) {
+        var rows = new ArrayList<String>();
+        if (productNames != null) {
+            for (int i = 0; i < productNames.size(); i++) {
+                var qtyStr = quantities != null && i < quantities.size() ? quantities.get(i) : null;
+                if (qtyStr != null && !qtyStr.isBlank()) rows.add(productNames.get(i) + " qty=" + qtyStr);
+            }
+        }
+        auditLog.log("ShopReceiver: PURCHASE_RECEIVED", String.join(", ", rows));
     }
 
     private Response badRequest(List<String> errors) {

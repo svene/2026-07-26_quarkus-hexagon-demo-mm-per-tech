@@ -13,7 +13,7 @@ public class DairyHandler {
     AuditLogSPI auditLog;
 
     public void order(DairyOrder dairyOrder) {
-        auditLog.log("DairyHandler: DAIRY_ORDER_RECEIVED", dairyOrder.productName() + " qty=" + dairyOrder.quantity());
+        auditLog.log("DairyHandler: DAIRY_ORDER_PROCESSING", dairyOrder.productName() + " qty=" + dairyOrder.quantity());
         dairySupplier.placeOrder(dairyOrder);
         auditLog.log("DairyHandler: DAIRY_ORDER_PLACED", dairyOrder.productName() + " qty=" + dairyOrder.quantity());
     }
