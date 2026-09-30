@@ -125,6 +125,34 @@ Split the monolithic `inbound-rest` module into cleanly separated concerns:
 - Updated `architecture.puml` and focused diagrams (kafka, rest, soap, persistence) to show `inbound-http.html` and `inbound-http.jsonapi` subpackages
 - All 30 tests pass (pure refactoring, no functional changes)
 
+## 9. Replace Qute with browser-side hono/html templating (NOT STARTED)
+
+Replace the Qute templates in `inbound-http-html` with the approach from
+[svene/2026-09-03_hypermedia-quarkus-browser-hono](https://github.com/svene/2026-09-03_hypermedia-quarkus-browser-hono):
+receivers return a JSON `{ route, vm }` envelope, and an htmx 4 extension renders the matching
+hono/html template in the browser. Large change — plan, decisions and progress are tracked in
+[`docs/architecture/browser-templating_wip.md`](docs/architecture/browser-templating_wip.md).
+
+## 10. Replace htmx polling with a server-push multipart stream + hx-live (NOT STARTED)
+
+Replace the `hx-trigger="every 3s"` polling on `/admin` and `/shop` with a long-lived
+`multipart/mixed` stream (approach from
+[svene/2026-08-02_quarkus-multistream-mixed-response](https://github.com/svene/2026-08-02_quarkus-multistream-mixed-response),
+consumed via htmx 4's `hx-multipart`), plus `hx-live` for client-side reactive bindings: the stream fills a hidden data island at the
+top of the page (a server-pushed replacement for an Alpine.js data object) and the visible UI binds
+to it. The audit log doesn't fit this model and keeps its polling for now. Large
+change — plan, decisions and progress are tracked in
+[`docs/architecture/live-updates_wip.md`](docs/architecture/live-updates_wip.md). Recommended to do
+after § 9, so the stream's parts are built on the JSON envelope from the start.
+
+## 11. Split the inventory: physical store vs. online shop (NOT STARTED)
+
+Replace the single inventory with two stock pools: one for the physical store (deducted by cashpoint
+sales) and one for the online shop (deducted by `/shop` and JSON API checkouts). Open: where
+deliveries go, whether stock can be transferred between the two, and what `/api/products` shows.
+Plan, decisions and progress are tracked in
+[`docs/architecture/split-inventory_wip.md`](docs/architecture/split-inventory_wip.md).
+
 ## Open questions
 
 - Authentication/authorization is out of scope for this POC, but the separate routes (`/admin`, `/shop`) make it easy to add later.
