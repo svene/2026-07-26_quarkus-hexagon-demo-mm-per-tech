@@ -45,7 +45,7 @@ public class PurchaseHandler {
     }
 
     private StockDeduction deduct(Purchase purchase, OnShortage onShortage) {
-        auditLog.log("PurchaseHandler: PURCHASE_RECEIVED",
+        auditLog.log("PurchaseHandler: PURCHASE_PROCESSING",
             purchase.items().stream().map(i -> i.productName() + " qty=" + i.quantity()).collect(Collectors.joining(", ")));
         var quantitiesByName = quantitiesByName(purchase);
         var deduction = inventoryRepository.deductAll(quantitiesByName, onShortage);

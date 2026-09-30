@@ -13,7 +13,7 @@ database "MongoDB\n(Audit)" as db_audit
 
 user -> receiver: POST /shop/checkout\n[{product1, qty}, {product2, qty}]
 receiver -> handler: checkout(purchase)
-handler -> audit: log("PURCHASE_RECEIVED")
+handler -> audit: log("PURCHASE_PROCESSING")
 audit -> db_audit: Insert audit entry
 audit --> handler
 

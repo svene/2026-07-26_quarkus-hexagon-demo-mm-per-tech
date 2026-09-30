@@ -131,8 +131,10 @@ class KafkaMalformedMessageTest {
         send("probe-cashpoint-purchases", """
             {"items": [{"productName": "Orange", "quantity": 1}]}""");
 
-        assertProcessed("PurchaseHandler: PURCHASE_RECEIVED", "Orange qty=1");
-        assertThat(auditHelper.findEventDetails("CashpointReceiver: PURCHASE_RECEIVED")).isEmpty();
+        assertProcessed("PurchaseHandler: PURCHASE_PROCESSING", "Orange qty=1");
+        // The receipt is logged before the structural checks reject a message.
+        assertThat(auditHelper.findEventDetails("CashpointReceiver: PURCHASE_RECEIVED"))
+            .containsExactly("items: null", "null", "Orange qty=1");
         var dead = readDlq("probe-cashpoint-purchases-dlq", 2);
         assertThat(dead).extracting(r -> header(r, "dead-letter-reason"))
             .containsExactly("items is required", "items must not contain null entries");

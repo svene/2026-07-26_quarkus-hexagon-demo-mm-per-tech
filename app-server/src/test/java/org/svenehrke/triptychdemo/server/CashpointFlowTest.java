@@ -61,7 +61,7 @@ class CashpointFlowTest {
             .post("/api/products/purchase");
         assertThat(purchaseResponse.statusCode()).isEqualTo(204);
 
-        assertThat(auditHelper.findEventDetails("PurchaseHandler: PURCHASE_RECEIVED"))
+        assertThat(auditHelper.findEventDetails("PurchaseHandler: PURCHASE_PROCESSING"))
             .containsExactly("Apple qty=3");
         assertThat(auditHelper.findEventDetails("PurchaseHandler: INVENTORY_DEDUCTED"))
             .containsExactly("Apple -3 total=7");
@@ -99,7 +99,7 @@ class CashpointFlowTest {
             .post("/api/products/purchase");
         assertThat(purchaseResponse.statusCode()).isEqualTo(204);
 
-        assertThat(auditHelper.findEventDetails("PurchaseHandler: PURCHASE_RECEIVED"))
+        assertThat(auditHelper.findEventDetails("PurchaseHandler: PURCHASE_PROCESSING"))
             .containsExactly("Apple qty=3, Milk qty=2");
         assertThat(auditHelper.findEventDetails("PurchaseHandler: INVENTORY_DEDUCTED"))
             .containsExactly("Apple -3 total=7, Milk -2 total=4");
@@ -250,7 +250,7 @@ class CashpointFlowTest {
 
         assertThat(response.statusCode()).isEqualTo(400);
         assertThat(response.asString()).contains("items[1]: must be greater than or equal to 1");
-        assertThat(auditHelper.findEventDetails("PurchaseHandler: PURCHASE_RECEIVED")).isEmpty();
+        assertThat(auditHelper.findEventDetails("PurchaseHandler: PURCHASE_PROCESSING")).isEmpty();
         assertThat(given().get("/api/products").asString())
             .isEqualTo("""
                 [{"name":"Apple","type":"FRUIT","availableAmount":10}]""");

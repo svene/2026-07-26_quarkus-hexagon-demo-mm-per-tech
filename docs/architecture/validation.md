@@ -274,8 +274,9 @@ fully valid basket — one bad item rejects the whole request, nothing is deduct
 The invalid branch follows the usual boundary split:
 
 - `ProductApiReceiver.purchase` — `400`, body is `invalid.messages()` as a JSON array.
-- `CashpointReceiver` (Kafka) — audit log `"CashpointReceiver: PURCHASE_RECEIVED"` with
-  `"INVALID: <items>: <messages>"`, then keep consuming.
+- `CashpointReceiver` (Kafka) — audit log `"CashpointReceiver: INVALID"` with
+  `"<items>: <messages>"`, then keep consuming. As with the delivery receivers, every message is
+  first logged as `"CashpointReceiver: PURCHASE_RECEIVED"`, before any check.
 - `ShopReceiver.checkout` — re-renders the shop page with status `400` and a list of errors, each
   prefixed with the **product name** rather than `items[i]` (a shop user can't map an index to a
   row). Rows with a blank or `0` quantity are filtered out *before* parsing: that is cart semantics

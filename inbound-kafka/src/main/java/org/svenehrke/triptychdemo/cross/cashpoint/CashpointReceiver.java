@@ -14,6 +14,7 @@ import org.eclipse.microprofile.reactive.messaging.Incoming;
 import org.svenehrke.triptychdemo.cross.kafka.UnprocessableMessageException;
 
 import java.time.temporal.ChronoUnit;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
@@ -28,24 +29,39 @@ public class CashpointReceiver {
     @Blocking
     @Retry(maxRetries = 3, delay = 1, delayUnit = ChronoUnit.SECONDS, abortOn = UnprocessableMessageException.class)
     public void receive(PurchaseMessage message) {
+        logReceived(message);
+        validated(message).ifPresent(purchaseHandler::recordStoreSale);
+    }
+
+    private void logReceived(PurchaseMessage message) {
+        auditLog.log("CashpointReceiver: PURCHASE_RECEIVED",
+            message == null ? "null payload (tombstone)" : itemsOf(message));
+    }
+
+    // Empty if the message is invalid (audit-logged, then skipped).
+    private Optional<Purchase> validated(PurchaseMessage message) {
         rejectUnprocessable(message);
         var parsedItems = message.items().stream()
             .map(i -> PurchaseItem.parse(i.productName(), i.quantity()))
             .toList();
-        switch (Purchase.parse(parsedItems)) {
-            case ParsedPurchase.Invalid invalid: {
-                String items = message.items().stream()
-                    .map(i -> i.productName() + " qty=" + i.quantity())
-                    .collect(Collectors.joining(", "));
-                auditLog.log("CashpointReceiver: PURCHASE_RECEIVED",
-                    "INVALID: %s: %s".formatted(items, String.join(", ", invalid.messages())));
-                break;
+        return switch (Purchase.parse(parsedItems)) {
+            case ParsedPurchase.Invalid invalid -> {
+                auditLog.log("CashpointReceiver: INVALID",
+                    "%s: %s".formatted(itemsOf(message), String.join(", ", invalid.messages())));
+                yield Optional.empty();
             }
-            case Purchase purchase: {
-                purchaseHandler.recordStoreSale(purchase);
-                break;
-            }
+            case Purchase purchase -> Optional.of(purchase);
+        };
+    }
+
+    // Tolerates the structural problems rejectUnprocessable() rejects, since it also runs before that check.
+    private static String itemsOf(PurchaseMessage message) {
+        if (message.items() == null) {
+            return "items: null";
         }
+        return message.items().stream()
+            .map(i -> i == null ? "null" : i.productName() + " qty=" + i.quantity())
+            .collect(Collectors.joining(", "));
     }
 
     // UnprocessableMessageException skips @Retry and sends the message to the dead-letter topic (see DeadLetterOrFailStop).

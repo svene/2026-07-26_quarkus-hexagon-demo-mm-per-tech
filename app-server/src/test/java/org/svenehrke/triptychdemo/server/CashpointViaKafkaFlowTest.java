@@ -53,7 +53,7 @@ class CashpointViaKafkaFlowTest {
         cashpointPublisher.publish(new PurchaseMessage(List.of(new PurchaseMessageItem("Orange", 4))));
 
         await().atMost(10, SECONDS).untilAsserted(() -> {
-            assertThat(auditHelper.findEventDetails("PurchaseHandler: PURCHASE_RECEIVED"))
+            assertThat(auditHelper.findEventDetails("PurchaseHandler: PURCHASE_PROCESSING"))
                 .containsExactly("Orange qty=4");
             assertThat(auditHelper.findEventDetails("PurchaseHandler: INVENTORY_DEDUCTED"))
                 .containsExactly("Orange -4 total=6");
@@ -85,10 +85,12 @@ class CashpointViaKafkaFlowTest {
         cashpointPublisher.publish(new PurchaseMessage(List.of(new PurchaseMessageItem("Orange", -4))));
 
         await().atMost(10, SECONDS).untilAsserted(() ->
-            assertThat(auditHelper.findEventDetails("CashpointReceiver: PURCHASE_RECEIVED"))
-                .containsExactly("INVALID: Orange qty=-4: items[0]: must be greater than or equal to 1")
+            assertThat(auditHelper.findEventDetails("CashpointReceiver: INVALID"))
+                .containsExactly("Orange qty=-4: items[0]: must be greater than or equal to 1")
         );
-        assertThat(auditHelper.findEventDetails("PurchaseHandler: PURCHASE_RECEIVED")).isEmpty();
+        assertThat(auditHelper.findEventDetails("CashpointReceiver: PURCHASE_RECEIVED"))
+            .containsExactly("Orange qty=-4");
+        assertThat(auditHelper.findEventDetails("PurchaseHandler: PURCHASE_PROCESSING")).isEmpty();
         assertThat(given().get("/api/products").asString())
             .isEqualTo("""
                 [{"name":"Orange","type":"FRUIT","availableAmount":10}]""");

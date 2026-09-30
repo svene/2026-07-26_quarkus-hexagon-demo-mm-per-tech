@@ -33,7 +33,7 @@ blank or non-numeric `quantity` on those forms gets the same fragment. An ArchUn
 
 Implemented all-or-nothing via `PurchaseItem`/`ParsedPurchaseItem` plus the `Purchase`/`ParsedPurchase`
 aggregate (see `validation.md` § "Multi-item input"): `ProductApiReceiver.purchase` (`400`),
-`CashpointReceiver` (audit log `INVALID: ...`, keep consuming) and `ShopReceiver.checkout` (shop page
+`CashpointReceiver` (audit log `"CashpointReceiver: INVALID"`, keep consuming) and `ShopReceiver.checkout` (shop page
 re-rendered with `400` and errors). This also closed a bug: a negative purchase quantity used to
 *add* stock, since `InventoryService.deductAmount` computed `max(0, amount - delta)`.
 

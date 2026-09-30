@@ -194,7 +194,7 @@ ShopReceiver.inventoryFragment()
 ```
 ShopReceiver.checkout(productNames[], quantities[])
 └─ PurchaseHandler.checkout(purchase)
-   ├─ AuditLogSPI.log("PURCHASE_RECEIVED")
+   ├─ AuditLogSPI.log("PURCHASE_PROCESSING")
    │  └─ AuditLogService (outbound-mongodb)
    │     └─ MongoDB
    ├─ InventoryRepositorySPI.deductAll(quantities, REJECT)  (one transaction, all-or-nothing)
@@ -243,7 +243,7 @@ ProductApiReceiver.orderFruits(request)
 ```
 ProductApiReceiver.purchase(request)
 └─ PurchaseHandler.checkout(purchase)
-   ├─ AuditLogSPI.log("PURCHASE_RECEIVED")
+   ├─ AuditLogSPI.log("PURCHASE_PROCESSING")
    │  └─ AuditLogService (outbound-mongodb)
    │     └─ MongoDB
    ├─ InventoryRepositorySPI.deductAll(quantities, REJECT)  (one transaction, all-or-nothing)
