@@ -3,7 +3,7 @@
 Replaces Qute in `inbound-http-html` with the approach from
 [svene/2026-09-03_hypermedia-quarkus-browser-hono](https://github.com/svene/2026-09-03_hypermedia-quarkus-browser-hono):
 the server returns a JSON `{ route, vm }` envelope, and a small htmx 4 extension (`hono`) renders the
-matching hono/html template **in the browser** before htmx swaps it in. Tracked as `PLAN.md` § 9.
+matching hono/html template **in the browser** before htmx swaps it in. Tracked as `PLAN.md` `browser-templating`.
 
 Status: **DONE** (2026-09-30) — see progress log. Optional dev live-reload (step 9) not done.
 
@@ -69,12 +69,12 @@ Status: **DONE** (2026-09-30) — see progress log. Optional dev live-reload (st
   `generate-resources`; `tsc --noEmit` runs in `process-classes` after typescript-generator.
 - ~~No-JS fallback~~ — decided: dropped (the `303` branch and the `HX-Request` parameter are gone).
 - ~~First-paint flash~~ — accepted.
-- **Interaction with § 10 (live updates)**: `hx-multipart` swaps each part via `htmx.swap()`
+- **Interaction with `live-updates`**: `hx-multipart` swaps each part via `htmx.swap()`
   directly, **bypassing `htmx_after_request`**, so the `hono` extension as written will not render
   JSON parts. It needs a second hook (e.g. on `htmx:multipart:before:part`, replacing the part's
-  text with the rendered HTML) — verify in a spike. Recommendation: do § 9 first, so § 10 is built
+  text with the rendered HTML) — verify in a spike. Recommendation: do `browser-templating` first, so `live-updates` is built
   on JSON parts from the start rather than converted twice.
-- ~~Alpine.js~~ — left for § 10 (it and `main.js` aren't loaded by either page).
+- ~~Alpine.js~~ — left for `live-updates` (it and `main.js` aren't loaded by either page).
 
 ## Progress log
 
@@ -95,7 +95,7 @@ Status: **DONE** (2026-09-30) — see progress log. Optional dev live-reload (st
 - TS: `hx-hono.ts`, `render.ts`, `routes.ts` (`satisfies Record<UiRoute, …>`), `route-types.ts`,
   `admin.ts` (the 7 order forms come from one `SUPPLIER_BOXES` list instead of 7 copies), `shop.ts`.
   Forms keep `method`/`action` for the Playwright selectors. The Randomize scripts lived in the
-  shells with a delegated click listener (moved into `admin.ts`/`shop.ts` by `PLAN.md` § 12).
+  shells with a delegated click listener (moved into `admin.ts`/`shop.ts` by `PLAN.md` `randomize-fill-only`).
 - Tests: `AdminReceiverTest`/`ShopReceiverTest` assert JSON envelopes (redirect test removed, shell
   tests added); `StaticResourcesTest` checks `hx-hono.js` is served. `mvn verify` green, Playwright
   10 passed + 1 flaky (the first `shop.spec.ts` test hits a dev-mode live reload caused by

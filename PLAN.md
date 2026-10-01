@@ -1,6 +1,6 @@
 # Next steps
 
-## 1. Customer UI — online shopping (DONE)
+## shop-ui: Customer UI — online shopping (DONE)
 
 A dedicated HTML interface for customers to browse and purchase products.
 
@@ -10,7 +10,7 @@ A dedicated HTML interface for customers to browse and purchase products.
 - Covered by `ShopReceiverTest` in `app-server`
 - `architecture.puml` and `README.md` updated with `ShopReceiver`
 
-## 2. Administrator UI — inventory management and ordering (DONE)
+## admin-ui: Administrator UI — inventory management and ordering (DONE)
 
 A dedicated HTML interface for supermarket staff.
 
@@ -20,7 +20,7 @@ A dedicated HTML interface for supermarket staff.
 - Covered by `AdminReceiverTest` in `app-server`
 - `architecture.puml` updated with `AdminReceiver`, `AuditLogAPI`, `AuditLogHandler`, and the extended `AuditLogSPI`
 
-## 3. Removed the old `/products` HTML page (DONE)
+## remove-products-page: Removed the old `/products` HTML page (DONE)
 
 Once `/admin` and `/shop` existed, `/products` (`ProductReceiver`) had nothing left that wasn't covered by one of the two new pages, so it was deleted.
 
@@ -29,7 +29,7 @@ Once `/admin` and `/shop` existed, `/products` (`ProductReceiver`) had nothing l
 - Playwright suite `products.spec.ts` was split into `admin.spec.ts` (ordering tests, retargeted to `/admin`) and `shop.spec.ts` (purchase test, retargeted to `/shop`'s cart-row UI); `playwright.config.ts`'s `webServer.url` now points at `/admin`
 - `architecture.puml`, `README.md`, `concepts.md` updated to remove `/products` references
 
-## 4. UI modernization: Bulma CSS + htmx live updates (DONE)
+## bulma-htmx-ui: UI modernization: Bulma CSS + htmx live updates (DONE)
 
 Replaced the hand-rolled inline `<style>` blocks with Bulma, and made both pages update their
 inventory/audit numbers live instead of relying on manual refresh.
@@ -62,7 +62,7 @@ inventory/audit numbers live instead of relying on manual refresh.
   `mvn quarkus:dev` with real Postgres/MongoDB/Kafka).
 - `architecture.puml` and `README.md` updated with the new routes and htmx/Bulma details.
 
-## 5. Admin "Randomize (dev)" button for restocking (DONE)
+## admin-randomize: Admin "Randomize (dev)" button for restocking (DONE)
 
 Quick way to fill the 7 supplier order forms on `/admin` with plausible test data (product name +
 quantity between 80 and 600) without typing values by hand — mirrors the `/shop` page's existing
@@ -76,7 +76,7 @@ randomize button.
   already used as form placeholders). The "Randomize (dev)" button next to the "Restock Inventory"
   heading fills every form's `productName` with its default name and `quantity` with a random number
   in `[80, 600]`, pure client-side JavaScript.
-- **Auto-submit via htmx (follow-up)** — *reverted by § 12: Randomize only fills again, a separate
+- **Auto-submit via htmx (follow-up)** — *reverted by `randomize-fill-only`: Randomize only fills again, a separate
   Submit all button submits*: originally the button only filled the fields and the user had
   to click each *Order* button by hand; changed so all 7 orders submit automatically. Each `.order-form`
   now also has `hx-post="<same as action>" hx-swap="none"` (no swap target needed — the inventory table
@@ -93,7 +93,7 @@ randomize button.
   manual-order tests still pass unchanged, since their completion check already polls via a manual
   `page.reload()`, independent of navigation.
 
-## 6. Architecture diagram refactoring — technology-focused views (DONE)
+## tech-diagrams: Architecture diagram refactoring — technology-focused views (DONE)
 
 Split the monolithic `architecture.puml` into 4 focused diagrams by technology:
 
@@ -102,9 +102,9 @@ Split the monolithic `architecture.puml` into 4 focused diagrams by technology:
 - **`soap-architecture.puml`** — SOAP supplier integration only: order endpoints, handlers, SOAP services, external SOAP stubs
 - **`persistence-architecture.puml`** — data storage patterns: SPI interfaces, core handlers, outbound adapters, databases (Postgres transactional inventory, MongoDB append-only audit log)
 
-Each diagram significantly reduces visual complexity compared to the original by focusing on one technology concern at a time. All diagrams keep core in the middle; left-to-right flow through core is not yet fully clean (left-to-right refactoring deferred to section 7).
+Each diagram significantly reduces visual complexity compared to the original by focusing on one technology concern at a time. All diagrams keep core in the middle; left-to-right flow through core is not yet fully clean (left-to-right refactoring deferred to `diagram-left-to-right`).
 
-## 7. Diagram left-to-right flow improvement (NOT STARTED)
+## diagram-left-to-right: Diagram left-to-right flow improvement (NOT STARTED)
 
 Reorganize all architecture diagrams (main + 4 focused ones) to ensure **strict left-to-right dependency flow through core**:
 - External sources / inbound → **Core** → outbound adapters → external systems
@@ -113,7 +113,7 @@ Reorganize all architecture diagrams (main + 4 focused ones) to ensure **strict 
 
 This is deferred because PlantUML's auto-layout makes it challenging to enforce; a manual coordinate-based approach or a different diagram tool might be needed for full control.
 
-## 8. Clean separation: HTML interface vs JSON API (DONE)
+## html-json-separation: Clean separation: HTML interface vs JSON API (DONE)
 
 Split the monolithic `inbound-rest` module into cleanly separated concerns:
 
@@ -126,7 +126,7 @@ Split the monolithic `inbound-rest` module into cleanly separated concerns:
 - Updated `architecture.puml` and focused diagrams (kafka, rest, soap, persistence) to show `inbound-http.html` and `inbound-http.jsonapi` subpackages
 - All 30 tests pass (pure refactoring, no functional changes)
 
-## 9. Replace Qute with browser-side hono/html templating (DONE)
+## browser-templating: Replace Qute with browser-side hono/html templating (DONE)
 
 Replace the Qute templates in `inbound-http-html` with the approach from
 [svene/2026-09-03_hypermedia-quarkus-browser-hono](https://github.com/svene/2026-09-03_hypermedia-quarkus-browser-hono):
@@ -134,7 +134,7 @@ receivers return a JSON `{ route, vm }` envelope, and an htmx 4 extension render
 hono/html template in the browser. Large change — plan, decisions and progress are tracked in
 [`docs/architecture/browser-templating_wip.md`](docs/architecture/browser-templating_wip.md).
 
-## 10. Replace htmx polling with a server-push multipart stream + hx-live (NOT STARTED)
+## live-updates: Replace htmx polling with a server-push multipart stream + hx-live (NOT STARTED)
 
 Replace the `hx-trigger="every 3s"` polling on `/admin` and `/shop` with a long-lived
 `multipart/mixed` stream (approach from
@@ -144,9 +144,9 @@ top of the page (a server-pushed replacement for an Alpine.js data object) and t
 to it. The audit log doesn't fit this model and keeps its polling for now. Large
 change — plan, decisions and progress are tracked in
 [`docs/architecture/live-updates_wip.md`](docs/architecture/live-updates_wip.md). Recommended to do
-after § 9, so the stream's parts are built on the JSON envelope from the start.
+after `browser-templating`, so the stream's parts are built on the JSON envelope from the start.
 
-## 11. Split the inventory: physical store vs. online shop (NOT STARTED)
+## split-inventory: Split the inventory: physical store vs. online shop (NOT STARTED)
 
 Replace the single inventory with two stock pools: one for the physical store (deducted by cashpoint
 sales) and one for the online shop (deducted by `/shop` and JSON API checkouts). Open: where
@@ -154,7 +154,7 @@ deliveries go, whether stock can be transferred between the two, and what `/api/
 Plan, decisions and progress are tracked in
 [`docs/architecture/split-inventory_wip.md`](docs/architecture/split-inventory_wip.md).
 
-## 12. Randomize (dev) buttons only fill the inputs, the user submits (DONE)
+## randomize-fill-only: Randomize (dev) buttons only fill the inputs, the user submits (DONE)
 
 Change the *Randomize (dev)* buttons on `/admin` and `/shop` so that they **only fill the input
 fields** with random values and never submit anything themselves. Submitting stays a deliberate
@@ -223,4 +223,4 @@ Done with htmx 4's built-in morph swap, simpler than the originally planned set 
 ## Open questions
 
 - Authentication/authorization is out of scope for this POC, but the separate routes (`/admin`, `/shop`) make it easy to add later.
-- Section 7 (diagram refactoring) may need a different tool or manual layout if PlantUML cannot enforce the strict left-to-right constraint.
+- `diagram-left-to-right` may need a different tool or manual layout if PlantUML cannot enforce the strict left-to-right constraint.

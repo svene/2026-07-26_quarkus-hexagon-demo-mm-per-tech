@@ -4,7 +4,7 @@ Replaces the 3-second htmx polling on `/admin` and `/shop` with a long-lived `mu
 stream pushed by the server, following
 [svene/2026-08-02_quarkus-multistream-mixed-response](https://github.com/svene/2026-08-02_quarkus-multistream-mixed-response),
 and uses htmx 4's [`hx-live`](https://four.htmx.org/extensions/hx-live) extension for the
-client-side reactive bits. Tracked as `PLAN.md` § 10.
+client-side reactive bits. Tracked as `PLAN.md` `live-updates`.
 
 Status: **NOT STARTED** — plan only, not yet approved for implementation.
 
@@ -142,10 +142,10 @@ to. Decided 2026-09-30: the stream **sends a part that makes that area reload it
 - ~~Audit log~~ — decided 2026-09-30: keeps polling for now.
 - ~~Row set changes~~ — decided 2026-09-30: `HX-Trigger: productSetChanged` on the snapshot part,
   the area re-fetches itself (see "When the set of products changes").
-- **Dependency on § 9**: if § 9 (hono/html browser templating) lands first, parts are `{ route, vm }`
+- **Dependency on `browser-templating`**: if `browser-templating` lands first, parts are `{ route, vm }`
   JSON and the `hono` extension needs a hook for multipart parts, since `hx-multipart` calls
   `htmx.swap()` directly and bypasses `htmx_after_request` (see `browser-templating_wip.md`).
-  If § 10 lands first, parts are Qute-rendered HTML and get converted later. The data-island
+  If `live-updates` lands first, parts are Qute-rendered HTML and get converted later. The data-island
   design softens this: the island is trivial markup (`<data>` elements), so the stream could
   build it without any template engine and bypass the `hono` extension entirely.
 - Connection limits: browsers allow ~6 HTTP/1.1 connections per origin; two tabs × one stream is

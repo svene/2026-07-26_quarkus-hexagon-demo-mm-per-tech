@@ -1,7 +1,7 @@
 # Split inventory: physical store vs. online shop — Plan & Work In Progress
 
 Today there is one inventory; this splits it into two stock pools, one for the **physical store**
-and one for the **online shop**. Tracked as `PLAN.md` § 11.
+and one for the **online shop**. Tracked as `PLAN.md` `split-inventory`.
 
 Status: **NOT STARTED** — plan only, not yet approved for implementation.
 
@@ -25,7 +25,7 @@ Status: **NOT STARTED** — plan only, not yet approved for implementation.
 - `InventoryRepositorySPI` methods take the location; `checkout` deducts from `ONLINE`,
   `recordStoreSale` from `STORE` — the `OnShortage` split stays as it is and now lines up with the
   location.
-- `/shop` and its future live stream (§ 10) show only `ONLINE` stock; `/admin` shows both.
+- `/shop` and its future live stream (`live-updates`) show only `ONLINE` stock; `/admin` shows both.
 - Audit entries name the location.
 
 ## Steps
@@ -54,7 +54,7 @@ Status: **NOT STARTED** — plan only, not yet approved for implementation.
   → `ONLINE`.
 - **Naming** — "store" vs. "physical store", "online" vs. "webshop"; worth an entry in the domain
   glossary if one exists.
-- **Interaction with § 10**: the shop's data island only carries `ONLINE` amounts; the admin island
+- **Interaction with `live-updates`**: the shop's data island only carries `ONLINE` amounts; the admin island
   carries both. Order doesn't matter much, but whichever lands second adapts to the other.
 
 ## Progress log
