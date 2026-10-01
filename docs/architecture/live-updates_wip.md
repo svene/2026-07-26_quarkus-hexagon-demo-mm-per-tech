@@ -13,9 +13,10 @@ Status: **NOT STARTED** — plan only, not yet approved for implementation.
 - `/admin`: `<tbody id="inventory-body" hx-get="/admin/inventory-fragment" hx-trigger="every 3s"
   hx-swap="outerHTML">` and `<div id="audit-panel" hx-get="/admin/audit-fragment" hx-trigger="every 3s">`
   — each fragment re-renders itself including the polling attributes.
-- `/shop`: a hidden `<div hx-get="/shop/inventory-fragment" hx-trigger="every 3s" hx-swap="none">`
-  whose response is a list of `<hx-partial id="avail-{name}">` elements, so a customer's
-  in-progress quantity inputs are never wiped.
+- `/shop`: `<div id="shop-products" hx-get="/shop/inventory-fragment" hx-trigger="every 3s"
+  hx-swap="innerMorph">` re-renders the whole products section (empty state or cart form) and morphs
+  it in. Rows are keyed `row-{name}-{type}` and the quantity inputs carry no `value` attribute, so a
+  customer's in-progress quantities and focus survive (since `shop-product-set-refresh`).
 - Every open page issues a request every 3 s whether or not anything changed; changes show up with
   up to 3 s delay.
 
@@ -112,8 +113,8 @@ to. Decided 2026-09-30: the stream **sends a part that makes that area reload it
    per change + periodic heartbeat, then closing boundary on cancel.
 3. **Spike on `/shop`**: `/shop/live` endpoint, `#live-data` island, `hx-live` bindings for the
    "Available" cells; confirm that an `innerHTML` swap into a `hidden` element re-triggers the
-   bindings. Remove shop polling; turn `/shop/inventory-fragment` into the cart-rows reload
-   target for `productSetChanged`, with a morph swap that keeps typed quantities.
+   bindings. Remove shop polling; `/shop/inventory-fragment` (already a morph swap that keeps
+   typed quantities) becomes the reload target for `productSetChanged`.
 4. **Derived shop UI** via `hx-live`: over-stock row flag, Checkout disabled, cart count.
 5. **`/admin`**: `/admin/live` island for inventory amounts + bindings; order-button bindings;
    remove the inventory polling, `productSetChanged` reloads `#inventory-body`. Audit panel

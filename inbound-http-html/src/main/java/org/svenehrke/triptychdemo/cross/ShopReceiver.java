@@ -17,6 +17,7 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.io.InputStream;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -48,8 +49,7 @@ public class ShopReceiver {
     @Path("/inventory-fragment")
     @Produces(MediaType.APPLICATION_JSON)
     public UiResponse inventoryFragment() {
-        return UiResponse.of(UiRoute.ShopAvailability,
-            new ShopAvailabilityVM(productsHandler.listAll().stream().map(ProductRowVM::of).toList()));
+        return UiResponse.of(UiRoute.ShopProducts, new ShopProductsVM(inStockProducts()));
     }
 
     @POST
@@ -83,10 +83,14 @@ public class ShopReceiver {
     }
 
     private UiResponse shopPageView(List<String> errors) {
-        var inStock = productsHandler.listAll().stream()
+        return UiResponse.of(UiRoute.ShopPage, new ShopPageVM(inStockProducts(), errors));
+    }
+
+    private List<ProductRowVM> inStockProducts() {
+        return productsHandler.listAll().stream()
             .filter(p -> p.availableAmount() > 0)
             .map(ProductRowVM::of)
+            .sorted(Comparator.comparing(ProductRowVM::name, String.CASE_INSENSITIVE_ORDER).thenComparing(ProductRowVM::type))
             .toList();
-        return UiResponse.of(UiRoute.ShopPage, new ShopPageVM(inStock, errors));
     }
 }

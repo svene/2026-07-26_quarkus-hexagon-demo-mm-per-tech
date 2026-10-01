@@ -192,16 +192,19 @@ ShopReceiver.page()   → UiResponse(ShopPage, {products, errors})
    └─ InventoryRepositorySPI.findAll()
       └─ InventoryService (outbound-postgres)
          └─ PostgreSQL
-   └─ Filter in-stock products (availableAmount > 0)
+   └─ Filter in-stock products (availableAmount > 0), sorted by name
 ```
 
 #### GET /shop/inventory-fragment - Inventory Fragment
+Polled every 3 s by `/shop`; the browser morphs the rendered products section (`hx-swap="innerMorph"`)
+into `#shop-products`, so new products appear, sold-out ones disappear, and typed quantities survive.
 ```
-ShopReceiver.inventoryFragment()
+ShopReceiver.inventoryFragment()   → UiResponse(ShopProducts, {products})
 └─ ProductsHandler.listAll()
    └─ InventoryRepositorySPI.findAll()
       └─ InventoryService (outbound-postgres)
          └─ PostgreSQL
+   └─ Filter in-stock products (availableAmount > 0), sorted by name
 ```
 
 #### POST /shop/checkout - Customer Purchase

@@ -194,6 +194,32 @@ Done (client-side variant, server-generated values rejected as not worth it):
 - `admin.spec.ts`: "randomize button only fills every order form, it submits nothing" (no POST to
   `/admin/order-*`) and "submit all button sends all 7 filled order forms via htmx without a reload".
 
+## shop-product-set-refresh: `/shop` picks up newly stocked products (DONE)
+
+Problem: `/shop` didn't show a product that came into stock while the page was open (only after a
+manual reload). The 3 s poll answered with one `<hx-partial id="avail-<name>">` per product, which
+only updated the "Available" cell of rows that already existed. An empty shop didn't poll at all,
+and a sold-out product kept its row (showing 0).
+
+Done with htmx 4's built-in morph swap, simpler than the originally planned set comparison:
+- `ShopPage` always renders `<div id="shop-products" hx-get="/shop/inventory-fragment"
+  hx-trigger="every 3s" hx-swap="innerMorph">`, also in the empty state.
+- `GET /shop/inventory-fragment` returns route `ShopProducts` (was `ShopAvailability`;
+  `ShopProductsVM`, was `ShopAvailabilityVM`) with the in-stock products only. The browser renders
+  the whole products section (empty-state message or cart form) and morphs it in. No set comparison
+  on the server, no `hx-include`.
+- Rows are keyed `id="row-<name>-<type>"` (the table is unique on name+type; this also fixes the old
+  `avail-<name>` collision). New rows get inserted, sold-out rows get removed, and rows that stay are
+  patched in place.
+- The quantity `<input>` has **no `value` attribute**. htmx's morph (`htmx.js` `#copyAttributes`)
+  sets `input.value` only when the new markup's `value` attribute differs, so the old `value=""` would
+  have reset every unfocused typed quantity. Without it, typed and randomized values survive. A
+  focused input is never overwritten or moved.
+- Covered by: `ShopReceiverTest.inventory_fragment_returns_only_products_in_stock`, and
+  `shop.spec.ts` "an open shop page picks up a newly stocked product without a reload and keeps
+  typed quantities" (types a quantity, stocks a new product through `/admin` in a second tab, expects
+  the new row without a reload while the typed value stays).
+
 ## Open questions
 
 - Authentication/authorization is out of scope for this POC, but the separate routes (`/admin`, `/shop`) make it easy to add later.

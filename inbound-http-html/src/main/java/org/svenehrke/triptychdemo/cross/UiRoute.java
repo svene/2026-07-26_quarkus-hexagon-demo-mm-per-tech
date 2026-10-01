@@ -11,5 +11,5 @@ public enum UiRoute {
     AuditPanel,
     OrderErrors,
     ShopPage,
-    ShopAvailability,
+    ShopProducts,
 }

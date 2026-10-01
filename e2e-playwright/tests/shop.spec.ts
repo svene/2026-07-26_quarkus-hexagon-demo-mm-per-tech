@@ -53,3 +53,27 @@ test('purchasing a product deducts its inventory', async ({ page }) => {
   const updatedRow = page.getByRole('row').filter({ hasText: purchase });
   await expect(updatedRow.getByRole('cell').nth(2)).toHaveText('7');
 });
+
+test('an open shop page picks up a newly stocked product without a reload and keeps typed quantities', async ({ page, context }) => {
+  const existing = `Pear-${RUN_ID}`;
+  const newcomer = `Plum-${RUN_ID}`;
+  const admin = await context.newPage();
+
+  async function orderFruit(name: string) {
+    await admin.goto('/admin');
+    await admin.locator('form[action="/admin/order-fruits"] input[name="productName"]').fill(name);
+    await admin.locator('form[action="/admin/order-fruits"] input[name="quantity"]').fill('10');
+    await admin.locator('form[action="/admin/order-fruits"] button[type="submit"]').click();
+  }
+
+  await orderFruit(existing);
+  await page.goto('/shop');
+  await waitForProductRow(page, existing);
+  const qty = page.getByRole('row').filter({ hasText: existing }).locator('input[name="quantity"]');
+  await qty.fill('4');
+
+  // From here on no reload: the 3 s poll has to morph the new row in.
+  await orderFruit(newcomer);
+  await expect(page.getByRole('cell', { name: newcomer })).toBeVisible({ timeout: 15_000 });
+  await expect(qty).toHaveValue('4');
+});

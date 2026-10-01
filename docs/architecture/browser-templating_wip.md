@@ -85,7 +85,7 @@ Status: **DONE** (2026-09-30) — see progress log. Optional dev live-reload (st
   `npm run typecheck`). Git-ignored: `node/`, `node_modules/`, `cross/generated/`, `js/hono/`.
 - Java: `UiRoute` enum, `UiResponse` envelope, view models `ProductRowVM`, `AuditEntryVM`,
   `AdminPageVM`, `AdminInventoryVM`, `AuditPanelVM`, `OrderErrorsVM`, `ShopPageVM`,
-  `ShopAvailabilityVM`. Receivers map core types to them.
+  `ShopProductsVM` (was `ShopAvailabilityVM` until `shop-product-set-refresh`). Receivers map core types to them.
 - Endpoints: `GET /admin`, `GET /shop` serve `shells/*.html` from the classpath (not under
   `META-INF/resources`); new `GET /admin/page`, `GET /shop/page`; the fragment endpoints keep their
   URLs but return envelopes; explicit endpoints instead of the reference repo's generic

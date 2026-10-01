@@ -1,5 +1,5 @@
 import {html} from "hono/html";
-import type {ProductRowVM, ShopAvailabilityVM, ShopPageVM} from "./generated/vm-types";
+import type {ProductRowVM, ShopPageVM, ShopProductsVM} from "./generated/vm-types";
 import type {HtmlResult} from "./route-types";
 
 // Delegated: the button is rendered into #app after the page has loaded.
@@ -26,11 +26,17 @@ export const ShopPage = (vm: ShopPageVM): HtmlResult => html`
 			</ul>
 		</div>`}
 
+	<div id="shop-products" hx-get="/shop/inventory-fragment" hx-trigger="every 3s" hx-swap="innerMorph">
+		${ShopProducts({products: vm.products})}
+	</div>
+`;
+
+// The 3 s poll morphs this into #shop-products: rows are matched by id, so new products appear, sold-out ones
+// disappear, and rows that stay keep the customer's typed quantities and focus.
+export const ShopProducts = (vm: ShopProductsVM): HtmlResult => html`
 	${vm.products.length === 0
 		? html`<p class="has-text-grey"><em>No products available to purchase right now.</em></p>`
 		: html`
-			<div hx-get="/shop/inventory-fragment" hx-trigger="every 3s" hx-swap="none"></div>
-
 			<form method="post" action="/shop/checkout" id="shop-form" hx-post="/shop/checkout" hx-target="#app" hx-swap="innerHTML">
 				<table class="table is-fullwidth is-striped">
 					<thead>
@@ -47,19 +53,16 @@ export const ShopPage = (vm: ShopPageVM): HtmlResult => html`
 			</form>`}
 `;
 
+// Name+type is the product key. The quantity input deliberately has no value attribute: a morph overwrites a
+// typed value only when the new markup's value attribute differs.
 const CartRow = (p: ProductRowVM): HtmlResult => html`
-	<tr>
+	<tr id="row-${p.name}-${p.type}">
 		<td>${p.name}</td>
 		<td>${p.type}</td>
-		<td id="avail-${p.name}">${p.availableAmount}</td>
+		<td>${p.availableAmount}</td>
 		<td>
 			<input type="hidden" name="productName" value="${p.name}">
-			<input type="number" name="quantity" class="input qty-input" min="0" max="${p.availableAmount}" data-max="${p.availableAmount}" value="" style="width:100px">
+			<input type="number" name="quantity" class="input qty-input" min="0" max="${p.availableAmount}" data-max="${p.availableAmount}" style="width:100px">
 		</td>
 	</tr>
-`;
-
-// Partials update only the "Available" cells, so the poll never wipes a customer's typed quantities.
-export const ShopAvailability = (vm: ShopAvailabilityVM): HtmlResult => html`
-	${vm.products.map(p => html`<hx-partial id="avail-${p.name}" hx-swap="innerHTML">${p.availableAmount}</hx-partial>`)}
 `;

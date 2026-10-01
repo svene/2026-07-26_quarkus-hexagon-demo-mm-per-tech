@@ -142,15 +142,28 @@ class ShopReceiverTest {
     }
 
     @Test
-    void inventory_fragment_returns_the_amount_per_product() {
+    void inventory_fragment_returns_only_products_in_stock() {
         inventory.addAmount("Apple", ProductType.FRUIT, 10);
+        inventory.addAmount("Bread", ProductType.BAKERY, 0);
 
         var response = given().get("/shop/inventory-fragment");
 
         assertThat(response.statusCode()).isEqualTo(200);
-        assertThat(response.jsonPath().getString("route")).isEqualTo("ShopAvailability");
+        assertThat(response.jsonPath().getString("route")).isEqualTo("ShopProducts");
         assertThat(response.jsonPath().getList("vm.products.name")).containsExactly("Apple");
         assertThat(response.jsonPath().getInt("vm.products[0].availableAmount")).isEqualTo(10);
+    }
+
+    @Test
+    void page_and_inventory_fragment_list_products_ordered_by_name() {
+        inventory.addAmount("milk", ProductType.DAIRY, 6);
+        inventory.addAmount("Banana", ProductType.FRUIT, 3);
+        inventory.addAmount("Apple", ProductType.FRUIT, 10);
+
+        assertThat(given().get("/shop/page").jsonPath().getList("vm.products.name"))
+            .containsExactly("Apple", "Banana", "milk");
+        assertThat(given().get("/shop/inventory-fragment").jsonPath().getList("vm.products.name"))
+            .containsExactly("Apple", "Banana", "milk");
     }
 
     @Test
