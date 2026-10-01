@@ -83,6 +83,9 @@ the inventory table and supplier order forms on the left, and the audit log
 page, no separate audit route. Both the inventory table and the audit log
 refresh themselves every 3 seconds via htmx polling, so multiple browser tabs
 (or `/shop` running alongside) stay in sync without a manual reload.
+A *Randomize (dev)* button fills all 7 order forms with a default product name
+and a random quantity (80–600) but submits nothing; *Submit all* then sends all
+7 orders at once (each form's *Order* button still works on its own).
 
 ### Shop UI
 
@@ -94,7 +97,7 @@ itself every 3 seconds via htmx (using `<hx-partial>` swaps that only touch
 the number, never the quantity inputs you're typing into). A *Randomize (dev)*
 button fills 2–4 random rows with random quantities (client-side JavaScript
 only, no server round trip) so you don't have to type values by hand while
-developing.
+developing; it never submits, you still click *Purchase*.
 
 ### Styling and live updates
 

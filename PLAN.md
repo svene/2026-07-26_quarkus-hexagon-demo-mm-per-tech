@@ -76,7 +76,8 @@ randomize button.
   already used as form placeholders). The "Randomize (dev)" button next to the "Restock Inventory"
   heading fills every form's `productName` with its default name and `quantity` with a random number
   in `[80, 600]`, pure client-side JavaScript.
-- **Auto-submit via htmx (follow-up)**: originally the button only filled the fields and the user had
+- **Auto-submit via htmx (follow-up)** — *reverted by § 12: Randomize only fills again, a separate
+  Submit all button submits*: originally the button only filled the fields and the user had
   to click each *Order* button by hand; changed so all 7 orders submit automatically. Each `.order-form`
   now also has `hx-post="<same as action>" hx-swap="none"` (no swap target needed — the inventory table
   and audit panel already self-refresh via the existing 3s htmx polling). After filling a form's
@@ -152,6 +153,46 @@ sales) and one for the online shop (deducted by `/shop` and JSON API checkouts).
 deliveries go, whether stock can be transferred between the two, and what `/api/products` shows.
 Plan, decisions and progress are tracked in
 [`docs/architecture/split-inventory_wip.md`](docs/architecture/split-inventory_wip.md).
+
+## 12. Randomize (dev) buttons only fill the inputs, the user submits (DONE)
+
+Change the *Randomize (dev)* buttons on `/admin` and `/shop` so that they **only fill the input
+fields** with random values and never submit anything themselves. Submitting stays a deliberate
+user action (the existing per-form **Order** buttons on `/admin`, **Checkout** on `/shop`).
+
+Current state:
+- `/admin` (`shells/admin.html`): fills every order form (default product name + quantity 80–600)
+  and then calls `htmx.trigger(form, 'submit')` on all 7 forms, i.e. it orders immediately.
+  This is the part that has to change.
+- `/shop` (`shells/shop.html`): already only fills 2–4 random `.qty-input`s (≤ 10 and ≤ the row's
+  available amount); it doesn't submit. Keep that behavior.
+- Both scripts are inline `<script>` blocks in the shell HTML files, written as delegated click
+  handlers because the button is rendered into `#app` later by the hono templates.
+
+Option to slim down the shells: let the server generate the random values instead of inline
+JavaScript, e.g. the button does `hx-get="/admin/randomize"` / `hx-get="/shop/randomize"` and gets
+back the usual `{ route, vm }` envelope with the VM's input values pre-filled, rendered by the same
+hono template. That removes both inline scripts from the shells, and the server-side shop variant
+can take the current stock into account directly. Only worth it if it really is simpler than moving
+the JS; decide while planning.
+
+Decided: `/admin` gets an additional **Submit all** button next to *Randomize (dev)* that submits
+all 7 order forms (what Randomize used to do in one click); the per-form **Order** buttons stay.
+So restocking everything is now Randomize → (optionally edit) → Submit all.
+
+Playwright: `admin.spec.ts` `randomize button fills every order form and submits all 7 orders…`
+must be split: Randomize fills the fields and submits nothing; Submit all then sends all 7 orders
+without a page reload.
+
+Done (client-side variant, server-generated values rejected as not worth it):
+- The inline `<script>` blocks are gone from `shells/admin.html` and `shells/shop.html`; the
+  delegated click handlers now live next to the templates in `admin.ts` / `shop.ts`, bundled into
+  `hx-hono.js` by esbuild. Since both pages load that one bundle, the button IDs are page-specific
+  (`admin-randomize-btn`, `admin-submit-all-btn`, `shop-randomize-btn`).
+- Submit all calls `form.requestSubmit()` per order form, i.e. exactly what clicking its **Order**
+  button does, including the browser's `required` check (an empty form isn't sent).
+- `admin.spec.ts`: "randomize button only fills every order form, it submits nothing" (no POST to
+  `/admin/order-*`) and "submit all button sends all 7 filled order forms via htmx without a reload".
 
 ## Open questions
 

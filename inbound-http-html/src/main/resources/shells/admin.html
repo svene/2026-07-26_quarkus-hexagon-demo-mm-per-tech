@@ -17,19 +17,5 @@
 </div>
 </section>
 
-<script>
-// Delegated: the button is rendered into #app after the page has loaded.
-document.addEventListener('click', function (event) {
-    if (!event.target.closest('#randomize-btn')) return;
-    document.querySelectorAll('.order-form').forEach(function (form) {
-        var nameInput = form.querySelector('input[name="productName"]');
-        var qtyInput = form.querySelector('input[name="quantity"]');
-        if (nameInput) nameInput.value = form.dataset.defaultName;
-        if (qtyInput) qtyInput.value = 80 + Math.floor(Math.random() * 521); // 80-600
-        htmx.trigger(form, 'submit');
-    });
-});
-</script>
-
 </body>
 </html>

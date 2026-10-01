@@ -94,8 +94,8 @@ Status: **DONE** (2026-09-30) — see progress log. Optional dev live-reload (st
   instead of a `303`.
 - TS: `hx-hono.ts`, `render.ts`, `routes.ts` (`satisfies Record<UiRoute, …>`), `route-types.ts`,
   `admin.ts` (the 7 order forms come from one `SUPPLIER_BOXES` list instead of 7 copies), `shop.ts`.
-  Forms keep `method`/`action` for the Playwright selectors. The Randomize scripts live in the
-  shells and use a delegated click listener.
+  Forms keep `method`/`action` for the Playwright selectors. The Randomize scripts lived in the
+  shells with a delegated click listener (moved into `admin.ts`/`shop.ts` by `PLAN.md` § 12).
 - Tests: `AdminReceiverTest`/`ShopReceiverTest` assert JSON envelopes (redirect test removed, shell
   tests added); `StaticResourcesTest` checks `hx-hono.js` is served. `mvn verify` green, Playwright
   10 passed + 1 flaky (the first `shop.spec.ts` test hits a dev-mode live reload caused by

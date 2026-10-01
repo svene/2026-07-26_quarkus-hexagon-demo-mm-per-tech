@@ -17,22 +17,5 @@
 </div>
 </section>
 
-<script>
-// Delegated: the button is rendered into #app after the page has loaded.
-document.addEventListener('click', function (event) {
-    if (!event.target.closest('#randomize-btn')) return;
-    var inputs = Array.from(document.querySelectorAll('.qty-input'));
-    inputs.forEach(function (input) { input.value = ''; });
-    if (inputs.length === 0) return;
-
-    var count = Math.min(inputs.length, 2 + Math.floor(Math.random() * 3)); // 2-4
-    var shuffled = inputs.slice().sort(function () { return Math.random() - 0.5; });
-    shuffled.slice(0, count).forEach(function (input) {
-        var max = Math.min(parseInt(input.dataset.max, 10) || 1, 10);
-        input.value = 1 + Math.floor(Math.random() * max);
-    });
-});
-</script>
-
 </body>
 </html>

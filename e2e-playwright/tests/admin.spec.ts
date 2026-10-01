@@ -32,23 +32,25 @@ test('admin page shows heading, supplier sections, and the audit log panel', asy
   await expect(page.getByRole('heading', { name: 'Audit Log' })).toBeVisible();
 });
 
-test('randomize button fills every order form and submits all 7 orders automatically via htmx', async ({ page }) => {
+const RANDOMIZED_NAMES: Record<string, string> = {
+  '/admin/order-fruits': 'Mango',
+  '/admin/order-vegetables': 'Carrot',
+  '/admin/order-dairy': 'Milk',
+  '/admin/order-beverages': 'Cola',
+  '/admin/order-meat': 'Chicken',
+  '/admin/order-bakery': 'Bread',
+  '/admin/order-nonfood': 'Detergent',
+};
+
+test('randomize button only fills every order form, it submits nothing', async ({ page }) => {
+  const orderPosts: string[] = [];
+  page.on('request', req => {
+    if (req.method() === 'POST' && req.url().includes('/admin/order-')) orderPosts.push(req.url());
+  });
   await page.goto('/admin');
   await page.getByRole('button', { name: 'Randomize (dev)' }).click();
 
-  const expected: Record<string, string> = {
-    '/admin/order-fruits': 'Mango',
-    '/admin/order-vegetables': 'Carrot',
-    '/admin/order-dairy': 'Milk',
-    '/admin/order-beverages': 'Cola',
-    '/admin/order-meat': 'Chicken',
-    '/admin/order-bakery': 'Bread',
-    '/admin/order-nonfood': 'Detergent',
-  };
-
-  // The fields keep their filled values after the async htmx submit (hx-swap="none" touches nothing),
-  // so this also proves what was actually sent: a name and a quantity between 80 and 600 per form.
-  for (const [action, name] of Object.entries(expected)) {
+  for (const [action, name] of Object.entries(RANDOMIZED_NAMES)) {
     const form = page.locator(`form[action="${action}"]`);
     await expect(form.locator('input[name="productName"]')).toHaveValue(name);
     const qty = Number(await form.locator('input[name="quantity"]').inputValue());
@@ -56,10 +58,23 @@ test('randomize button fills every order form and submits all 7 orders automatic
     expect(qty).toBeLessThanOrEqual(600);
   }
 
+  // Give a (wrongly) triggered htmx submit time to show up before asserting there was none.
+  await page.waitForTimeout(500);
+  expect(orderPosts).toEqual([]);
+});
+
+test('submit all button sends all 7 filled order forms via htmx without a reload', async ({ page }) => {
+  await page.goto('/admin');
+  await page.getByRole('button', { name: 'Randomize (dev)' }).click();
+
+  const posts = Object.keys(RANDOMIZED_NAMES).map(action =>
+    page.waitForResponse(res => res.request().method() === 'POST' && new URL(res.url()).pathname === action && res.ok()));
+  await page.getByRole('button', { name: 'Submit all' }).click();
+  await Promise.all(posts);
+
   // The page never navigates away (no full-page POST) — submission happened without a reload.
   expect(new URL(page.url()).pathname).toBe('/admin');
 
-  // Orders were actually placed: no manual "Order" click was needed for any of the 7 suppliers.
   await waitForProductRow(page, 'Mango');
   await waitForProductRow(page, 'Detergent');
 });

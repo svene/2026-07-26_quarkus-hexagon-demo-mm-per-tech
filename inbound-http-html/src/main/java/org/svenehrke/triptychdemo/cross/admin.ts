@@ -34,6 +34,21 @@ const SUPPLIER_BOXES: SupplierBox[] = [
 	},
 ];
 
+// Delegated: the buttons are rendered into #app after the page has loaded.
+// Randomize only fills the forms; Submit all submits each one as if its Order button was clicked.
+document.addEventListener("click", (event) => {
+	const target = event.target as Element;
+	const forms = Array.from(document.querySelectorAll<HTMLFormElement>(".order-form"));
+	if (target.closest("#admin-randomize-btn")) {
+		forms.forEach(form => {
+			form.querySelector<HTMLInputElement>('input[name="productName"]')!.value = form.dataset.defaultName!;
+			form.querySelector<HTMLInputElement>('input[name="quantity"]')!.value = String(80 + Math.floor(Math.random() * 521)); // 80-600
+		});
+	} else if (target.closest("#admin-submit-all-btn")) {
+		forms.forEach(form => form.requestSubmit());
+	}
+});
+
 export const AdminPage = (vm: AdminPageVM): HtmlResult => html`
 	<div class="columns">
 		<div class="column is-half">
@@ -49,7 +64,8 @@ export const AdminPage = (vm: AdminPageVM): HtmlResult => html`
 					</table>`}
 
 			<h2 class="title is-4">Restock Inventory
-				<button class="button is-light is-small" type="button" id="randomize-btn">Randomize (dev)</button>
+				<button class="button is-light is-small" type="button" id="admin-randomize-btn">Randomize (dev)</button>
+				<button class="button is-link is-small" type="button" id="admin-submit-all-btn">Submit all</button>
 			</h2>
 
 			${SUPPLIER_BOXES.map(SupplierBox)}

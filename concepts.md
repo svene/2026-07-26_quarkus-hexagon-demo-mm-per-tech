@@ -292,11 +292,13 @@ There are two HTML pages, each aimed at a different kind of user, sharing the
 same core ports:
 
 - **`/admin`** — supermarket staff: inventory view, supplier ordering forms
-  grouped by technology, and an audit log view backed by `AuditLogHandler`.
+  grouped by technology, and an audit log view backed by `AuditLogHandler`,
+  plus dev-only "Randomize" (fills all order forms, client-side) and "Submit
+  all" buttons.
 - **`/shop`** — customers: a cart-style purchase form over `PurchaseHandler`, plus
   a dev-only "Randomize" button (pure client-side JavaScript, no server round
   trip) that fills in random quantities so testers don't have to type values
-  by hand.
+  by hand; submitting stays a user action.
 
 Both pages are thin receivers in `inbound-http-html`; neither contains business
 logic, they only translate form submissions into calls on core Handlers. They
