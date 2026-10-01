@@ -1,0 +1,29 @@
+@startuml shop_events
+skinparam monochrome true
+skinparam sequenceMessageAlign center
+skinparam backgroundColor #ffffff
+
+actor "Customer" as user
+participant "ShopReceiver\n(HTTP)" as receiver
+participant "InventoryChangesHandler\n(Core)" as changes
+participant "InventoryHandler /\nPurchaseHandler\n(Core)" as handler
+participant "ProductsHandler\n(Core)" as products
+database "PostgreSQL\n(Products)" as db
+
+user -> receiver: GET /shop/events (hx-sse:connect)
+receiver -> changes: subscribe changes()
+receiver --> user: event: inventoryChanged (on connect)
+
+== an inventory change (Kafka delivery, checkout, cashpoint sale) ==
+handler -> db: addAmount / deductAll (committed)
+handler -> changes: publishChange()
+changes -> receiver: InventoryChanged
+receiver --> user: event: inventoryChanged
+
+user -> receiver: GET /shop/inventory-fragment\n(hx-trigger="inventoryChanged from:body")
+receiver -> products: listAll()
+products -> db: SELECT * FROM products
+receiver --> user: JSON {route: ShopProducts, vm}
+user -> user: render + innerMorph into #shop-products\n(typed quantities survive)
+
+@enduml

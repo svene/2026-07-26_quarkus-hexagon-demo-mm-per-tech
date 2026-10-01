@@ -3,9 +3,9 @@
 Session-to-session bookkeeping for the `docs/architecture/` doc set. See [README.md](README.md)
 for the actual maintenance process.
 
-**Last Updated**: 2026-10-01, on top of commit `a33b45b` plus the uncommitted PLAN.md `shop-product-set-refresh` change (`/shop` poll now morphs the whole products section): `architecture-flow.md` (`GET /shop/inventory-fragment` tree + note), `browser-templating_wip.md` (VM list), `live-updates_wip.md` (current state, step 3). Before that: 2026-09-30, PLAN.md `browser-templating` (Qute → browser-side hono/html), committed as `9146d28`.
+**Last Updated**: 2026-10-01, on top of commit `a33b45b` plus uncommitted PLAN.md changes: `shop-product-set-refresh` (`/shop` morphs the whole products section), plan items renamed from numbers to ids, and `live-updates` (`GET /shop/events` SSE + core `InventoryChangesHandler` replace `/shop` polling): `architecture-flow.md` (`GET /shop/inventory-fragment` and new `GET /shop/events` trees), `architecture-flow-kafka-reference.md` (endpoint table), `architecture-module-participants.md` (`InventoryChangesHandler`, `ShopReceiver`, Handler counts), new `flows/shop-events.puml` + `flows/README.md` entry, `browser-templating_wip.md`, `live-updates_wip.md` (rewritten as the final design). Before that: 2026-09-30, PLAN.md `browser-templating` (Qute → browser-side hono/html), committed as `9146d28`.
 
-**Diff baseline for the next update**: `git diff <commit containing shop-product-set-refresh> HEAD -- . ':(exclude)docs'` - replace with that commit's hash once committed. `9146d28..a33b45b` (*Model → *VM rename, randomize buttons) was only checked for stale names, not fully re-checked. If a doc looks stale for something older, `git diff 982b169 e3d3c87 -- . ':(exclude)docs'` covers the period that was not fully re-checked.
+**Diff baseline for the next update**: `git diff <commit containing live-updates> HEAD -- . ':(exclude)docs'` - replace with that commit's hash once committed. `9146d28..a33b45b` (*Model → *VM rename, randomize buttons) was only checked for stale names, not fully re-checked. If a doc looks stale for something older, `git diff 982b169 e3d3c87 -- . ':(exclude)docs'` covers the period that was not fully re-checked.
 
 **By**: Claude (session analysis)
 

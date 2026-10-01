@@ -92,9 +92,11 @@ and a random quantity (80–600) but submits nothing; *Submit all* then sends al
 A customer-facing shopping page is available at **http://localhost:8080/shop**.
 It lists every in-stock product with a quantity field per row; filling in one
 or more quantities and clicking *Purchase* submits the whole basket in a single
-call to `PurchaseHandler.checkout(...)`. The "Available" column also refreshes
-itself every 3 seconds via htmx (using `<hx-partial>` swaps that only touch
-the number, never the quantity inputs you're typing into). A *Randomize (dev)*
+call to `PurchaseHandler.checkout(...)`. The list (sorted by name) updates as
+soon as the inventory changes: the server pushes an `inventoryChanged`
+server-sent event (`GET /shop/events`), and the page re-fetches its products
+and morphs them in, so new products appear and sold-out ones disappear without
+touching the quantities you're typing. A *Randomize (dev)*
 button fills 2–4 random rows with random quantities (client-side JavaScript
 only, no server round trip) so you don't have to type values by hand while
 developing; it never submits, you still click *Purchase*.
@@ -102,8 +104,9 @@ developing; it never submits, you still click *Purchase*.
 ### Styling and live updates
 
 Both `/admin` and `/shop` use [Bulma](https://bulma.io) for styling and
-[htmx](https://htmx.org) for the periodic polling described above. Both
-libraries are served locally — no CDN, no build step — from
+[htmx](https://htmx.org) (4.0.0, plus its `hx-sse` extension on `/shop`) for
+the polling and push updates described above. Both libraries are served
+locally — no CDN — from
 `inbound-http-html/src/main/resources/META-INF/resources/{css,js}`, which Quarkus
 serves automatically at the web root (`/css/bulma.min.css`,
 `/js/htmx.org/4.0.0/htmx.js`).

@@ -14,7 +14,7 @@ Complete inventory of all classes participating in the system flows, organized b
 | **inbound-http-html** | `AdminReceiver`<br>`ShopReceiver`<br>`ShopCart` |
 | **inbound-http-jsonapi** | `ProductApiReceiver`<br>`XxxOrderRequest` (+ `OrderRequest`)/`PurchaseRequest`/`PurchaseRequestItem`/`RequestStructureErrorMessages`<br>`JsonInputErrors`/`StrictJsonReader`/`JsonResponses` |
 | **inbound-kafka** | `FruitDeliveryReceiver`<br>`VegetablesDeliveryReceiver`<br>`DairyDeliveryReceiver`<br>`BeveragesDeliveryReceiver`<br>`MeatDeliveryReceiver`<br>`BakeryDeliveryReceiver`<br>`NonFoodDeliveryReceiver`<br>`CashpointReceiver` |
-| **core** | `FruitSupplierSPI`/`FruitDelivery`/`FruitsHandler`<br>`VegetablesSupplierSPI`/`VegetableDelivery`/`VegetablesHandler`<br>`DairySupplierSPI`/`DairyDelivery`/`DairyHandler`<br>`BeverageSupplierSPI`/`BeverageDelivery`/`BeveragesHandler`<br>`MeatSupplierSPI`/`MeatDelivery`/`MeatHandler`<br>`BakerySupplierSPI`/`BakeryDelivery`/`BakeryHandler`<br>`NonFoodSupplierSPI`/`NonFoodDelivery`/`NonFoodHandler`<br>`InventoryRepositorySPI`/`InventoryHandler`<br>`AuditLogSPI`/`AuditLogHandler`/`AuditLogEntry`<br>`ProductsHandler`/`Product`/`ProductType`<br>`PurchaseHandler`/`PurchaseItem` |
+| **core** | `FruitSupplierSPI`/`FruitDelivery`/`FruitsHandler`<br>`VegetablesSupplierSPI`/`VegetableDelivery`/`VegetablesHandler`<br>`DairySupplierSPI`/`DairyDelivery`/`DairyHandler`<br>`BeverageSupplierSPI`/`BeverageDelivery`/`BeveragesHandler`<br>`MeatSupplierSPI`/`MeatDelivery`/`MeatHandler`<br>`BakerySupplierSPI`/`BakeryDelivery`/`BakeryHandler`<br>`NonFoodSupplierSPI`/`NonFoodDelivery`/`NonFoodHandler`<br>`InventoryRepositorySPI`/`InventoryHandler`/`InventoryChangesHandler`<br>`AuditLogSPI`/`AuditLogHandler`/`AuditLogEntry`<br>`ProductsHandler`/`Product`/`ProductType`<br>`PurchaseHandler`/`PurchaseItem` |
 | **outbound-postgres** | `InventoryService`<br>`ProductEntity` |
 | **outbound-mongodb** | `AuditLogService`<br>`AuditLogEntryEntity` |
 | **outbound-httpclient** | `FruitSupplierService`<br>`VegetablesSupplierService`<br>`DairySupplierService`<br>`FruitSupplierClient`<br>`VegetablesSupplierClient`<br>`DairySupplierClient` |
@@ -34,7 +34,7 @@ Complete inventory of all classes participating in the system flows, organized b
 
 ### Receivers
 - `AdminReceiver` - Admin dashboard and ordering endpoints (GET /admin shell, GET /admin/page and fragments, POST /admin/order-*)
-- `ShopReceiver` - Customer shopping interface (GET /shop shell, GET /shop/page and fragment, POST /shop/checkout)
+- `ShopReceiver` - Customer shopping interface (GET /shop shell, GET /shop/page and fragment, GET /shop/events SSE stream, POST /shop/checkout)
 - `UiRoute`, `UiResponse`, `*VM` records - the `{route, vm}` JSON envelope and the view models (TS types generated from them)
 - `*.ts` next to the receivers - hono/html templates + the `hono` htmx extension, bundled into `hx-hono.js`
 - `ShopCart` (package-private) - the checkout form's cart: pairs names with quantities, drops blank/`0` rows, parses to a `ParsedPurchase`, maps violations back to product names
@@ -146,6 +146,7 @@ Complete inventory of all classes participating in the system flows, organized b
 - `StockDeduction` - Result of deductAll (updated products, shortages)
 - `Shortage` - Domain record (productName, requested, available) with rejection and discrepancy messages
 - `InventoryHandler` - Updates inventory from delivery events, for all commodities (methods: updateFruitAmount, updateVegetableAmount, updateDairyAmount, updateBeverageAmount, updateMeatAmount, updateBakeryAmount, updateNonFoodAmount) - imports each commodity's `*Delivery` record from its `feature.<commodity>` package
+- `InventoryChangesHandler` - Tells inbound adapters the inventory changed (methods: publishChange - called by InventoryHandler and PurchaseHandler after a committed change; changes - a JDK `Flow.Publisher` that ShopReceiver's SSE stream subscribes to). Not an SPI: notifications flow core → inbound adapter, which reaches core only through Handlers. In-process only.
 
 ### cross.auditlog
 - `AuditLogSPI` - Interface for audit log persistence (methods: log, findRecent)
@@ -371,7 +372,7 @@ Complete inventory of all classes participating in the system flows, organized b
 
 ### Core Business Layer
 - `core` module, organized as `feature.<commodity>` (7 packages) + `cross.<concern>` (4 packages: inventory, auditlog, products, purchase)
-- Participants: Handlers (11 total), SPI interfaces (9 total), domain records/enum (10 total)
+- Participants: Handlers (12 total), SPI interfaces (9 total), domain records/enum (10 total)
 - Responsibility: Implement business logic, coordinate flow between inbound and outbound
 
 ### Data Persistence Layer
@@ -402,7 +403,7 @@ Complete inventory of all classes participating in the system flows, organized b
 | inbound-http-html | 2 | HTTP HTML Receivers |
 | inbound-http-jsonapi | 2 | HTTP JSON API Receiver + request records |
 | inbound-kafka | 8 + 3 | Kafka Receivers + cashpoint message types |
-| core | 11 Handlers, 9 SPI interfaces, 10 domain records/enum | Feature (7 packages) + Cross (4 packages) |
+| core | 12 Handlers, 9 SPI interfaces, 10 domain records/enum | Feature (7 packages) + Cross (4 packages) |
 | outbound-postgres | 2 | Service (InventoryService) + Entity (ProductEntity) |
 | outbound-mongodb | 2 | Service (AuditLogService) + Entity (AuditLogEntryEntity) |
 | outbound-httpclient | 3 | Services + 3 REST Clients |

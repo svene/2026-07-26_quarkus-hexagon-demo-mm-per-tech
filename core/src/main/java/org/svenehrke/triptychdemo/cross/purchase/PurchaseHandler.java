@@ -1,6 +1,7 @@
 package org.svenehrke.triptychdemo.cross.purchase;
 
 import org.svenehrke.triptychdemo.cross.auditlog.AuditLogSPI;
+import org.svenehrke.triptychdemo.cross.inventory.InventoryChangesHandler;
 import org.svenehrke.triptychdemo.cross.inventory.InventoryRepositorySPI;
 import org.svenehrke.triptychdemo.cross.inventory.OnShortage;
 import org.svenehrke.triptychdemo.cross.inventory.Shortage;
@@ -19,6 +20,8 @@ public class PurchaseHandler {
     InventoryRepositorySPI inventoryRepository;
     @Inject
     AuditLogSPI auditLog;
+    @Inject
+    InventoryChangesHandler inventoryChanges;
 
     /**
      * Online purchase (shop, JSON API): all-or-nothing, rejected if any item is not in stock - also when
@@ -50,6 +53,7 @@ public class PurchaseHandler {
         var quantitiesByName = quantitiesByName(purchase);
         var deduction = inventoryRepository.deductAll(quantitiesByName, onShortage);
         if (!deduction.updated().isEmpty()) {
+            inventoryChanges.publishChange();
             auditLog.log("PurchaseHandler: INVENTORY_DEDUCTED", deduction.updated().stream()
                 .map(p -> p.name() + " -" + quantitiesByName.get(p.name()) + " total=" + p.availableAmount())
                 .collect(Collectors.joining(", ")));

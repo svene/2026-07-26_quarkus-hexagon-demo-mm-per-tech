@@ -134,17 +134,20 @@ receivers return a JSON `{ route, vm }` envelope, and an htmx 4 extension render
 hono/html template in the browser. Large change — plan, decisions and progress are tracked in
 [`docs/architecture/browser-templating_wip.md`](docs/architecture/browser-templating_wip.md).
 
-## live-updates: Replace htmx polling with a server-push multipart stream + hx-live (NOT STARTED)
+## live-updates: `/shop` updates as soon as the inventory changes, via an SSE event (DONE)
 
-Replace the `hx-trigger="every 3s"` polling on `/admin` and `/shop` with a long-lived
-`multipart/mixed` stream (approach from
-[svene/2026-08-02_quarkus-multistream-mixed-response](https://github.com/svene/2026-08-02_quarkus-multistream-mixed-response),
-consumed via htmx 4's `hx-multipart`), plus `hx-live` for client-side reactive bindings: the stream fills a hidden data island at the
-top of the page (a server-pushed replacement for an Alpine.js data object) and the visible UI binds
-to it. The audit log doesn't fit this model and keeps its polling for now. Large
-change — plan, decisions and progress are tracked in
-[`docs/architecture/live-updates_wip.md`](docs/architecture/live-updates_wip.md). Recommended to do
-after `browser-templating`, so the stream's parts are built on the JSON envelope from the start.
+Replaced the 3 s polling on `/shop` with a server push. Design and the decisions that led to it
+(2026-10-01) are in [`docs/architecture/live-updates_wip.md`](docs/architecture/live-updates_wip.md).
+- **Scope `/shop` only.** `/admin` keeps polling: its inventory table has no input to protect, and
+  the audit panel is polled anyway, so a stream would add a second mechanism for little gain.
+- **An event, not data.** `GET /shop/events` (SSE) sends `inventoryChanged`. The page then
+  re-fetches `GET /shop/inventory-fragment` and morphs it in (from `shop-product-set-refresh`).
+  The original idea (multipart stream into a hidden data island + `hx-live` bindings) was dropped
+  as far more machinery for the same result. The client-side `hx-live` part moved to `hx-live-ui`.
+- **Core:** `InventoryChangesHandler` (JDK `Flow`/`SubmissionPublisher`, no reactive library in
+  core), published to by `InventoryHandler` and `PurchaseHandler` after a committed change. Not an
+  SPI: the `inbound_adapters_do_not_use_spis` ArchUnit rule forbids that, and notifications flow
+  core → inbound adapter anyway. In-process only (single instance).
 
 ## split-inventory: Split the inventory: physical store vs. online shop (NOT STARTED)
 
@@ -219,6 +222,45 @@ Done with htmx 4's built-in morph swap, simpler than the originally planned set 
   `shop.spec.ts` "an open shop page picks up a newly stocked product without a reload and keeps
   typed quantities" (types a quantity, stocks a new product through `/admin` in a second tab, expects
   the new row without a reload while the typed value stays).
+
+## hx-live-ui: client-side reactive UI with htmx 4's `hx-live` (NOT STARTED)
+
+Split off from `live-updates` (2026-10-01): live updates now come from an SSE event that makes the
+page re-fetch the products fragment (morph swap), so `hx-live` is **not** needed as a transport or
+data store any more. What's left is what `hx-live` is actually for: UI state derived **in the
+browser** from what's on the page, written as inline expressions next to the elements they affect,
+instead of hand-written JS in `admin.ts`/`shop.ts`.
+
+How `hx-live` works (4.0.0, `ext/hx-live.js`; to be vendored next to `htmx.js`):
+- Bindings are attributes `hx-live:<target>="<expr>"`, or the short form `:<target>="<expr>"`
+  (only when Alpine.js isn't loaded; it's vendored but neither page loads it). Targets include
+  `text`, attributes like `disabled`, and classes like `.is-danger`. `hx-live="…"` runs an effect.
+- `q('#id')` / `q('.sel')` query the page from inside an expression.
+- Every expression re-runs after DOM mutations (so also after a morph swap of `#shop-products`)
+  and after `input`/`change` events, batched into one microtask, deferred during htmx swaps.
+
+First idea, `/shop` (the original `live-updates` "derived UI"):
+- Flag a cart row when the typed quantity exceeds what's available, e.g.
+  `<tr :.is-danger="+q('#qty-<key>').value > +q('#avail-<key>').textContent">`. This needs ids on
+  the quantity input and the Available cell again, keyed like the `row-<name>-<type>` row ids. It
+  reacts both to typing and to the stock changing under the customer via the SSE-triggered refresh.
+- Disable *Purchase* while any row is over stock or no quantity is entered.
+- A live cart summary next to *Purchase* ("3 products, 7 items").
+
+To elaborate in this item: more ways `hx-live` could be used in this app, and where it should stop.
+Candidates:
+- `/admin` order forms: disable an *Order* button while its name or quantity is empty or outside
+  the server's limits (`@Max 2000` etc.); *Submit all* only when every form is filled.
+- `/admin` inventory table: highlight low-stock rows, or show a total. Check first whether this is
+  better rendered on the server, since the server already knows the numbers.
+- `/admin` audit panel: a text box that filters the rendered rows on the client. It has to survive
+  the 3 s `outerHTML` poll that replaces the panel.
+- Whether parts of the imperative JS (Randomize buttons, `admin.ts` "Submit all") read better as
+  `hx-live` effects, or should stay plain event listeners.
+- Ground rules to write down: client-side checks are only UX, server validation stays
+  authoritative (`docs/architecture/validation.md`); keep expressions short (hx-live warns above
+  16 ms per recompute); prefer ids that both server templates and expressions use (e.g. the row
+  keys from `shop-product-set-refresh`).
 
 ## Open questions
 

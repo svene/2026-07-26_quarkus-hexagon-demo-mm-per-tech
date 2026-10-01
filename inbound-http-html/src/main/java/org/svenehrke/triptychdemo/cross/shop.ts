@@ -26,12 +26,13 @@ export const ShopPage = (vm: ShopPageVM): HtmlResult => html`
 			</ul>
 		</div>`}
 
-	<div id="shop-products" hx-get="/shop/inventory-fragment" hx-trigger="every 3s" hx-swap="innerMorph">
+	<div id="shop-products" hx-get="/shop/inventory-fragment" hx-trigger="inventoryChanged from:body" hx-sync="this:replace" hx-swap="innerMorph">
 		${ShopProducts({products: vm.products})}
 	</div>
 `;
 
-// The 3 s poll morphs this into #shop-products: rows are matched by id, so new products appear, sold-out ones
+// Re-fetched on every inventoryChanged event pushed by the shell's SSE stream (/shop/events) and morphed into
+// #shop-products: rows are matched by id, so new products appear, sold-out ones
 // disappear, and rows that stay keep the customer's typed quantities and focus.
 export const ShopProducts = (vm: ShopProductsVM): HtmlResult => html`
 	${vm.products.length === 0

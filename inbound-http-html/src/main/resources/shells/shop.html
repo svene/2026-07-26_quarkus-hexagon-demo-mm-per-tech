@@ -8,11 +8,15 @@
     <script src="/js/htmx.org/4.0.0/htmx.js"></script>
     <!-- must load right after htmx.js: registers the `hono` extension that renders the { route, vm } responses -->
     <script src="/js/hono/hx-hono.js"></script>
+    <!-- after hx-hono.js: its Accept header must be set first, so the `sse` extension can append text/event-stream -->
+    <script src="/js/htmx.org/4.0.0/ext/hx-sse.js"></script>
 </head>
 <body>
 <section class="section">
 <div class="container">
     <h1 class="title">Supermarket – Shop</h1>
+    <!-- outside #app, so re-rendering the page (checkout) keeps the stream; its events bubble up to body -->
+    <div hx-sse:connect="/shop/events" hidden></div>
     <div id="app" hx-get="/shop/page" hx-trigger="load" hx-swap="innerHTML"></div>
 </div>
 </section>

@@ -1,12 +1,14 @@
 package org.svenehrke.triptychdemo.cross;
 
 import org.svenehrke.triptychdemo.cross.auditlog.AuditLogHandler;
+import org.svenehrke.triptychdemo.cross.inventory.InventoryChangesHandler;
 import org.svenehrke.triptychdemo.cross.products.ProductsHandler;
 import org.svenehrke.triptychdemo.cross.purchase.PurchaseHandler;
 
 import org.svenehrke.triptychdemo.cross.purchase.ParsedPurchase;
 import org.svenehrke.triptychdemo.cross.purchase.Purchase;
 import org.svenehrke.triptychdemo.cross.purchase.PurchaseOutcome;
+import io.smallrye.mutiny.Multi;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.FormParam;
@@ -14,9 +16,13 @@ import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.sse.OutboundSseEvent;
+import jakarta.ws.rs.sse.Sse;
 import java.io.InputStream;
+import java.time.Duration;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -24,12 +30,17 @@ import java.util.stream.Collectors;
 @Path("/shop")
 public class ShopReceiver {
 
+    /** Lets the server notice closed connections (and keeps proxies from dropping an idle one). */
+    static final Duration HEARTBEAT = Duration.ofSeconds(15);
+
     @Inject
     ProductsHandler productsHandler;
     @Inject
     PurchaseHandler purchaseHandler;
     @Inject
     AuditLogHandler auditLog;
+    @Inject
+    InventoryChangesHandler inventoryChanges;
 
     /** The static page shell; its {@code #app} element loads {@link #page()} and renders it in the browser. */
     @GET
@@ -50,6 +61,23 @@ public class ShopReceiver {
     @Produces(MediaType.APPLICATION_JSON)
     public UiResponse inventoryFragment() {
         return UiResponse.of(UiRoute.ShopProducts, new ShopProductsVM(inStockProducts()));
+    }
+
+    /**
+     * SSE stream for the shop shell: an {@code inventoryChanged} event per inventory change, on which the page
+     * re-fetches {@link #inventoryFragment()}. One is also sent on (re)connect, so changes made while the
+     * browser was disconnected aren't missed.
+     */
+    @GET
+    @Path("/events")
+    @Produces(MediaType.SERVER_SENT_EVENTS)
+    public Multi<OutboundSseEvent> events(@Context Sse sse) {
+        var changed = sse.newEventBuilder().name("inventoryChanged").data("").build();
+        return Multi.createBy().merging().streams(
+            Multi.createFrom().item(changed),
+            Multi.createFrom().publisher(inventoryChanges.changes()).map(change -> changed),
+            Multi.createFrom().ticks().every(HEARTBEAT).map(tick -> sse.newEventBuilder().comment("heartbeat").build())
+        );
     }
 
     @POST

@@ -196,8 +196,9 @@ ShopReceiver.page()   → UiResponse(ShopPage, {products, errors})
 ```
 
 #### GET /shop/inventory-fragment - Inventory Fragment
-Polled every 3 s by `/shop`; the browser morphs the rendered products section (`hx-swap="innerMorph"`)
-into `#shop-products`, so new products appear, sold-out ones disappear, and typed quantities survive.
+Fetched by `/shop` on every `inventoryChanged` event from `GET /shop/events`; the browser morphs the rendered
+products section (`hx-swap="innerMorph"`) into `#shop-products`, so new products appear, sold-out ones
+disappear, and typed quantities survive.
 ```
 ShopReceiver.inventoryFragment()   → UiResponse(ShopProducts, {products})
 └─ ProductsHandler.listAll()
@@ -205,6 +206,19 @@ ShopReceiver.inventoryFragment()   → UiResponse(ShopProducts, {products})
       └─ InventoryService (outbound-postgres)
          └─ PostgreSQL
    └─ Filter in-stock products (availableAmount > 0), sorted by name
+```
+
+#### GET /shop/events - Inventory Change Stream (SSE)
+Opened once by the shop shell (`hx-sse:connect`, outside `#app`, so a checkout re-render keeps it). Replaces the
+former 3 s polling: each event makes the page re-fetch `GET /shop/inventory-fragment`.
+```
+ShopReceiver.events()   → text/event-stream, never ends
+├─ event: inventoryChanged   (once on (re)connect, so nothing missed while disconnected)
+├─ InventoryChangesHandler.changes()   (core, JDK Flow.Publisher)
+│  └─ event: inventoryChanged per publishChange(), called after a committed change by
+│     ├─ InventoryHandler.update*Amount()   (every Kafka delivery)
+│     └─ PurchaseHandler.deduct()           (shop/JSON API checkout, cashpoint sale; only if something was deducted)
+└─ ": heartbeat" comment every 15 s
 ```
 
 #### POST /shop/checkout - Customer Purchase

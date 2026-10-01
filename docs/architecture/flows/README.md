@@ -27,6 +27,13 @@ PlantUML sequence diagrams for all primary flows in the supermarket inventory sy
 - **Returns**: `{route: ShopPage, vm}` JSON with in-stock products (availableAmount > 0) only, rendered in the browser
 - **Participants**: 1 (Customer)
 
+### Shop Inventory Change Stream
+**File**: `shop-events.puml`
+- **Trigger**: shop shell opens GET /shop/events (SSE) on load
+- **Flow**: inventory change (Kafka delivery or purchase) → InventoryChangesHandler → ShopReceiver → `inventoryChanged` event → browser re-fetches GET /shop/inventory-fragment and morphs it into `#shop-products`
+- **Returns**: never-ending `text/event-stream`
+- **Participants**: 1 (Customer)
+
 ### API Product List
 **File**: `api-get-products.puml`
 - **Trigger**: GET /api/products
