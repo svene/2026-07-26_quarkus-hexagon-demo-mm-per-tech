@@ -74,7 +74,7 @@ Status: **DONE** (2026-09-30) — see progress log. Optional dev live-reload (st
   JSON parts. It needs a second hook (e.g. on `htmx:multipart:before:part`, replacing the part's
   text with the rendered HTML) — verify in a spike. Recommendation: do `browser-templating` first, so `live-updates` is built
   on JSON parts from the start rather than converted twice.
-- ~~Alpine.js~~ — left for `live-updates` (it and `main.js` aren't loaded by either page).
+- ~~Alpine.js~~ — removed together with `main.js` (`hx-live-ui`, 2026-10-02); the dark/light toggle is now `js/theme.js` + `css/theme.css`.
 
 ## Progress log
 

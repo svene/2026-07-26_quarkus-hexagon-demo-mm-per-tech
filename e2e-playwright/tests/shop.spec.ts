@@ -32,6 +32,22 @@ test('shop page shows heading and empty-cart message when there is no stock', as
   await expect(page.getByRole('heading', { name: 'Supermarket – Shop' })).toBeVisible();
 });
 
+test('theme toggle switches dark/light and remembers the choice across reloads', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'light' });
+  await page.goto('/shop');
+  const html = page.locator('html');
+  await expect(html).not.toHaveAttribute('data-theme');
+
+  await page.locator('.theme-toggle').click();
+  await expect(html).toHaveAttribute('data-theme', 'dark');
+
+  await page.reload();
+  await expect(html).toHaveAttribute('data-theme', 'dark');
+
+  await page.locator('.theme-toggle').click();
+  await expect(html).toHaveAttribute('data-theme', 'light');
+});
+
 test('purchasing a product deducts its inventory', async ({ page }) => {
   // Stock up first via the admin page.
   await page.goto('/admin');

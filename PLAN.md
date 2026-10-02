@@ -225,6 +225,18 @@ Done with htmx 4's built-in morph swap, simpler than the originally planned set 
 
 ## hx-live-ui: client-side reactive UI with htmx 4's `hx-live` (NOT STARTED)
 
+**First task (DONE 2026-10-02): replace the unused Alpine.js dark/light theme.** Alpine and
+`js/main.js` were vendored but loaded by neither shell, so dark mode was dead code.
+
+Decided: **CSS + toggle, no `hx-live`.** Without a saved choice Bulma 1.x follows the OS
+(`prefers-color-scheme`). A toggle button in both shells (outside `#app`, so swaps never replace
+it) flips `<html data-theme="dark|light">`, which Bulma reads, and stores the choice in
+`localStorage`. `js/theme.js` is loaded synchronously in `<head>`, so a saved choice is applied
+before the first paint; the button's ☾/☀ icon is pure CSS (`css/theme.css`). `hx-live` didn't fit:
+it runs after load (flash) and the state lives outside the DOM. `main.js` and `js/alpinejs/` are
+deleted, which also frees `hx-live`'s short `:<target>` syntax. Playwright: `shop.spec.ts`
+`theme toggle switches dark/light and remembers the choice across reloads`.
+
 Split off from `live-updates` (2026-10-01): live updates now come from an SSE event that makes the
 page re-fetch the products fragment (morph swap), so `hx-live` is **not** needed as a transport or
 data store any more. What's left is what `hx-live` is actually for: UI state derived **in the
@@ -233,7 +245,7 @@ instead of hand-written JS in `admin.ts`/`shop.ts`.
 
 How `hx-live` works (4.0.0, `ext/hx-live.js`; to be vendored next to `htmx.js`):
 - Bindings are attributes `hx-live:<target>="<expr>"`, or the short form `:<target>="<expr>"`
-  (only when Alpine.js isn't loaded; it's vendored but neither page loads it). Targets include
+  (only when Alpine.js isn't loaded; it has been removed). Targets include
   `text`, attributes like `disabled`, and classes like `.is-danger`. `hx-live="…"` runs an effect.
 - `q('#id')` / `q('.sel')` query the page from inside an expression.
 - Every expression re-runs after DOM mutations (so also after a morph swap of `#shop-products`)

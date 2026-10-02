@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <title>Supermarket – Admin</title>
     <link rel="stylesheet" href="/css/bulma.min.css">
+    <link rel="stylesheet" href="/css/theme.css">
+    <!-- synchronous, before the first paint: applies the saved dark/light choice without a flash -->
+    <script src="/js/theme.js"></script>
     <meta name="htmx-config" content='{"noSwap": [204, 304, "5xx"]}'>
     <script src="/js/htmx.org/4.0.0/htmx.js"></script>
     <!-- must load right after htmx.js: registers the `hono` extension that renders the { route, vm } responses -->
@@ -12,7 +15,10 @@
 <body>
 <section class="section">
 <div class="container is-fluid">
-    <h1 class="title">Supermarket – Admin</h1>
+    <div class="level">
+        <h1 class="title level-left">Supermarket – Admin</h1>
+        <button type="button" class="button is-small theme-toggle level-right" title="Toggle dark/light theme" aria-label="Toggle dark/light theme"></button>
+    </div>
     <div id="app" hx-get="/admin/page" hx-trigger="load" hx-swap="innerHTML"></div>
 </div>
 </section>
