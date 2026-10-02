@@ -45,23 +45,6 @@ const RESTOCK_ACTIONS: Record<string, string> = {
 	NON_FOOD: "/admin/order-nonfood",
 };
 
-// Delegated: the buttons are rendered into #app after the page has loaded.
-// Randomize only fills the forms; Submit all submits each one as if its Order button was clicked.
-document.addEventListener("click", (event) => {
-	const target = event.target as Element;
-	const forms = Array.from(document.querySelectorAll<HTMLFormElement>(".order-form"));
-	if (target.closest("#admin-randomize-btn")) {
-		forms.forEach(form => {
-			form.querySelector<HTMLInputElement>('input[name="productName"]')!.value = form.dataset.defaultName!;
-			form.querySelector<HTMLInputElement>('input[name="quantity"]')!.value = String(80 + Math.floor(Math.random() * 521)); // 80-600
-		});
-		// Setting .value fires no event; tell hx-live to recompute the Order / Submit all buttons.
-		document.dispatchEvent(new Event("input"));
-	} else if (target.closest("#admin-submit-all-btn")) {
-		forms.forEach(form => form.requestSubmit());
-	}
-});
-
 export const AdminPage = (vm: AdminPageVM): HtmlResult => html`
 	<div class="columns">
 		<div class="column is-half">
@@ -71,9 +54,13 @@ export const AdminPage = (vm: AdminPageVM): HtmlResult => html`
 			</div>
 
 			<h2 class="title is-4">Restock Inventory
-				<button class="button is-light is-small" type="button" id="admin-randomize-btn">Randomize (dev)</button>
+				<!-- Randomize only fills the forms (setting .value is invisible to hx-live, hence the refresh);
+				     Submit all submits each one as if its Order button was clicked. -->
+				<button class="button is-light is-small" type="button" id="admin-randomize-btn"
+					hx-on:click="q('.order-form').forEach(f => { f.productName.value = f.dataset.defaultName; f.quantity.value = 80 + Math.floor(Math.random() * 521) }); htmx.live.refresh()">Randomize (dev)</button>
 				<button class="button is-link is-small" type="button" id="admin-submit-all-btn"
-					:disabled="!q('.order-form').every(f => f.checkValidity())">Submit all</button>
+					hx-on:click="q('.order-form').requestSubmit()"
+					:disabled="!q('.order-form').every(f => f.matches(':valid'))">Submit all</button>
 			</h2>
 
 			${SUPPLIER_BOXES.map(SupplierBox)}
@@ -113,7 +100,7 @@ const InventoryRow = (p: ProductRowVM): HtmlResult => html`
 			<form hx-post="${RESTOCK_ACTIONS[p.type]}" hx-target="next .restock-error" hx-swap="innerHTML" class="field has-addons restock-form">
 				<input type="hidden" name="productName" value="${p.name}">
 				<div class="control"><input class="input is-small" name="quantity" type="number" placeholder="Qty" min="1" max="2000" required style="width:80px"></div>
-				<div class="control"><button class="button is-link is-small" type="submit" :disabled="!this.form.checkValidity()">Restock</button></div>
+				<div class="control"><button class="button is-link is-small" type="submit" :disabled="!this.form.matches(':valid')">Restock</button></div>
 			</form>
 		</td>
 		<td class="help is-danger restock-error"></td>
@@ -128,14 +115,15 @@ const SupplierBox = (box: SupplierBox): HtmlResult => html`
 `;
 
 // `method`/`action` stay for the e2e selectors (form[action=…]); htmx submits via hx-post.
-// min/max mirror the *Order records' @Min(1) @Max(2000); hx-live keeps Order disabled while the form is invalid.
+// min/max mirror the *Order records' @Min(1) @Max(2000); hx-live keeps Order disabled while the form is invalid
+// (matches(':valid') rather than checkValidity(), which would fire `invalid` events on every recompute).
 // Both are UX only - the server validates again.
 const OrderFormRow = (f: OrderForm): HtmlResult => html`
 	<form method="post" action="${f.action}" hx-post="${f.action}" hx-target="next .order-error" hx-swap="innerHTML" class="field has-addons order-form" data-default-name="${f.defaultName}">
 		<div class="control"><span class="button is-static">${f.label}</span></div>
 		<div class="control"><input class="input" name="productName" placeholder="e.g. ${f.defaultName}" required></div>
 		<div class="control"><input class="input" name="quantity" type="number" placeholder="Qty" min="1" max="2000" required style="width:90px"></div>
-		<div class="control"><button class="button is-link" type="submit" :disabled="!this.form.checkValidity()">Order</button></div>
+		<div class="control"><button class="button is-link" type="submit" :disabled="!this.form.matches(':valid')">Order</button></div>
 	</form>
 	<p class="help is-danger order-error"></p>
 `;
