@@ -35,6 +35,7 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.io.InputStream;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 
@@ -210,7 +211,9 @@ public class AdminReceiver {
     }
 
     private List<ProductRowVM> products() {
-        return productsHandler.listAll().stream().map(ProductRowVM::of).toList();
+        return productsHandler.listAll().stream().map(ProductRowVM::of)
+            .sorted(Comparator.comparing(ProductRowVM::name, String.CASE_INSENSITIVE_ORDER).thenComparing(ProductRowVM::type))
+            .toList();
     }
 
     private List<AuditEntryVM> auditEntries() {

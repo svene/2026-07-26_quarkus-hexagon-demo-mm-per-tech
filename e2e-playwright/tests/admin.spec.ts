@@ -10,16 +10,15 @@ const meat      = `Chicken-${RUN_ID}`;
 const bakery    = `Bread-${RUN_ID}`;
 const nonfood   = `Detergent-${RUN_ID}`;
 
-// Inventory updates arrive asynchronously via Kafka, so we reload the page until the
-// expected row appears.
+// Inventory updates arrive asynchronously via Kafka; the panel picks them up through the SSE stream,
+// so no reload: waiting for the row also proves the panel is live.
 async function waitForProductRow(page: Page, productName: string) {
-  await expect.poll(
-    async () => {
-      await page.reload();
-      return page.locator('#inventory-body').getByRole('cell', { name: productName }).count();
-    },
-    { message: `product "${productName}" did not appear in inventory`, timeout: 15_000, intervals: [1_000] },
-  ).toBeGreaterThan(0);
+  await expect(page.locator('#admin-inventory').getByRole('cell', { name: productName, exact: true }).first())
+    .toBeVisible({ timeout: 15_000 });
+}
+
+function inventoryRow(page: Page, productName: string) {
+  return page.locator('#admin-inventory tbody tr').filter({ has: page.getByRole('cell', { name: productName, exact: true }) });
 }
 
 test('admin page shows heading, supplier sections, and the audit log panel', async ({ page }) => {
@@ -105,7 +104,7 @@ test('ordering a fruit adds it to the inventory table', async ({ page }) => {
   await page.locator('form[action="/admin/order-fruits"] button[type="submit"]').click();
   await page.waitForURL('/admin');
   await waitForProductRow(page, fruit);
-  const row = page.locator('#inventory-body').getByRole('row').filter({ hasText: fruit });
+  const row = inventoryRow(page, fruit);
   await expect(row.getByRole('cell').nth(1)).toHaveText('FRUIT');
   await expect(row.getByRole('cell').nth(2)).toHaveText('7');
 });
@@ -117,7 +116,7 @@ test('ordering a vegetable adds it to the inventory table', async ({ page }) => 
   await page.locator('form[action="/admin/order-vegetables"] button[type="submit"]').click();
   await page.waitForURL('/admin');
   await waitForProductRow(page, vegetable);
-  const row = page.locator('#inventory-body').getByRole('row').filter({ hasText: vegetable });
+  const row = inventoryRow(page, vegetable);
   await expect(row.getByRole('cell').nth(1)).toHaveText('VEGETABLE');
   await expect(row.getByRole('cell').nth(2)).toHaveText('8');
 });
@@ -129,7 +128,7 @@ test('ordering a dairy product adds it to the inventory table', async ({ page })
   await page.locator('form[action="/admin/order-dairy"] button[type="submit"]').click();
   await page.waitForURL('/admin');
   await waitForProductRow(page, dairy);
-  const row = page.locator('#inventory-body').getByRole('row').filter({ hasText: dairy });
+  const row = inventoryRow(page, dairy);
   await expect(row.getByRole('cell').nth(1)).toHaveText('DAIRY');
   await expect(row.getByRole('cell').nth(2)).toHaveText('6');
 });
@@ -141,7 +140,7 @@ test('ordering a beverage adds it to the inventory table', async ({ page }) => {
   await page.locator('form[action="/admin/order-beverages"] button[type="submit"]').click();
   await page.waitForURL('/admin');
   await waitForProductRow(page, beverage);
-  const row = page.locator('#inventory-body').getByRole('row').filter({ hasText: beverage });
+  const row = inventoryRow(page, beverage);
   await expect(row.getByRole('cell').nth(1)).toHaveText('BEVERAGE');
   await expect(row.getByRole('cell').nth(2)).toHaveText('24');
 });
@@ -153,7 +152,7 @@ test('ordering a meat product adds it to the inventory table', async ({ page }) 
   await page.locator('form[action="/admin/order-meat"] button[type="submit"]').click();
   await page.waitForURL('/admin');
   await waitForProductRow(page, meat);
-  const row = page.locator('#inventory-body').getByRole('row').filter({ hasText: meat });
+  const row = inventoryRow(page, meat);
   await expect(row.getByRole('cell').nth(1)).toHaveText('MEAT');
   await expect(row.getByRole('cell').nth(2)).toHaveText('4');
 });
@@ -165,7 +164,7 @@ test('ordering a bakery product adds it to the inventory table', async ({ page }
   await page.locator('form[action="/admin/order-bakery"] button[type="submit"]').click();
   await page.waitForURL('/admin');
   await waitForProductRow(page, bakery);
-  const row = page.locator('#inventory-body').getByRole('row').filter({ hasText: bakery });
+  const row = inventoryRow(page, bakery);
   await expect(row.getByRole('cell').nth(1)).toHaveText('BAKERY');
   await expect(row.getByRole('cell').nth(2)).toHaveText('10');
 });
@@ -177,7 +176,54 @@ test('ordering a non-food product adds it to the inventory table', async ({ page
   await page.locator('form[action="/admin/order-nonfood"] button[type="submit"]').click();
   await page.waitForURL('/admin');
   await waitForProductRow(page, nonfood);
-  const row = page.locator('#inventory-body').getByRole('row').filter({ hasText: nonfood });
+  const row = inventoryRow(page, nonfood);
   await expect(row.getByRole('cell').nth(1)).toHaveText('NON_FOOD');
   await expect(row.getByRole('cell').nth(2)).toHaveText('3');
+});
+
+test('restocking from an inventory row raises its amount live and keeps quantities typed into other rows', async ({ page }) => {
+  const restocked = `Fig-${RUN_ID}`;
+  const other = `Lime-${RUN_ID}`;
+  await page.goto('/admin');
+  for (const name of [restocked, other]) {
+    await page.locator('form[action="/admin/order-fruits"] input[name="productName"]').fill(name);
+    await page.locator('form[action="/admin/order-fruits"] input[name="quantity"]').fill('5');
+    await page.locator('form[action="/admin/order-fruits"] button[type="submit"]').click();
+  }
+  await waitForProductRow(page, restocked);
+  await waitForProductRow(page, other);
+
+  const otherQty = inventoryRow(page, other).locator('input[name="quantity"]');
+  await otherQty.fill('33');
+
+  const row = inventoryRow(page, restocked);
+  const available = async () => Number(await row.getByRole('cell').nth(2).textContent());
+  const before = await available();
+  await row.locator('input[name="quantity"]').fill('100');
+  await row.getByRole('button', { name: 'Restock' }).click();
+
+  // No reload: the delivery arrives via Kafka and the SSE-triggered morph updates the row.
+  await expect.poll(available, { timeout: 15_000 }).toBeGreaterThan(before);
+  await expect(otherQty).toHaveValue('33');
+  await expect(row.locator('input[name="quantity"]')).toHaveValue('100'); // kept for another restock
+});
+
+test('the restock button of a row is disabled while its quantity is outside 1-2000', async ({ page }) => {
+  const name = `Date-${RUN_ID}`;
+  await page.goto('/admin');
+  await page.locator('form[action="/admin/order-fruits"] input[name="productName"]').fill(name);
+  await page.locator('form[action="/admin/order-fruits"] input[name="quantity"]').fill('5');
+  await page.locator('form[action="/admin/order-fruits"] button[type="submit"]').click();
+  await waitForProductRow(page, name);
+
+  const row = inventoryRow(page, name);
+  const qty = row.locator('input[name="quantity"]');
+  const restock = row.getByRole('button', { name: 'Restock' });
+  await expect(restock).toBeDisabled();
+  await qty.fill('0');
+  await expect(restock).toBeDisabled();
+  await qty.fill('2001');
+  await expect(restock).toBeDisabled();
+  await qty.fill('2000');
+  await expect(restock).toBeEnabled();
 });

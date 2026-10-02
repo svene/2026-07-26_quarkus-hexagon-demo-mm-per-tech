@@ -33,7 +33,7 @@ export const ShopPage = (vm: ShopPageVM): HtmlResult => html`
 	</div>
 `;
 
-// Re-fetched on every inventoryChanged event pushed by the shell's SSE stream (/shop/events) and morphed into
+// Re-fetched on every inventoryChanged event pushed by the shell's SSE stream (/inventory/events) and morphed into
 // #shop-products: rows are matched by id, so new products appear, sold-out ones
 // disappear, and rows that stay keep the customer's typed quantities and focus.
 export const ShopProducts = (vm: ShopProductsVM): HtmlResult => html`

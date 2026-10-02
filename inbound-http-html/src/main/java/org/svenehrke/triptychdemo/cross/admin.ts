@@ -34,6 +34,17 @@ const SUPPLIER_BOXES: SupplierBox[] = [
 	},
 ];
 
+// Restocking a product from its inventory row reuses the order endpoint of its ProductType's supplier.
+const RESTOCK_ACTIONS: Record<string, string> = {
+	FRUIT: "/admin/order-fruits",
+	VEGETABLE: "/admin/order-vegetables",
+	DAIRY: "/admin/order-dairy",
+	BEVERAGE: "/admin/order-beverages",
+	MEAT: "/admin/order-meat",
+	BAKERY: "/admin/order-bakery",
+	NON_FOOD: "/admin/order-nonfood",
+};
+
 // Delegated: the buttons are rendered into #app after the page has loaded.
 // Randomize only fills the forms; Submit all submits each one as if its Order button was clicked.
 document.addEventListener("click", (event) => {
@@ -55,15 +66,9 @@ export const AdminPage = (vm: AdminPageVM): HtmlResult => html`
 	<div class="columns">
 		<div class="column is-half">
 			<h2 class="title is-4">Current Inventory</h2>
-			${vm.products.length === 0
-				? html`<p class="has-text-grey"><em>No products in inventory yet.</em></p>`
-				: html`
-					<table class="table is-fullwidth is-striped">
-						<thead>
-						<tr><th>Name</th><th>Type</th><th>Available</th></tr>
-						</thead>
-						${AdminInventory({products: vm.products})}
-					</table>`}
+			<div id="admin-inventory" hx-get="/admin/inventory-fragment" hx-trigger="inventoryChanged from:body" hx-sync="this:replace" hx-swap="innerMorph">
+				${AdminInventory({products: vm.products})}
+			</div>
 
 			<h2 class="title is-4">Restock Inventory
 				<button class="button is-light is-small" type="button" id="admin-randomize-btn">Randomize (dev)</button>
@@ -80,18 +85,38 @@ export const AdminPage = (vm: AdminPageVM): HtmlResult => html`
 	</div>
 `;
 
-// Polls itself and is replaced wholesale (outerHTML) - it contains no user input.
+// Re-fetched on every inventoryChanged event pushed by the shell's SSE stream (/inventory/events) and morphed
+// into #admin-inventory: rows are matched by id, so new products appear and rows that stay keep typed
+// restock quantities and focus. (A restock error in the last column is cleared by the next refresh.)
 export const AdminInventory = (vm: AdminInventoryVM): HtmlResult => html`
-	<tbody id="inventory-body" hx-get="/admin/inventory-fragment" hx-trigger="every 3s" hx-swap="outerHTML">
-		${vm.products.map(InventoryRow)}
-	</tbody>
+	${vm.products.length === 0
+		? html`<p class="has-text-grey"><em>No products in inventory yet.</em></p>`
+		: html`
+			<table class="table is-fullwidth is-striped">
+				<thead>
+				<tr><th>Name</th><th>Type</th><th>Available</th><th>Restock</th><th></th></tr>
+				</thead>
+				<tbody>
+				${vm.products.map(InventoryRow)}
+				</tbody>
+			</table>`}
 `;
 
+// Name+type is the product key. Like the cart rows on /shop, the quantity input has no value attribute, so a
+// morph never resets what was typed; it is kept after a restock, too, so the same amount can be ordered again.
 const InventoryRow = (p: ProductRowVM): HtmlResult => html`
-	<tr>
+	<tr id="row-${p.name}-${p.type}">
 		<td>${p.name}</td>
 		<td>${p.type}</td>
 		<td>${p.availableAmount}</td>
+		<td>
+			<form hx-post="${RESTOCK_ACTIONS[p.type]}" hx-target="next .restock-error" hx-swap="innerHTML" class="field has-addons restock-form">
+				<input type="hidden" name="productName" value="${p.name}">
+				<div class="control"><input class="input is-small" name="quantity" type="number" placeholder="Qty" min="1" max="2000" required style="width:80px"></div>
+				<div class="control"><button class="button is-link is-small" type="submit" :disabled="!this.form.checkValidity()">Restock</button></div>
+			</form>
+		</td>
+		<td class="help is-danger restock-error"></td>
 	</tr>
 `;
 

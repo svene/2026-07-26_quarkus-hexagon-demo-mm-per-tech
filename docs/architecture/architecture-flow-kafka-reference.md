@@ -145,7 +145,7 @@ These cycles show how external supplier integrations (REST/SOAP stubs) are decou
 | ShopReceiver | /shop | GET | Static page shell | - | - |
 | ShopReceiver | /shop/page | GET | Query | - | PostgreSQL (read) |
 | ShopReceiver | /shop/inventory-fragment | GET | Query | - | PostgreSQL (read) |
-| ShopReceiver | /shop/events | GET | SSE stream (inventory changes) | - | - |
+| InventoryEventsReceiver | /inventory/events | GET | SSE stream (inventory changes, for /shop and /admin) | - | - |
 | ShopReceiver | /shop/checkout | POST | Command | - | PostgreSQL + MongoDB |
 | ProductApiReceiver | /api/products | GET | Query | - | PostgreSQL (read) |
 | ProductApiReceiver | /api/products/order-fruits | POST | Command | **→ fruit-deliveries** (stub publishes) | PostgreSQL + MongoDB |

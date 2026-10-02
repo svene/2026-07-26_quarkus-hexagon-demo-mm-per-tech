@@ -11,7 +11,7 @@ Complete inventory of all classes participating in the system flows, organized b
 
 | Module | Participants |
 |--------|--------------|
-| **inbound-http-html** | `AdminReceiver`<br>`ShopReceiver`<br>`ShopCart` |
+| **inbound-http-html** | `AdminReceiver`<br>`ShopReceiver`<br>`InventoryEventsReceiver`<br>`ShopCart` |
 | **inbound-http-jsonapi** | `ProductApiReceiver`<br>`XxxOrderRequest` (+ `OrderRequest`)/`PurchaseRequest`/`PurchaseRequestItem`/`RequestStructureErrorMessages`<br>`JsonInputErrors`/`StrictJsonReader`/`JsonResponses` |
 | **inbound-kafka** | `FruitDeliveryReceiver`<br>`VegetablesDeliveryReceiver`<br>`DairyDeliveryReceiver`<br>`BeveragesDeliveryReceiver`<br>`MeatDeliveryReceiver`<br>`BakeryDeliveryReceiver`<br>`NonFoodDeliveryReceiver`<br>`CashpointReceiver` |
 | **core** | `FruitSupplierSPI`/`FruitDelivery`/`FruitsHandler`<br>`VegetablesSupplierSPI`/`VegetableDelivery`/`VegetablesHandler`<br>`DairySupplierSPI`/`DairyDelivery`/`DairyHandler`<br>`BeverageSupplierSPI`/`BeverageDelivery`/`BeveragesHandler`<br>`MeatSupplierSPI`/`MeatDelivery`/`MeatHandler`<br>`BakerySupplierSPI`/`BakeryDelivery`/`BakeryHandler`<br>`NonFoodSupplierSPI`/`NonFoodDelivery`/`NonFoodHandler`<br>`InventoryRepositorySPI`/`InventoryHandler`/`InventoryChangesHandler`<br>`AuditLogSPI`/`AuditLogHandler`/`AuditLogEntry`<br>`ProductsHandler`/`Product`/`ProductType`<br>`PurchaseHandler`/`PurchaseItem` |
@@ -34,7 +34,8 @@ Complete inventory of all classes participating in the system flows, organized b
 
 ### Receivers
 - `AdminReceiver` - Admin dashboard and ordering endpoints (GET /admin shell, GET /admin/page and fragments, POST /admin/order-*)
-- `ShopReceiver` - Customer shopping interface (GET /shop shell, GET /shop/page and fragment, GET /shop/events SSE stream, POST /shop/checkout)
+- `ShopReceiver` - Customer shopping interface (GET /shop shell, GET /shop/page and fragment, POST /shop/checkout)
+- `InventoryEventsReceiver` - GET /inventory/events SSE stream (`inventoryChanged`), used by both the shop and the admin shell
 - `UiRoute`, `UiResponse`, `*VM` records - the `{route, vm}` JSON envelope and the view models (TS types generated from them)
 - `*.ts` next to the receivers - hono/html templates + the `hono` htmx extension, bundled into `hx-hono.js`
 - `ShopCart` (package-private) - the checkout form's cart: pairs names with quantities, drops blank/`0` rows, parses to a `ParsedPurchase`, maps violations back to product names
@@ -146,7 +147,7 @@ Complete inventory of all classes participating in the system flows, organized b
 - `StockDeduction` - Result of deductAll (updated products, shortages)
 - `Shortage` - Domain record (productName, requested, available) with rejection and discrepancy messages
 - `InventoryHandler` - Updates inventory from delivery events, for all commodities (methods: updateFruitAmount, updateVegetableAmount, updateDairyAmount, updateBeverageAmount, updateMeatAmount, updateBakeryAmount, updateNonFoodAmount) - imports each commodity's `*Delivery` record from its `feature.<commodity>` package
-- `InventoryChangesHandler` - Tells inbound adapters the inventory changed (methods: publishChange - called by InventoryHandler and PurchaseHandler after a committed change; changes - a JDK `Flow.Publisher` that ShopReceiver's SSE stream subscribes to). Not an SPI: notifications flow core → inbound adapter, which reaches core only through Handlers. In-process only.
+- `InventoryChangesHandler` - Tells inbound adapters the inventory changed (methods: publishChange - called by InventoryHandler and PurchaseHandler after a committed change; changes - a JDK `Flow.Publisher` that InventoryEventsReceiver's SSE stream subscribes to). Not an SPI: notifications flow core → inbound adapter, which reaches core only through Handlers. In-process only.
 
 ### cross.auditlog
 - `AuditLogSPI` - Interface for audit log persistence (methods: log, findRecent)
@@ -360,7 +361,7 @@ Complete inventory of all classes participating in the system flows, organized b
 ## Summary by Layer
 
 ### Presentation Layer (HTTP Inbound)
-- `inbound-http-html` module - HTML user interfaces (AdminReceiver, ShopReceiver)
+- `inbound-http-html` module - HTML user interfaces (AdminReceiver, ShopReceiver, InventoryEventsReceiver)
 - `inbound-http-jsonapi` module - JSON REST API (ProductApiReceiver)
 - Responsibility: Handle HTTP requests, return HTTP responses (HTML or JSON)
 - Package: `cross` in both modules (both aggregate across every commodity)

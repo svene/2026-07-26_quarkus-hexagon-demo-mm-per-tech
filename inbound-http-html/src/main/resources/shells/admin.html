@@ -11,6 +11,8 @@
     <script src="/js/htmx.org/4.0.0/htmx.js"></script>
     <!-- must load right after htmx.js: registers the `hono` extension that renders the { route, vm } responses -->
     <script src="/js/hono/hx-hono.js"></script>
+    <!-- after hx-hono.js: its Accept header must be set first, so the `sse` extension can append text/event-stream -->
+    <script src="/js/htmx.org/4.0.0/ext/hx-sse.js"></script>
     <!-- inline :disabled / :text / :.class bindings, recomputed on input and DOM changes (incl. morphs) -->
     <script src="/js/htmx.org/4.0.0/ext/hx-live.js"></script>
 </head>
@@ -21,6 +23,8 @@
         <h1 class="title level-left">Supermarket – Admin</h1>
         <button type="button" class="button is-small theme-toggle level-right" title="Toggle dark/light theme" aria-label="Toggle dark/light theme"></button>
     </div>
+    <!-- outside #app, so re-rendering the page keeps the stream; its events bubble up to body -->
+    <div hx-sse:connect="/inventory/events" hidden></div>
     <div id="app" hx-get="/admin/page" hx-trigger="load" hx-swap="innerHTML"></div>
 </div>
 </section>

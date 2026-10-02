@@ -40,12 +40,17 @@ AdminReceiver.page()   → UiResponse(AdminPage, {products, auditEntries})
 ```
 
 #### GET /admin/inventory-fragment - Inventory Update
+Fetched by `/admin` on every `inventoryChanged` event from `GET /inventory/events`; the browser morphs the rendered
+inventory table (`hx-swap="innerMorph"`) into `#admin-inventory`, so new products appear and quantities typed
+into a row's *Restock* form survive. Each row's *Restock* form posts to the `POST /admin/order-*` endpoint of its
+product type's supplier.
 ```
-AdminReceiver.inventoryFragment()
+AdminReceiver.inventoryFragment()   → UiResponse(AdminInventory, {products})
 └─ ProductsHandler.listAll()
    └─ InventoryRepositorySPI.findAll()
       └─ InventoryService (outbound-postgres)
          └─ PostgreSQL
+   └─ Sorted by name (case-insensitive), then type; sold-out products stay listed
 ```
 
 #### GET /admin/audit-fragment - Audit Log Update
@@ -196,7 +201,7 @@ ShopReceiver.page()   → UiResponse(ShopPage, {products, errors})
 ```
 
 #### GET /shop/inventory-fragment - Inventory Fragment
-Fetched by `/shop` on every `inventoryChanged` event from `GET /shop/events`; the browser morphs the rendered
+Fetched by `/shop` on every `inventoryChanged` event from `GET /inventory/events`; the browser morphs the rendered
 products section (`hx-swap="innerMorph"`) into `#shop-products`, so new products appear, sold-out ones
 disappear, and typed quantities survive.
 ```
@@ -208,11 +213,12 @@ ShopReceiver.inventoryFragment()   → UiResponse(ShopProducts, {products})
    └─ Filter in-stock products (availableAmount > 0), sorted by name
 ```
 
-#### GET /shop/events - Inventory Change Stream (SSE)
-Opened once by the shop shell (`hx-sse:connect`, outside `#app`, so a checkout re-render keeps it). Replaces the
-former 3 s polling: each event makes the page re-fetch `GET /shop/inventory-fragment`.
+#### GET /inventory/events - Inventory Change Stream (SSE)
+Served by `InventoryEventsReceiver` (`/inventory`) and opened once by both the shop and the admin shell
+(`hx-sse:connect`, outside `#app`, so a re-render of the page keeps it). Replaces the former 3 s polling: each event
+makes `/shop` re-fetch `GET /shop/inventory-fragment` and `/admin` re-fetch `GET /admin/inventory-fragment`.
 ```
-ShopReceiver.events()   → text/event-stream, never ends
+InventoryEventsReceiver.events()   → text/event-stream, never ends
 ├─ event: inventoryChanged   (once on (re)connect, so nothing missed while disconnected)
 ├─ InventoryChangesHandler.changes()   (core, JDK Flow.Publisher)
 │  └─ event: inventoryChanged per publishChange(), called after a committed change by

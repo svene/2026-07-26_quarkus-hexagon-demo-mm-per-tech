@@ -140,7 +140,7 @@ Replaced the 3 s polling on `/shop` with a server push. Design and the decisions
 (2026-10-01) are in [`docs/architecture/live-updates_wip.md`](docs/architecture/live-updates_wip.md).
 - **Scope `/shop` only.** `/admin` keeps polling: its inventory table has no input to protect, and
   the audit panel is polled anyway, so a stream would add a second mechanism for little gain.
-- **An event, not data.** `GET /shop/events` (SSE) sends `inventoryChanged`. The page then
+- **An event, not data.** `GET /shop/events` (SSE; moved to `GET /inventory/events` by `admin-live-inventory`) sends `inventoryChanged`. The page then
   re-fetches `GET /shop/inventory-fragment` and morphs it in (from `shop-product-set-refresh`).
   The original idea (multipart stream into a hidden data island + `hx-live` bindings) was dropped
   as far more machinery for the same result. The client-side `hx-live` part moved to `hx-live-ui`.
@@ -223,7 +223,7 @@ Done with htmx 4's built-in morph swap, simpler than the originally planned set 
   typed quantities" (types a quantity, stocks a new product through `/admin` in a second tab, expects
   the new row without a reload while the typed value stays).
 
-## hx-live-ui: client-side reactive UI with htmx 4's `hx-live` (DONE, audit-panel filter left open)
+## hx-live-ui: client-side reactive UI with htmx 4's `hx-live` (DONE)
 
 **First task (DONE 2026-10-02): replace the unused Alpine.js dark/light theme.** Alpine and
 `js/main.js` were vendored but loaded by neither shell, so dark mode was dead code.
@@ -273,10 +273,8 @@ Decided against:
   it there.
 - Randomize / *Submit all* as `hx-live` effects: they are one-shot actions, not derived state, so
   they stay plain event listeners in `admin.ts`/`shop.ts`.
-
-Open candidate: `/admin` audit panel client-side filter text box. The panel is replaced by the 3 s
-`outerHTML` poll, so the filter input has to live outside `#audit-panel` and the rows need a
-`:hidden` binding that reads it.
+- `/admin` audit panel client-side filter (2026-10-02): skipped, the panel stays as it is. It would
+  only have searched the 100 entries shown, and needed the input outside the 3 s `outerHTML` poll.
 
 Ground rules:
 - Client-side checks are UX only; server validation stays authoritative
@@ -286,6 +284,64 @@ Ground rules:
   sending), then `hx-live` bindings for what HTML can't express, then hand-written JS.
 - Keep expressions short (hx-live warns above 16 ms per recompute) and let them read values the
   server already renders (e.g. `max`) instead of duplicating data.
+
+## admin-live-inventory: Reactive inventory panel with per-row restock on `/admin` (DONE)
+
+Give `/admin` a current-inventory panel like the one on `/shop`, placed above the existing
+*Restock Inventory* panel. It is reactive, and every row has its own restock action.
+
+Current state: `/admin` already shows a *Current Inventory* table above *Restock Inventory*
+(`AdminInventory` in `admin.ts`). It is a `<tbody id="inventory-body">` that polls
+`/admin/inventory-fragment` every 3 s and is replaced with `outerHTML`. It has no inputs, which was
+why `live-updates` left `/admin` on polling. Per-row inputs change that: a 3 s `outerHTML`
+replacement would wipe typed quantities.
+
+Observed (2026-10-02): a newly ordered product shows up in that table only after a manual reload, so
+it isn't reactive today, despite the poll. Suspected causes, check while implementing: the empty
+state (`No products in inventory yet.`) renders no polling element at all (the same bug `/shop` had
+before `shop-product-set-refresh`); and/or the `<tbody>` fragment doesn't survive the `outerHTML`
+swap. Either way the SSE + morph approach replaces the poll.
+
+Intended shape (to be confirmed while planning):
+- The new panel replaces the polled table rather than sitting next to it, so `/admin` keeps a
+  single inventory view.
+- Reactive like `/shop`: listen to the existing `inventoryChanged` SSE event (an SSE connect element
+  in `shells/admin.html`, outside `#app`) and re-fetch the fragment with `innerMorph`. Rows are keyed
+  `row-<name>-<type>` (as in `shop-product-set-refresh`), and the quantity input has no `value`
+  attribute, so typed quantities and focus survive a refresh.
+- Per row: a quantity input and a *Restock* button that orders more of that product (same name)
+  through the supplier for its `ProductType`: FRUIT/VEGETABLE/DAIRY → REST, BEVERAGE/MEAT/BAKERY →
+  SOAP, NON_FOOD → Kafka. That reuses the existing `/admin/order-*` endpoints and Handlers, so no
+  new core code. Client-side validation as in `hx-live-ui`: `min="1" max="2000"` and the button
+  disabled via `hx-live` while the row's form is invalid.
+
+Decided:
+- Per-row errors (e.g. a 400 from the server) are shown in an extra column at the very right of the
+  table.
+- *Restock Inventory* (the 7 order forms, Randomize, Submit all) stays: it is needed for products
+  that aren't in stock yet.
+
+Postponed until after `split-inventory`: whether every stock change (also cashpoint sales) reaches
+the panel as an SSE event. Orders reach the inventory asynchronously (supplier → Kafka delivery →
+`InventoryHandler`), which already publishes to `InventoryChangesHandler`.
+
+Done (2026-10-02):
+- One SSE endpoint for both pages: `GET /inventory/events` in the new `InventoryEventsReceiver`
+  (moved out of `ShopReceiver`, was `GET /shop/events`). Both shells connect to it outside `#app`;
+  `shells/admin.html` now loads `hx-sse.js` (after `hx-hono.js`).
+- `admin.ts`: `<div id="admin-inventory" hx-get="/admin/inventory-fragment" hx-trigger="inventoryChanged
+  from:body" hx-sync="this:replace" hx-swap="innerMorph">`; the `AdminInventory` route renders the whole
+  table (or the empty-state text), so the 3 s `<tbody>` poll is gone, and with it the "only after a
+  reload" bug. Columns: Name | Type | Available | Restock | (error). Rows sorted by name
+  (case-insensitive, then type) like `/shop`, in `AdminReceiver.products()`.
+- Restock form inside the cell: hidden `productName`, quantity `min="1" max="2000" required` without a
+  `value` attribute (kept after a restock), button `:disabled="!this.form.checkValidity()"`; posts to
+  the type's `/admin/order-*` endpoint (`RESTOCK_ACTIONS` map in `admin.ts`), `hx-target="next
+  .restock-error"`. Known trade-off: the next inventory refresh clears a row's error message.
+- Tests: `InventoryEventsReceiverTest` (the SSE test moved from `ShopReceiverTest`); `admin.spec.ts`
+  "restocking from an inventory row raises its amount live and keeps quantities typed into other rows",
+  "the restock button of a row is disabled while its quantity is outside 1-2000"; the existing
+  "ordering … adds it to the inventory table" tests now wait for the row without reloading.
 
 ## Open questions
 

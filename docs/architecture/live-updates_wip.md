@@ -9,12 +9,12 @@ Status: **DONE** (2026-10-01).
 ## How it works
 
 ```
-shells/shop.html   <div hx-sse:connect="/shop/events" hidden>         (outside #app)
+shells/shop.html   <div hx-sse:connect="/inventory/events" hidden>    (outside #app; same in shells/admin.html)
 shop.ts            <div id="shop-products" hx-get="/shop/inventory-fragment"
                         hx-trigger="inventoryChanged from:body" hx-sync="this:replace" hx-swap="innerMorph">
 ```
 
-- **Server → browser.** `ShopReceiver.events()` (`GET /shop/events`, `text/event-stream`, a
+- **Server → browser.** `InventoryEventsReceiver.events()` (`GET /inventory/events`, `text/event-stream`, a
   `Multi<OutboundSseEvent>`) merges three streams: one `inventoryChanged` on connect, one per
   inventory change, and a `: heartbeat` comment every 15 s (lets the server notice closed
   connections).
@@ -39,7 +39,7 @@ shop.ts            <div id="shop-products" hx-get="/shop/inventory-fragment"
   `PurchaseHandler.deduct()` when something was deducted (shop/JSON API checkout, cashpoint). The
   `@Transactional` boundaries are on `InventoryService`'s own methods, so the change is committed
   when the Handler publishes, and a re-fetch sees it.
-- `changes()` — a JDK `Flow.Publisher` (`SubmissionPublisher`); `ShopReceiver` wraps it with
+- `changes()` — a JDK `Flow.Publisher` (`SubmissionPublisher`); `InventoryEventsReceiver` wraps it with
   `Multi.createFrom().publisher(...)`. Core stays free of reactive libraries.
 - Non-blocking: a subscriber with a full buffer misses an event instead of stalling a delivery or
   checkout.
@@ -54,6 +54,9 @@ shop.ts            <div id="shop-products" hx-get="/shop/inventory-fragment"
 - **`/admin` keeps polling.** Its inventory table has no user input to protect (a 3 s `outerHTML`
   swap loses nothing and handles new/removed rows), the audit panel is polled anyway, and it's a
   single-operator page. Adding the stream there is one attribute if ever wanted.
+  *Superseded 2026-10-02 (`PLAN.md` `admin-live-inventory`):* the admin inventory table got per-row
+  *Restock* inputs, so it now uses the same stream (moved from `GET /shop/events` to the shared
+  `GET /inventory/events`) and morphs `#admin-inventory`; only the audit panel still polls.
 - **Event + re-fetch instead of pushing data.** Options weighed:
   (A) multipart stream into a hidden `<data>` island + `hx-live` bindings (the 2026-09-30 plan) —
   most machinery, and it still needed a re-fetch for product-set changes;
@@ -66,7 +69,7 @@ shop.ts            <div id="shop-products" hx-get="/shop/inventory-fragment"
 
 ## Tests
 
-- `ShopReceiverTest.events_stream_sends_inventory_changed_on_connect_and_after_a_purchase` — event
+- `InventoryEventsReceiverTest.events_stream_sends_inventory_changed_on_connect_and_after_a_purchase` — event
   on connect, and a second one only after a checkout (proves pushing, not buffering).
 - Playwright `shop.spec.ts` "an open shop page picks up a newly stocked product without a reload
   and keeps typed quantities" — with polling gone, this only passes through the SSE push.

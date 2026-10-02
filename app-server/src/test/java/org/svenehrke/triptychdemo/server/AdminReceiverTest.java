@@ -168,6 +168,16 @@ class AdminReceiverTest {
     }
 
     @Test
+    void inventory_fragment_lists_products_sorted_by_name_ignoring_case() {
+        inventory.addAmount("milk", ProductType.DAIRY, 3);
+        inventory.addAmount("Banana", ProductType.FRUIT, 5);
+        inventory.addAmount("Apple", ProductType.FRUIT, 10);
+
+        assertThat(given().get("/admin/inventory-fragment").jsonPath().getList("vm.products.name"))
+            .containsExactly("Apple", "Banana", "milk");
+    }
+
+    @Test
     void order_fruits_above_limit_returns_400() {
         var response = given()
             .contentType("application/x-www-form-urlencoded")

@@ -48,8 +48,8 @@ grouped by the underlying technology of the outbound adapter:
 1. **Order a product** (on `/admin`) — fill in a name and quantity and click
    *Order*. The order goes to a supplier (stub running in the same process).
    The supplier sends a Kafka delivery event. The Kafka receiver updates
-   inventory. No need to refresh — both `/admin` and `/shop` poll their
-   inventory numbers via htmx every 3 seconds.
+   inventory. No need to refresh — both `/admin` and `/shop` update their
+   inventory as soon as it changes (server-sent event, `GET /inventory/events`).
 
 2. **Purchase a basket of products** (on `/shop`) — fill in quantities for one
    or more in-stock products and click *Purchase*. The amounts are deducted
@@ -80,9 +80,12 @@ Purchase POST body: `{"items":[{"productName":"Mango","quantity":5}]}`.
 The admin page at **http://localhost:8080/admin** covers everything above:
 the inventory table and supplier order forms on the left, and the audit log
 (event, details, timestamp, read from MongoDB) in a column on the right — one
-page, no separate audit route. Both the inventory table and the audit log
-refresh themselves every 3 seconds via htmx polling, so multiple browser tabs
-(or `/shop` running alongside) stay in sync without a manual reload.
+page, no separate audit route. The inventory table updates as soon as the
+inventory changes (same server-sent event as `/shop`), and each row has a
+*Restock* quantity and button that orders more of that product from its
+supplier; the audit log refreshes itself every 3 seconds via htmx polling. So
+multiple browser tabs (or `/shop` running alongside) stay in sync without a
+manual reload.
 A *Randomize (dev)* button fills all 7 order forms with a default product name
 and a random quantity (80–600) but submits nothing; *Submit all* then sends all
 7 orders at once (each form's *Order* button still works on its own).
@@ -94,7 +97,7 @@ It lists every in-stock product with a quantity field per row; filling in one
 or more quantities and clicking *Purchase* submits the whole basket in a single
 call to `PurchaseHandler.checkout(...)`. The list (sorted by name) updates as
 soon as the inventory changes: the server pushes an `inventoryChanged`
-server-sent event (`GET /shop/events`), and the page re-fetches its products
+server-sent event (`GET /inventory/events`), and the page re-fetches its products
 and morphs them in, so new products appear and sold-out ones disappear without
 touching the quantities you're typing. A *Randomize (dev)*
 button fills 2–4 random rows with random quantities (client-side JavaScript
