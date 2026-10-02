@@ -44,6 +44,8 @@ document.addEventListener("click", (event) => {
 			form.querySelector<HTMLInputElement>('input[name="productName"]')!.value = form.dataset.defaultName!;
 			form.querySelector<HTMLInputElement>('input[name="quantity"]')!.value = String(80 + Math.floor(Math.random() * 521)); // 80-600
 		});
+		// Setting .value fires no event; tell hx-live to recompute the Order / Submit all buttons.
+		document.dispatchEvent(new Event("input"));
 	} else if (target.closest("#admin-submit-all-btn")) {
 		forms.forEach(form => form.requestSubmit());
 	}
@@ -65,7 +67,8 @@ export const AdminPage = (vm: AdminPageVM): HtmlResult => html`
 
 			<h2 class="title is-4">Restock Inventory
 				<button class="button is-light is-small" type="button" id="admin-randomize-btn">Randomize (dev)</button>
-				<button class="button is-link is-small" type="button" id="admin-submit-all-btn">Submit all</button>
+				<button class="button is-link is-small" type="button" id="admin-submit-all-btn"
+					:disabled="!q('.order-form').every(f => f.checkValidity())">Submit all</button>
 			</h2>
 
 			${SUPPLIER_BOXES.map(SupplierBox)}
@@ -100,12 +103,14 @@ const SupplierBox = (box: SupplierBox): HtmlResult => html`
 `;
 
 // `method`/`action` stay for the e2e selectors (form[action=…]); htmx submits via hx-post.
+// min/max mirror the *Order records' @Min(1) @Max(2000); hx-live keeps Order disabled while the form is invalid.
+// Both are UX only - the server validates again.
 const OrderFormRow = (f: OrderForm): HtmlResult => html`
 	<form method="post" action="${f.action}" hx-post="${f.action}" hx-target="next .order-error" hx-swap="innerHTML" class="field has-addons order-form" data-default-name="${f.defaultName}">
 		<div class="control"><span class="button is-static">${f.label}</span></div>
 		<div class="control"><input class="input" name="productName" placeholder="e.g. ${f.defaultName}" required></div>
-		<div class="control"><input class="input" name="quantity" type="number" placeholder="Qty" min="1" required style="width:90px"></div>
-		<div class="control"><button class="button is-link" type="submit">Order</button></div>
+		<div class="control"><input class="input" name="quantity" type="number" placeholder="Qty" min="1" max="2000" required style="width:90px"></div>
+		<div class="control"><button class="button is-link" type="submit" :disabled="!this.form.checkValidity()">Order</button></div>
 	</form>
 	<p class="help is-danger order-error"></p>
 `;

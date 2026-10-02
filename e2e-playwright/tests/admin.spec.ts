@@ -63,6 +63,25 @@ test('randomize button only fills every order form, it submits nothing', async (
   expect(orderPosts).toEqual([]);
 });
 
+test('order buttons stay disabled until their form is valid; submit all until every form is', async ({ page }) => {
+  await page.goto('/admin');
+  const form = page.locator('form[action="/admin/order-fruits"]');
+  const orderBtn = form.getByRole('button', { name: 'Order' });
+  const submitAll = page.getByRole('button', { name: 'Submit all' });
+  await expect(orderBtn).toBeDisabled();
+  await expect(submitAll).toBeDisabled();
+
+  await form.locator('input[name="productName"]').fill('Mango');
+  await form.locator('input[name="quantity"]').fill('2001'); // above @Max(2000)
+  await expect(orderBtn).toBeDisabled();
+  await form.locator('input[name="quantity"]').fill('2000');
+  await expect(orderBtn).toBeEnabled();
+  await expect(submitAll).toBeDisabled(); // the other 6 forms are still empty
+
+  await page.getByRole('button', { name: 'Randomize (dev)' }).click();
+  await expect(submitAll).toBeEnabled();
+});
+
 test('submit all button sends all 7 filled order forms via htmx without a reload', async ({ page }) => {
   await page.goto('/admin');
   await page.getByRole('button', { name: 'Randomize (dev)' }).click();

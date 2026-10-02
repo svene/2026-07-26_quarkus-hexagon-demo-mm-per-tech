@@ -223,7 +223,7 @@ Done with htmx 4's built-in morph swap, simpler than the originally planned set 
   typed quantities" (types a quantity, stocks a new product through `/admin` in a second tab, expects
   the new row without a reload while the typed value stays).
 
-## hx-live-ui: client-side reactive UI with htmx 4's `hx-live` (NOT STARTED)
+## hx-live-ui: client-side reactive UI with htmx 4's `hx-live` (DONE, audit-panel filter left open)
 
 **First task (DONE 2026-10-02): replace the unused Alpine.js dark/light theme.** Alpine and
 `js/main.js` were vendored but loaded by neither shell, so dark mode was dead code.
@@ -237,42 +237,55 @@ it runs after load (flash) and the state lives outside the DOM. `main.js` and `j
 deleted, which also frees `hx-live`'s short `:<target>` syntax. Playwright: `shop.spec.ts`
 `theme toggle switches dark/light and remembers the choice across reloads`.
 
-Split off from `live-updates` (2026-10-01): live updates now come from an SSE event that makes the
-page re-fetch the products fragment (morph swap), so `hx-live` is **not** needed as a transport or
-data store any more. What's left is what `hx-live` is actually for: UI state derived **in the
-browser** from what's on the page, written as inline expressions next to the elements they affect,
-instead of hand-written JS in `admin.ts`/`shop.ts`.
+Split off from `live-updates` (2026-10-01): live updates come from an SSE event that makes the page
+re-fetch the products fragment (morph swap), so `hx-live` is **not** a transport or data store.
+It is used for UI state derived **in the browser** from what's on the page, written as inline
+expressions next to the elements they affect.
 
-How `hx-live` works (4.0.0, `ext/hx-live.js`; to be vendored next to `htmx.js`):
-- Bindings are attributes `hx-live:<target>="<expr>"`, or the short form `:<target>="<expr>"`
-  (only when Alpine.js isn't loaded; it has been removed). Targets include
-  `text`, attributes like `disabled`, and classes like `.is-danger`. `hx-live="…"` runs an effect.
-- `q('#id')` / `q('.sel')` query the page from inside an expression.
-- Every expression re-runs after DOM mutations (so also after a morph swap of `#shop-products`)
-  and after `input`/`change` events, batched into one microtask, deferred during htmx swaps.
+How `hx-live` works (4.0.0, vendored as `js/htmx.org/4.0.0/ext/hx-live.js`, loaded by both shells):
+- Bindings are attributes `hx-live:<target>="<expr>"` or the short form `:<target>="<expr>"`
+  (available because Alpine.js is gone). Targets: `text`, attributes like `disabled`, classes like
+  `.is-danger`. Inside an expression `this` is the element; `q('.sel')` queries the page and
+  supports array methods (`some`, `every`, `filter`, `reduce`, …).
+- Every expression re-runs after DOM mutations (also after a morph swap of `#shop-products`) and
+  after `input`/`change` events, batched into one microtask, deferred during htmx swaps.
+- Setting `input.value` from code fires no event: the Randomize handlers therefore dispatch an
+  `input` event on `document` so the bindings recompute.
 
-First idea, `/shop` (the original `live-updates` "derived UI"):
-- Flag a cart row when the typed quantity exceeds what's available, e.g.
-  `<tr :.is-danger="+q('#qty-<key>').value > +q('#avail-<key>').textContent">`. This needs ids on
-  the quantity input and the Available cell again, keyed like the `row-<name>-<type>` row ids. It
-  reacts both to typing and to the stock changing under the customer via the SSE-triggered refresh.
-- Disable *Purchase* while any row is over stock or no quantity is entered.
-- A live cart summary next to *Purchase* ("3 products, 7 items").
+**Second task (DONE 2026-10-02): derived UI.**
+- `/shop` (`shop.ts`):
+  - Quantity input `:.is-danger="this.valueAsNumber > +this.max"`. `max` is the server-rendered
+    stock; when stock drops while the customer is typing, the SSE-triggered morph lowers `max` and the
+    flag reacts without a reload. No extra ids needed (the earlier `#qty-…`/`#avail-…` idea).
+  - *Purchase* `:disabled` while no quantity > 0 is entered or any input is over its `max`.
+  - Cart summary `#shop-cart-summary` (`:text`, "N products, M items") next to the buttons.
+- `/admin` (`admin.ts`):
+  - Quantity inputs get `max="2000"` (mirrors `@Min(1) @Max(2000)` on the `*Order` records).
+  - Each *Order* button `:disabled="!this.form.checkValidity()"`; *Submit all* is disabled until
+    every order form is valid.
+- Playwright: `shop.spec.ts` "the cart flags quantities above stock, disables Purchase, and reacts
+  when stock drops under the customer" (a second tab buys stock away, no reload);
+  `admin.spec.ts` "order buttons stay disabled until their form is valid; submit all until every
+  form is".
 
-To elaborate in this item: more ways `hx-live` could be used in this app, and where it should stop.
-Candidates:
-- `/admin` order forms: disable an *Order* button while its name or quantity is empty or outside
-  the server's limits (`@Max 2000` etc.); *Submit all* only when every form is filled.
-- `/admin` inventory table: highlight low-stock rows, or show a total. Check first whether this is
-  better rendered on the server, since the server already knows the numbers.
-- `/admin` audit panel: a text box that filters the rendered rows on the client. It has to survive
-  the 3 s `outerHTML` poll that replaces the panel.
-- Whether parts of the imperative JS (Randomize buttons, `admin.ts` "Submit all") read better as
-  `hx-live` effects, or should stay plain event listeners.
-- Ground rules to write down: client-side checks are only UX, server validation stays
-  authoritative (`docs/architecture/validation.md`); keep expressions short (hx-live warns above
-  16 ms per recompute); prefer ids that both server templates and expressions use (e.g. the row
-  keys from `shop-product-set-refresh`).
+Decided against:
+- `/admin` inventory low-stock highlight or total: the server knows the numbers; if wanted, render
+  it there.
+- Randomize / *Submit all* as `hx-live` effects: they are one-shot actions, not derived state, so
+  they stay plain event listeners in `admin.ts`/`shop.ts`.
+
+Open candidate: `/admin` audit panel client-side filter text box. The panel is replaced by the 3 s
+`outerHTML` poll, so the filter input has to live outside `#audit-panel` and the rows need a
+`:hidden` binding that reads it.
+
+Ground rules:
+- Client-side checks are UX only; server validation stays authoritative
+  (`docs/architecture/validation.md`). The race between "button enabled" and "checkout committed"
+  is still decided by the server (409 on insufficient stock).
+- Prefer native HTML constraints (`required`, `min`, `max`; htmx calls `reportValidity()` before
+  sending), then `hx-live` bindings for what HTML can't express, then hand-written JS.
+- Keep expressions short (hx-live warns above 16 ms per recompute) and let them read values the
+  server already renders (e.g. `max`) instead of duplicating data.
 
 ## Open questions
 

@@ -14,6 +14,8 @@ document.addEventListener("click", (event) => {
 		const max = Math.min(parseInt(input.dataset.max!, 10) || 1, 10);
 		input.value = String(1 + Math.floor(Math.random() * max));
 	});
+	// Setting .value fires no event; tell hx-live to recompute the flags, Purchase and the summary.
+	document.dispatchEvent(new Event("input"));
 });
 
 // Checkout re-renders the whole page into #app (with errors on 400/409, fresh after a purchase).
@@ -48,14 +50,18 @@ export const ShopProducts = (vm: ShopProductsVM): HtmlResult => html`
 					</tbody>
 				</table>
 				<div class="field is-grouped">
-					<div class="control"><button class="button is-link" type="submit">Purchase</button></div>
+					<div class="control"><button class="button is-link" type="submit" id="shop-purchase-btn"
+						:disabled="!q('.qty-input').some(i => i.valueAsNumber > 0) || q('.qty-input').some(i => i.valueAsNumber > +i.max)">Purchase</button></div>
 					<div class="control"><button class="button is-light" type="button" id="shop-randomize-btn">Randomize (dev)</button></div>
+					<div class="control"><span class="button is-static" id="shop-cart-summary"
+						:text="q('.qty-input').filter(i => i.valueAsNumber > 0).length + ' products, ' + q('.qty-input').reduce((n, i) => n + (i.valueAsNumber || 0), 0) + ' items'"></span></div>
 				</div>
 			</form>`}
 `;
 
 // Name+type is the product key. The quantity input deliberately has no value attribute: a morph overwrites a
-// typed value only when the new markup's value attribute differs.
+// typed value only when the new markup's value attribute differs. `max` is the current stock; the morph updates it
+// when stock changes, and hx-live re-flags the input (UX only - the server re-checks on checkout).
 const CartRow = (p: ProductRowVM): HtmlResult => html`
 	<tr id="row-${p.name}-${p.type}">
 		<td>${p.name}</td>
@@ -63,7 +69,8 @@ const CartRow = (p: ProductRowVM): HtmlResult => html`
 		<td>${p.availableAmount}</td>
 		<td>
 			<input type="hidden" name="productName" value="${p.name}">
-			<input type="number" name="quantity" class="input qty-input" min="0" max="${p.availableAmount}" data-max="${p.availableAmount}" style="width:100px">
+			<input type="number" name="quantity" class="input qty-input" min="0" max="${p.availableAmount}" data-max="${p.availableAmount}" style="width:100px"
+				:.is-danger="this.valueAsNumber > +this.max">
 		</td>
 	</tr>
 `;
