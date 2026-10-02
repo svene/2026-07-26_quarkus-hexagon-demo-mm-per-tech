@@ -9,27 +9,29 @@ import type {
 } from "./generated/vm-types";
 import type {HtmlResult} from "./route-types";
 
-type OrderForm = { label: string, action: string, defaultName: string };
+type OrderForm = { label: string, action: string, products: string[] };
 type SupplierBox = { title: string, adapter: string, forms: OrderForm[] };
+
+const PRESET_QUANTITIES = [10, 50, 100, 500];
 
 const SUPPLIER_BOXES: SupplierBox[] = [
 	{
 		title: "REST suppliers", adapter: "outbound-httpclient", forms: [
-			{label: "Fruits", action: "/admin/order-fruits", defaultName: "Mango"},
-			{label: "Vegetables", action: "/admin/order-vegetables", defaultName: "Carrot"},
-			{label: "Dairy", action: "/admin/order-dairy", defaultName: "Milk"},
+			{label: "Fruits", action: "/admin/order-fruits", products: ["Mango", "Banana", "Apple", "Orange"]},
+			{label: "Vegetables", action: "/admin/order-vegetables", products: ["Carrot", "Potato", "Tomato", "Cucumber"]},
+			{label: "Dairy", action: "/admin/order-dairy", products: ["Milk", "Cheese", "Yogurt", "Butter"]},
 		]
 	},
 	{
 		title: "SOAP suppliers", adapter: "outbound-webservice", forms: [
-			{label: "Beverages", action: "/admin/order-beverages", defaultName: "Cola"},
-			{label: "Meat", action: "/admin/order-meat", defaultName: "Chicken"},
-			{label: "Bakery", action: "/admin/order-bakery", defaultName: "Bread"},
+			{label: "Beverages", action: "/admin/order-beverages", products: ["Cola", "Water", "Juice", "Beer"]},
+			{label: "Meat", action: "/admin/order-meat", products: ["Chicken", "Beef", "Pork", "Lamb"]},
+			{label: "Bakery", action: "/admin/order-bakery", products: ["Bread", "Croissant", "Baguette", "Pretzel"]},
 		]
 	},
 	{
 		title: "Kafka supplier", adapter: "outbound-kafka", forms: [
-			{label: "Non-food", action: "/admin/order-nonfood", defaultName: "Detergent"},
+			{label: "Non-food", action: "/admin/order-nonfood", products: ["Detergent", "Soap", "Sponge", "Paper towels"]},
 		]
 	},
 ];
@@ -54,10 +56,17 @@ export const AdminPage = (vm: AdminPageVM): HtmlResult => html`
 			</div>
 
 			<h2 class="title is-4">Restock Inventory
-				<!-- Randomize only fills the forms (setting .value is invisible to hx-live, hence the refresh);
+				<!-- Randomize only fills the forms: a random product, and either a random preset quantity or a custom one
+				     of 80-600 (setting .checked/.value is invisible to hx-live, hence the refresh);
 				     Submit all submits each one as if its Order button was clicked. -->
 				<button class="button is-light is-small" type="button" id="admin-randomize-btn"
-					hx-on:click="q('.order-form').forEach(f => { f.productName.value = f.dataset.defaultName; f.quantity.value = 80 + Math.floor(Math.random() * 521) }); htmx.live.refresh()">Randomize (dev)</button>
+					hx-on:click="q('.order-form').forEach(f => {
+						const pick = rs => rs[Math.floor(Math.random() * rs.length)];
+						pick(f.querySelectorAll('input[name=productName]')).checked = true;
+						const qty = pick(f.querySelectorAll('input[name=quantity]'));
+						qty.checked = true;
+						if (qty.matches('.qty-custom')) qty.value = f.querySelector('.qty-custom-input').value = 80 + Math.floor(Math.random() * 521);
+					}); htmx.live.refresh()">Randomize (dev)</button>
 				<button class="button is-link is-small" type="button" id="admin-submit-all-btn"
 					hx-on:click="q('.order-form').requestSubmit()"
 					:disabled="!q('.order-form').every(f => f.matches(':valid'))">Submit all</button>
@@ -115,17 +124,38 @@ const SupplierBox = (box: SupplierBox): HtmlResult => html`
 `;
 
 // `method`/`action` stay for the e2e selectors (form[action=…]); htmx submits via hx-post.
-// min/max mirror the *Order records' @Min(1) @Max(2000); hx-live keeps Order disabled while the form is invalid
-// (matches(':valid') rather than checkValidity(), which would fire `invalid` events on every recompute).
-// Both are UX only - the server validates again.
+// Both radio groups are required and nothing is preselected, so hx-live keeps Order disabled until a product and a
+// quantity are chosen (matches(':valid') rather than checkValidity(), which would fire `invalid` events on every
+// recompute). The custom quantity is the last `quantity` radio: the number input next to it has no name and only
+// copies what is typed into that radio's value, so exactly one `quantity` is submitted. The input is readonly -
+// and thereby exempt from validation - unless its radio is checked; focusing it checks the radio.
+// min/max mirror the *Order records' @Min(1) @Max(2000). All of this is UX only - the server validates again.
 const OrderFormRow = (f: OrderForm): HtmlResult => html`
-	<form method="post" action="${f.action}" hx-post="${f.action}" hx-target="next .order-error" hx-swap="innerHTML" class="field has-addons order-form" data-default-name="${f.defaultName}">
-		<div class="control"><span class="button is-static">${f.label}</span></div>
-		<div class="control"><input class="input" name="productName" placeholder="e.g. ${f.defaultName}" required></div>
-		<div class="control"><input class="input" name="quantity" type="number" placeholder="Qty" min="1" max="2000" required style="width:90px"></div>
-		<div class="control"><button class="button is-link" type="submit" :disabled="!this.form.matches(':valid')">Order</button></div>
+	<form method="post" action="${f.action}" hx-post="${f.action}" hx-target="next .order-error" hx-swap="innerHTML" class="order-form">
+		<div class="field is-horizontal mb-2">
+			<div class="field-label"><label class="label">${f.label}</label></div>
+			<div class="field-body">
+				<div class="field">
+					<div class="control radios mb-2">
+						${f.products.map(p => html`<label class="radio"><input type="radio" name="productName" value="${p}" required> ${p}</label>`)}
+					</div>
+					<div class="field is-grouped is-align-items-center">
+						<div class="control radios is-align-items-center">
+							${PRESET_QUANTITIES.map(n => html`<label class="radio"><input type="radio" name="quantity" value="${n}" required> ${n}</label>`)}
+							<label class="radio"><input type="radio" name="quantity" value="" class="qty-custom" aria-label="Custom quantity"></label>
+							<input class="input is-small qty-custom-input" type="number" placeholder="Qty" min="1" max="2000" required style="width:90px"
+								aria-label="${f.label} custom quantity"
+								:readonly="!this.form.querySelector('.qty-custom').checked"
+								hx-on:focus="q('previous .qty-custom').checked = true"
+								hx-on:input="q('previous .qty-custom').value = this.value">
+						</div>
+						<div class="control"><button class="button is-link is-small" type="submit" :disabled="!this.form.matches(':valid')">Order</button></div>
+					</div>
+				</div>
+			</div>
+		</div>
 	</form>
-	<p class="help is-danger order-error"></p>
+	<p class="help is-danger order-error mb-3"></p>
 `;
 
 export const AuditPanel = (vm: AuditPanelVM): HtmlResult => html`

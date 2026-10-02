@@ -1,4 +1,4 @@
-import { test, expect, Page } from '@playwright/test';
+import { test, expect, Page, APIRequestContext } from '@playwright/test';
 
 // Unique suffix prevents cross-run state collisions in the persistent Postgres inventory.
 const RUN_ID = Date.now();
@@ -6,6 +6,12 @@ const purchase = `Apple-${RUN_ID}`;
 
 // Inventory updates arrive asynchronously via Kafka, so we reload the page until the
 // expected row appears.
+// The admin order forms only offer a fixed choice of products, so unique test products are stocked via the JSON API.
+async function stockFruit(request: APIRequestContext, productName: string, quantity: number) {
+  const res = await request.post('/api/products/order-fruits', { data: { productName, quantity } });
+  expect(res.ok()).toBeTruthy();
+}
+
 async function waitForProductRow(page: Page, productName: string) {
   await expect.poll(
     async () => {
@@ -49,13 +55,7 @@ test('theme toggle switches dark/light and remembers the choice across reloads',
 });
 
 test('purchasing a product deducts its inventory', async ({ page }) => {
-  // Stock up first via the admin page.
-  await page.goto('/admin');
-  await page.locator('form[action="/admin/order-fruits"] input[name="productName"]').fill(purchase);
-  await page.locator('form[action="/admin/order-fruits"] input[name="quantity"]').fill('10');
-  await page.locator('form[action="/admin/order-fruits"] button[type="submit"]').click();
-  await page.waitForURL('/admin');
-  await waitForProductRow(page, purchase);
+  await stockFruit(page.request, purchase, 10);
 
   // Now buy 3 units through the shop's cart-style form.
   await page.goto('/shop');
@@ -70,36 +70,25 @@ test('purchasing a product deducts its inventory', async ({ page }) => {
   await expect(updatedRow.getByRole('cell').nth(2)).toHaveText('7');
 });
 
-test('an open shop page picks up a newly stocked product without a reload and keeps typed quantities', async ({ page, context }) => {
+test('an open shop page picks up a newly stocked product without a reload and keeps typed quantities', async ({ page }) => {
   const existing = `Pear-${RUN_ID}`;
   const newcomer = `Plum-${RUN_ID}`;
-  const admin = await context.newPage();
 
-  async function orderFruit(name: string) {
-    await admin.goto('/admin');
-    await admin.locator('form[action="/admin/order-fruits"] input[name="productName"]').fill(name);
-    await admin.locator('form[action="/admin/order-fruits"] input[name="quantity"]').fill('10');
-    await admin.locator('form[action="/admin/order-fruits"] button[type="submit"]').click();
-  }
-
-  await orderFruit(existing);
+  await stockFruit(page.request, existing, 10);
   await page.goto('/shop');
   await waitForProductRow(page, existing);
   const qty = page.getByRole('row').filter({ hasText: existing }).locator('input[name="quantity"]');
   await qty.fill('4');
 
   // From here on no reload: the 3 s poll has to morph the new row in.
-  await orderFruit(newcomer);
+  await stockFruit(page.request, newcomer, 10);
   await expect(page.getByRole('cell', { name: newcomer })).toBeVisible({ timeout: 15_000 });
   await expect(qty).toHaveValue('4');
 });
 
 test('the cart flags quantities above stock, disables Purchase, and reacts when stock drops under the customer', async ({ page, context }) => {
   const name = `Kiwi-${RUN_ID}`;
-  await page.goto('/admin');
-  await page.locator('form[action="/admin/order-fruits"] input[name="productName"]').fill(name);
-  await page.locator('form[action="/admin/order-fruits"] input[name="quantity"]').fill('5');
-  await page.locator('form[action="/admin/order-fruits"] button[type="submit"]').click();
+  await stockFruit(page.request, name, 5);
 
   await page.goto('/shop');
   await waitForProductRow(page, name);

@@ -86,9 +86,11 @@ inventory changes (same server-sent event as `/shop`), and each row has a
 supplier; the audit log refreshes itself every 3 seconds via htmx polling. So
 multiple browser tabs (or `/shop` running alongside) stay in sync without a
 manual reload.
-A *Randomize (dev)* button fills all 7 order forms with a default product name
-and a random quantity (80–600) but submits nothing; *Submit all* then sends all
-7 orders at once (each form's *Order* button still works on its own).
+Each of the 7 order forms offers its products and the quantities 10/50/100/500
+as radio buttons, plus a custom quantity field. A *Randomize (dev)* button picks
+a random product and quantity (a preset or a custom one of 80–600) in every form
+but submits nothing; *Submit all* then sends all 7 orders at once (each form's
+*Order* button still works on its own).
 
 ### Shop UI
 

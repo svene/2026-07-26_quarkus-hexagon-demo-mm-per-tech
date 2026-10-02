@@ -1,14 +1,7 @@
-import { test, expect, Page } from '@playwright/test';
+import { test, expect, Page, APIRequestContext } from '@playwright/test';
 
 // Unique suffix prevents cross-run state collisions in the persistent Postgres inventory.
 const RUN_ID = Date.now();
-const fruit     = `Mango-${RUN_ID}`;
-const vegetable = `Carrot-${RUN_ID}`;
-const dairy     = `Milk-${RUN_ID}`;
-const beverage  = `Cola-${RUN_ID}`;
-const meat      = `Chicken-${RUN_ID}`;
-const bakery    = `Bread-${RUN_ID}`;
-const nonfood   = `Detergent-${RUN_ID}`;
 
 // Inventory updates arrive asynchronously via Kafka; the panel picks them up through the SSE stream,
 // so no reload: waiting for the row also proves the panel is live.
@@ -21,6 +14,22 @@ function inventoryRow(page: Page, productName: string) {
   return page.locator('#admin-inventory tbody tr').filter({ has: page.getByRole('cell', { name: productName, exact: true }) });
 }
 
+// 0 while the product has no inventory row yet.
+async function availableAmount(page: Page, productName: string): Promise<number> {
+  const row = inventoryRow(page, productName);
+  return await row.count() === 0 ? 0 : Number(await row.getByRole('cell').nth(2).textContent());
+}
+
+// The order forms only offer a fixed choice of products, so unique test products are stocked via the JSON API.
+async function stockFruit(request: APIRequestContext, productName: string, quantity: number) {
+  const res = await request.post('/api/products/order-fruits', { data: { productName, quantity } });
+  expect(res.ok()).toBeTruthy();
+}
+
+function orderForm(page: Page, action: string) {
+  return page.locator(`form[action="${action}"]`);
+}
+
 test('admin page shows heading, supplier sections, and the audit log panel', async ({ page }) => {
   await page.goto('/admin');
   await expect(page.getByRole('heading', { name: 'Supermarket – Admin' })).toBeVisible();
@@ -31,15 +40,27 @@ test('admin page shows heading, supplier sections, and the audit log panel', asy
   await expect(page.getByRole('heading', { name: 'Audit Log' })).toBeVisible();
 });
 
-const RANDOMIZED_NAMES: Record<string, string> = {
-  '/admin/order-fruits': 'Mango',
-  '/admin/order-vegetables': 'Carrot',
-  '/admin/order-dairy': 'Milk',
-  '/admin/order-beverages': 'Cola',
-  '/admin/order-meat': 'Chicken',
-  '/admin/order-bakery': 'Bread',
-  '/admin/order-nonfood': 'Detergent',
-};
+const ORDER_FORMS: { action: string, type: string, products: string[] }[] = [
+  { action: '/admin/order-fruits', type: 'FRUIT', products: ['Mango', 'Banana', 'Apple', 'Orange'] },
+  { action: '/admin/order-vegetables', type: 'VEGETABLE', products: ['Carrot', 'Potato', 'Tomato', 'Cucumber'] },
+  { action: '/admin/order-dairy', type: 'DAIRY', products: ['Milk', 'Cheese', 'Yogurt', 'Butter'] },
+  { action: '/admin/order-beverages', type: 'BEVERAGE', products: ['Cola', 'Water', 'Juice', 'Beer'] },
+  { action: '/admin/order-meat', type: 'MEAT', products: ['Chicken', 'Beef', 'Pork', 'Lamb'] },
+  { action: '/admin/order-bakery', type: 'BAKERY', products: ['Bread', 'Croissant', 'Baguette', 'Pretzel'] },
+  { action: '/admin/order-nonfood', type: 'NON_FOOD', products: ['Detergent', 'Soap', 'Sponge', 'Paper towels'] },
+];
+const PRESET_QUANTITIES = ['10', '50', '100', '500'];
+
+test('every order form offers its products and the preset quantities as radio buttons, nothing preselected', async ({ page }) => {
+  await page.goto('/admin');
+  for (const { action, products } of ORDER_FORMS) {
+    const form = orderForm(page, action);
+    await expect(form.locator('input[name="productName"]')).toHaveCount(products.length);
+    for (const product of products) await expect(form.getByRole('radio', { name: product, exact: true })).toBeVisible();
+    for (const qty of PRESET_QUANTITIES) await expect(form.getByRole('radio', { name: qty, exact: true })).toBeVisible();
+    await expect(form.locator('input[type="radio"]:checked')).toHaveCount(0);
+  }
+});
 
 test('randomize button only fills every order form, it submits nothing', async ({ page }) => {
   const orderPosts: string[] = [];
@@ -49,12 +70,18 @@ test('randomize button only fills every order form, it submits nothing', async (
   await page.goto('/admin');
   await page.getByRole('button', { name: 'Randomize (dev)' }).click();
 
-  for (const [action, name] of Object.entries(RANDOMIZED_NAMES)) {
-    const form = page.locator(`form[action="${action}"]`);
-    await expect(form.locator('input[name="productName"]')).toHaveValue(name);
-    const qty = Number(await form.locator('input[name="quantity"]').inputValue());
-    expect(qty).toBeGreaterThanOrEqual(80);
-    expect(qty).toBeLessThanOrEqual(600);
+  for (const { action, products } of ORDER_FORMS) {
+    const form = orderForm(page, action);
+    expect(products).toContain(await form.locator('input[name="productName"]:checked').inputValue());
+    const quantity = form.locator('input[name="quantity"]:checked');
+    const qty = await quantity.inputValue();
+    if (await quantity.evaluate(r => r.classList.contains('qty-custom'))) {
+      expect(Number(qty)).toBeGreaterThanOrEqual(80);
+      expect(Number(qty)).toBeLessThanOrEqual(600);
+      await expect(form.locator('.qty-custom-input')).toHaveValue(qty);
+    } else {
+      expect(PRESET_QUANTITIES).toContain(qty);
+    }
   }
 
   // Give a (wrongly) triggered htmx submit time to show up before asserting there was none.
@@ -64,16 +91,23 @@ test('randomize button only fills every order form, it submits nothing', async (
 
 test('order buttons stay disabled until their form is valid; submit all until every form is', async ({ page }) => {
   await page.goto('/admin');
-  const form = page.locator('form[action="/admin/order-fruits"]');
+  const form = orderForm(page, '/admin/order-fruits');
   const orderBtn = form.getByRole('button', { name: 'Order' });
   const submitAll = page.getByRole('button', { name: 'Submit all' });
   await expect(orderBtn).toBeDisabled();
   await expect(submitAll).toBeDisabled();
 
-  await form.locator('input[name="productName"]').fill('Mango');
-  await form.locator('input[name="quantity"]').fill('2001'); // above @Max(2000)
+  await form.getByRole('radio', { name: 'Mango', exact: true }).check();
+  await expect(orderBtn).toBeDisabled(); // no quantity yet
+  await form.getByRole('radio', { name: '100', exact: true }).check();
+  await expect(orderBtn).toBeEnabled();
+
+  await form.getByRole('radio', { name: 'Custom quantity' }).check();
+  await expect(orderBtn).toBeDisabled(); // custom chosen, but nothing typed
+  const custom = form.locator('.qty-custom-input');
+  await custom.fill('2001'); // above @Max(2000)
   await expect(orderBtn).toBeDisabled();
-  await form.locator('input[name="quantity"]').fill('2000');
+  await custom.fill('2000');
   await expect(orderBtn).toBeEnabled();
   await expect(submitAll).toBeDisabled(); // the other 6 forms are still empty
 
@@ -81,11 +115,34 @@ test('order buttons stay disabled until their form is valid; submit all until ev
   await expect(submitAll).toBeEnabled();
 });
 
+test('the custom quantity input is readonly until its radio is chosen, and focusing it chooses the radio', async ({ page }) => {
+  await page.goto('/admin');
+  const form = orderForm(page, '/admin/order-fruits');
+  const customRadio = form.getByRole('radio', { name: 'Custom quantity' });
+  const custom = form.locator('.qty-custom-input');
+  await expect(custom).not.toBeEditable();
+
+  await custom.focus();
+  await expect(customRadio).toBeChecked();
+  await expect(custom).toBeEditable();
+  await custom.fill('42');
+  await expect(customRadio).toHaveValue('42');
+
+  // An out-of-range leftover must not block a preset quantity: the readonly input is exempt from validation.
+  await custom.fill('5000');
+  await form.getByRole('radio', { name: 'Banana', exact: true }).check();
+  await form.getByRole('radio', { name: '50', exact: true }).check();
+  await expect(custom).not.toBeEditable();
+  await expect(form.getByRole('button', { name: 'Order' })).toBeEnabled();
+});
+
 test('submit all button sends all 7 filled order forms via htmx without a reload', async ({ page }) => {
   await page.goto('/admin');
   await page.getByRole('button', { name: 'Randomize (dev)' }).click();
+  const fruit = await orderForm(page, '/admin/order-fruits').locator('input[name="productName"]:checked').inputValue();
+  const nonfood = await orderForm(page, '/admin/order-nonfood').locator('input[name="productName"]:checked').inputValue();
 
-  const posts = Object.keys(RANDOMIZED_NAMES).map(action =>
+  const posts = ORDER_FORMS.map(({ action }) =>
     page.waitForResponse(res => res.request().method() === 'POST' && new URL(res.url()).pathname === action && res.ok()));
   await page.getByRole('button', { name: 'Submit all' }).click();
   await Promise.all(posts);
@@ -93,103 +150,43 @@ test('submit all button sends all 7 filled order forms via htmx without a reload
   // The page never navigates away (no full-page POST) — submission happened without a reload.
   expect(new URL(page.url()).pathname).toBe('/admin');
 
-  await waitForProductRow(page, 'Mango');
-  await waitForProductRow(page, 'Detergent');
-});
-
-test('ordering a fruit adds it to the inventory table', async ({ page }) => {
-  await page.goto('/admin');
-  await page.locator('form[action="/admin/order-fruits"] input[name="productName"]').fill(fruit);
-  await page.locator('form[action="/admin/order-fruits"] input[name="quantity"]').fill('7');
-  await page.locator('form[action="/admin/order-fruits"] button[type="submit"]').click();
-  await page.waitForURL('/admin');
   await waitForProductRow(page, fruit);
-  const row = inventoryRow(page, fruit);
-  await expect(row.getByRole('cell').nth(1)).toHaveText('FRUIT');
-  await expect(row.getByRole('cell').nth(2)).toHaveText('7');
-});
-
-test('ordering a vegetable adds it to the inventory table', async ({ page }) => {
-  await page.goto('/admin');
-  await page.locator('form[action="/admin/order-vegetables"] input[name="productName"]').fill(vegetable);
-  await page.locator('form[action="/admin/order-vegetables"] input[name="quantity"]').fill('8');
-  await page.locator('form[action="/admin/order-vegetables"] button[type="submit"]').click();
-  await page.waitForURL('/admin');
-  await waitForProductRow(page, vegetable);
-  const row = inventoryRow(page, vegetable);
-  await expect(row.getByRole('cell').nth(1)).toHaveText('VEGETABLE');
-  await expect(row.getByRole('cell').nth(2)).toHaveText('8');
-});
-
-test('ordering a dairy product adds it to the inventory table', async ({ page }) => {
-  await page.goto('/admin');
-  await page.locator('form[action="/admin/order-dairy"] input[name="productName"]').fill(dairy);
-  await page.locator('form[action="/admin/order-dairy"] input[name="quantity"]').fill('6');
-  await page.locator('form[action="/admin/order-dairy"] button[type="submit"]').click();
-  await page.waitForURL('/admin');
-  await waitForProductRow(page, dairy);
-  const row = inventoryRow(page, dairy);
-  await expect(row.getByRole('cell').nth(1)).toHaveText('DAIRY');
-  await expect(row.getByRole('cell').nth(2)).toHaveText('6');
-});
-
-test('ordering a beverage adds it to the inventory table', async ({ page }) => {
-  await page.goto('/admin');
-  await page.locator('form[action="/admin/order-beverages"] input[name="productName"]').fill(beverage);
-  await page.locator('form[action="/admin/order-beverages"] input[name="quantity"]').fill('24');
-  await page.locator('form[action="/admin/order-beverages"] button[type="submit"]').click();
-  await page.waitForURL('/admin');
-  await waitForProductRow(page, beverage);
-  const row = inventoryRow(page, beverage);
-  await expect(row.getByRole('cell').nth(1)).toHaveText('BEVERAGE');
-  await expect(row.getByRole('cell').nth(2)).toHaveText('24');
-});
-
-test('ordering a meat product adds it to the inventory table', async ({ page }) => {
-  await page.goto('/admin');
-  await page.locator('form[action="/admin/order-meat"] input[name="productName"]').fill(meat);
-  await page.locator('form[action="/admin/order-meat"] input[name="quantity"]').fill('4');
-  await page.locator('form[action="/admin/order-meat"] button[type="submit"]').click();
-  await page.waitForURL('/admin');
-  await waitForProductRow(page, meat);
-  const row = inventoryRow(page, meat);
-  await expect(row.getByRole('cell').nth(1)).toHaveText('MEAT');
-  await expect(row.getByRole('cell').nth(2)).toHaveText('4');
-});
-
-test('ordering a bakery product adds it to the inventory table', async ({ page }) => {
-  await page.goto('/admin');
-  await page.locator('form[action="/admin/order-bakery"] input[name="productName"]').fill(bakery);
-  await page.locator('form[action="/admin/order-bakery"] input[name="quantity"]').fill('10');
-  await page.locator('form[action="/admin/order-bakery"] button[type="submit"]').click();
-  await page.waitForURL('/admin');
-  await waitForProductRow(page, bakery);
-  const row = inventoryRow(page, bakery);
-  await expect(row.getByRole('cell').nth(1)).toHaveText('BAKERY');
-  await expect(row.getByRole('cell').nth(2)).toHaveText('10');
-});
-
-test('ordering a non-food product adds it to the inventory table', async ({ page }) => {
-  await page.goto('/admin');
-  await page.locator('form[action="/admin/order-nonfood"] input[name="productName"]').fill(nonfood);
-  await page.locator('form[action="/admin/order-nonfood"] input[name="quantity"]').fill('3');
-  await page.locator('form[action="/admin/order-nonfood"] button[type="submit"]').click();
-  await page.waitForURL('/admin');
   await waitForProductRow(page, nonfood);
-  const row = inventoryRow(page, nonfood);
-  await expect(row.getByRole('cell').nth(1)).toHaveText('NON_FOOD');
-  await expect(row.getByRole('cell').nth(2)).toHaveText('3');
 });
+
+// The fixed products are shared across runs (and with "Submit all"), so each test checks that the amount grew by at
+// least the ordered quantity rather than for an exact value. Fruits use the custom quantity, the others a preset.
+for (const { action, type, products } of ORDER_FORMS) {
+  const product = products[0];
+  const custom = type === 'FRUIT';
+  const qty = custom ? 7 : 10;
+  test(`ordering ${product} (${type}) with a ${custom ? 'custom' : 'preset'} quantity raises its inventory`, async ({ page }) => {
+    await page.goto('/admin');
+    await expect(page.locator('#admin-inventory')).not.toBeEmpty();
+    const before = await availableAmount(page, product);
+
+    const form = orderForm(page, action);
+    await form.getByRole('radio', { name: product, exact: true }).check();
+    if (custom) {
+      await form.getByRole('radio', { name: 'Custom quantity' }).check();
+      await form.locator('.qty-custom-input').fill(String(qty));
+    } else {
+      await form.getByRole('radio', { name: String(qty), exact: true }).check();
+    }
+    await form.getByRole('button', { name: 'Order' }).click();
+
+    await waitForProductRow(page, product);
+    await expect(inventoryRow(page, product).getByRole('cell').nth(1)).toHaveText(type);
+    await expect.poll(() => availableAmount(page, product), { timeout: 15_000 }).toBeGreaterThanOrEqual(before + qty);
+    expect(new URL(page.url()).pathname).toBe('/admin');
+  });
+}
 
 test('restocking from an inventory row raises its amount live and keeps quantities typed into other rows', async ({ page }) => {
   const restocked = `Fig-${RUN_ID}`;
   const other = `Lime-${RUN_ID}`;
   await page.goto('/admin');
-  for (const name of [restocked, other]) {
-    await page.locator('form[action="/admin/order-fruits"] input[name="productName"]').fill(name);
-    await page.locator('form[action="/admin/order-fruits"] input[name="quantity"]').fill('5');
-    await page.locator('form[action="/admin/order-fruits"] button[type="submit"]').click();
-  }
+  for (const name of [restocked, other]) await stockFruit(page.request, name, 5);
   await waitForProductRow(page, restocked);
   await waitForProductRow(page, other);
 
@@ -211,9 +208,7 @@ test('restocking from an inventory row raises its amount live and keeps quantiti
 test('the restock button of a row is disabled while its quantity is outside 1-2000', async ({ page }) => {
   const name = `Date-${RUN_ID}`;
   await page.goto('/admin');
-  await page.locator('form[action="/admin/order-fruits"] input[name="productName"]').fill(name);
-  await page.locator('form[action="/admin/order-fruits"] input[name="quantity"]').fill('5');
-  await page.locator('form[action="/admin/order-fruits"] button[type="submit"]').click();
+  await stockFruit(page.request, name, 5);
   await waitForProductRow(page, name);
 
   const row = inventoryRow(page, name);
