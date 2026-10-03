@@ -130,7 +130,7 @@ PlantUML sequence diagrams for all primary flows in the supermarket inventory sy
 **File**: `location-request.puml`
 - **Trigger**: POST /locations/{id}/requests (store / online FC page)
 - **Flow**: LocationReceiver → `StockRequest.parse()` → ReplenishmentHandler → ReplenishmentService → PostgreSQL (DC row locked first; transfer + request in one transaction) + AuditLogService → MongoDB
-- **Actions**: moves what the DC has right away (unless older requests of the product wait); the rest stays PENDING until the next delivery to the DC serves it, oldest first
+- **Actions**: stores the request, then shares what the DC has among all pending requests of the product in proportion to what each still needs (`FairShare`); the rest stays PENDING until the next delivery to the DC is shared the same way
 - **Returns**: 200 empty body; 400 / 409 `{route: OrderErrors, vm}`
 - **Participants**: 1 (Store / Online manager)
 - **Databases**: PostgreSQL (`stock`, `replenishment_request`), MongoDB (audit log)
@@ -139,9 +139,18 @@ PlantUML sequence diagrams for all primary flows in the supermarket inventory sy
 **File**: `admin-decide-request.puml`
 - **Trigger**: POST /admin/requests/{id}/fulfil or /reject
 - **Flow**: AdminReceiver → ReplenishmentHandler → ReplenishmentService → PostgreSQL + AuditLogService → MongoDB
-- **Actions**: fulfil moves what the DC has, ahead of older requests; reject cancels what is outstanding
+- **Actions**: fulfil moves what the DC has to this request, ahead of the others; reject cancels what is outstanding
 - **Returns**: 200 empty body; 409 if the request is no longer pending
 - **Participants**: 1 (Head office)
+- **Databases**: PostgreSQL (`stock`, `replenishment_request`), MongoDB (audit log)
+
+### Automatic Replenishment
+**File**: `auto-replenishment.puml`
+- **Trigger**: `StockDeducted` (after a sale) or the demand period timer (`DemandPeriodReceiver`, then `LevelsRecalculated`)
+- **Flow**: inbound-event Receiver → ReorderPolicyHandler / ReplenishmentHandler → InventoryService / ReplenishmentService → PostgreSQL + AuditLogService → MongoDB
+- **Actions**: period close learns avg/min/max per location and product; a location below its min requests up to max from the DC (AUTOMATIC origin); the DC stock is then shared fairly - after a period close among all locations at once
+- **Returns**: nothing (async)
+- **Participants**: none (timer, CDI events)
 - **Databases**: PostgreSQL (`stock`, `replenishment_request`), MongoDB (audit log)
 
 ## Event-Driven Flow (Kafka Inbound)

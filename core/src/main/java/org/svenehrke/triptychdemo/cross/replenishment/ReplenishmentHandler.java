@@ -3,16 +3,19 @@ package org.svenehrke.triptychdemo.cross.replenishment;
 import org.svenehrke.triptychdemo.cross.auditlog.AuditLogSPI;
 import org.svenehrke.triptychdemo.cross.inventory.InventoryEvent;
 import org.svenehrke.triptychdemo.cross.inventory.ReplenishmentChanged;
+import org.svenehrke.triptychdemo.cross.location.Locations;
 import org.svenehrke.triptychdemo.cross.location.Replenished;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Event;
 import jakarta.inject.Inject;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 /**
- * Pull replenishment: stores and the online FC request stock from the DC. The serving rules (oldest first,
- * partial) and their transactions live in {@link ReplenishmentRepositorySPI}.
+ * Pull replenishment: stores and the online FC request stock from the DC. How the DC stock is shared
+ * ({@link FairShare}) and the transactions live in {@link ReplenishmentRepositorySPI}.
  * <p>
  * Every change fires a {@link ReplenishmentChanged}, also when no stock moved, since the pages showing stock show the
  * requests, too.
@@ -31,23 +34,44 @@ public class ReplenishmentHandler {
     public Optional<ReplenishmentRequest> request(StockRequest request) {
         auditLog.log("ReplenishmentHandler: REQUEST_PROCESSING",
             request.location().id() + ": " + request.productName() + " qty=" + request.quantity());
-        var transfer = replenishmentRepository.request(request);
-        if (transfer.isEmpty()) {
+        var requested = replenishmentRepository.request(request);
+        if (requested.isEmpty()) {
             auditLog.log("ReplenishmentHandler: REQUEST_REJECTED",
                 request.location().id() + ": " + request.productName() + ": not carried by the DC");
             return Optional.empty();
         }
-        logTransfer(transfer.get());
-        inventoryEvents.fireAsync(new ReplenishmentChanged(request.location()));
-        return Optional.of(transfer.get().request());
+        var stored = requested.get().request();
+        var transfers = requested.get().transfers();
+        transfers.forEach(this::logTransfer);
+        if (stored.status() == RequestStatus.PENDING && transfers.stream().noneMatch(t -> t.request().id() == stored.id())) {
+            auditLog.log("ReplenishmentHandler: REQUEST_PENDING", describe(stored));
+        }
+        fireChanged(Stream.concat(Stream.of(stored.location()), locations(transfers)));
+        return Optional.of(stored);
     }
 
-    /** After a delivery to the DC: serves what was waiting for it. */
+    /**
+     * Automatic replenishment after a sale: requests from the DC whichever of {@code productNames} has fallen below its
+     * learned reorder point at {@code location} (see {@link ReplenishmentRepositorySPI#requestIfLow}).
+     */
+    public void replenishIfLow(Replenished location, Collection<String> productNames) {
+        productNames.forEach(productName -> replenishIfLow(List.of(location), productName));
+    }
+
+    /**
+     * Automatic replenishment after the levels changed: for each product, first collects the requests of every store
+     * and the online FC, then shares the DC stock among them in one go - so a shortfall hits all of them alike (see
+     * {@link FairShare}).
+     */
+    public void replenishAllIfLow(Collection<String> productNames) {
+        productNames.forEach(productName -> replenishIfLow(Locations.REPLENISHED, productName));
+    }
+
+    /** After a delivery to the DC: shares it among the requests waiting for it. */
     public void fulfilPending(String productName) {
-        var transfers = replenishmentRepository.fulfilPending(productName);
+        var transfers = replenishmentRepository.allocate(productName);
         transfers.forEach(this::logTransfer);
-        transfers.stream().map(t -> t.request().location()).distinct()
-            .forEach(location -> inventoryEvents.fireAsync(new ReplenishmentChanged(location)));
+        fireChanged(locations(transfers));
     }
 
     /** Head office. Empty if there is no such pending request. */
@@ -78,6 +102,28 @@ public class ReplenishmentHandler {
 
     public List<ReplenishmentRequest> listRecent(Replenished location, int limit) {
         return replenishmentRepository.findRecent(location, limit);
+    }
+
+    private void replenishIfLow(List<? extends Replenished> locations, String productName) {
+        var created = locations.stream()
+            .flatMap(location -> replenishmentRepository.requestIfLow(location, productName).stream())
+            .toList();
+        if (created.isEmpty()) return;
+        created.forEach(r -> auditLog.log("ReplenishmentHandler: AUTO_REQUEST_CREATED", describe(r)));
+        var transfers = replenishmentRepository.allocate(productName);
+        transfers.forEach(this::logTransfer);
+        created.stream()
+            .filter(r -> transfers.stream().noneMatch(t -> t.request().id() == r.id()))
+            .forEach(r -> auditLog.log("ReplenishmentHandler: REQUEST_PENDING", describe(r)));
+        fireChanged(Stream.concat(created.stream().map(ReplenishmentRequest::location), locations(transfers)));
+    }
+
+    private static Stream<Replenished> locations(List<Transfer> transfers) {
+        return transfers.stream().map(t -> t.request().location());
+    }
+
+    private void fireChanged(Stream<Replenished> locations) {
+        locations.distinct().forEach(location -> inventoryEvents.fireAsync(new ReplenishmentChanged(location)));
     }
 
     private void logTransfer(Transfer transfer) {

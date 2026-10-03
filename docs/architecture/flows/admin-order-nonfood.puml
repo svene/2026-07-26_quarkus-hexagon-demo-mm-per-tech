@@ -59,7 +59,8 @@ note right of inv_handler
   then fires DeliveredToDc asynchronously (after the commit):
   inbound-event's DeliveryEventReceiver calls
   ReplenishmentHandler.fulfilPending(productName), which serves
-  the pending requests of the stores / online FC, oldest first,
+  the pending requests of the stores / online FC, shared
+  in proportion to what each still needs,
   from the DC stock (see location-request.puml)
 end note
 

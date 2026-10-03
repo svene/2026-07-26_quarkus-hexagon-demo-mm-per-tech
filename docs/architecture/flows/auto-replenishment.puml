@@ -1,0 +1,45 @@
+@startuml auto_replenishment
+skinparam monochrome true
+skinparam sequenceMessageAlign center
+skinparam backgroundColor #ffffff
+
+participant "DemandPeriodReceiver\n(inbound-event, @Scheduled)" as timer
+participant "AutoReplenishmentReceiver\n(inbound-event, @ObservesAsync)" as auto
+participant "ReorderPolicyHandler\n(Core)" as policy
+participant "ReplenishmentHandler\n(Core)" as handler
+participant "InventoryService /\nReplenishmentService\n(PostgreSQL)" as service
+participant "AuditLogService\n(MongoDB)" as audit
+database "PostgreSQL\n(stock, replenishment_request)" as db
+
+== end of a demand period (inventory.demand-period) ==
+timer -> policy: closePeriod()
+policy -> service: InventoryRepositorySPI.closePeriod()
+service -> db: create missing rows (every DC product × store / online FC)
+loop every row (one transaction each, FOR UPDATE)
+  service -> db: estimate.next(periodDemand) → LearnedLevels.of() → periodDemand = 0
+end
+policy -> audit: log("PERIOD_CLOSED")
+policy ->> auto: fireAsync(LevelsRecalculated)
+auto -> handler: replenishAllIfLow(DC products)\n(every store and the online FC)
+
+== after a sale (PurchaseHandler: deductAll, recordDemand) ==
+[->> auto: fireAsync(StockDeducted(location, productNames))
+auto -> handler: replenishIfLow(location, productNames)
+
+== replenishIfLow, per product ==
+handler -> service: ReplenishmentRepositorySPI.requestIfLow(location, product)
+service -> db: lock DC row, then location row;\noutstanding = Σ pending requests
+alt available + outstanding < min
+  service -> db: INSERT request (AUTOMATIC, qty = max − position)
+  service --> handler: request (not served yet)
+  handler -> audit: log("AUTO_REQUEST_CREATED")
+else at or above min
+  service --> handler: empty
+end
+
+== then, per product with a new request (after a period close: once for all locations) ==
+handler -> service: ReplenishmentRepositorySPI.allocate(product)
+service -> db: lock DC row, pending requests;\nFairShare: split DC stock in proportion to outstanding
+handler ->> handler: fireAsync(ReplenishmentChanged)
+
+@enduml

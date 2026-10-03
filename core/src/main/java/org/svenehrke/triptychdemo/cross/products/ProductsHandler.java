@@ -27,11 +27,11 @@ public class ProductsHandler {
      */
     public List<ProductStock> listAllLocations() {
         record Key(String name, ProductType type) {}
-        Map<Key, Map<Location, Integer>> byProduct = new LinkedHashMap<>();
+        Map<Key, Map<Location, LocationStock>> byProduct = new LinkedHashMap<>();
         for (LocationStock stock : inventoryRepository.findAllLocations()) {
             var product = stock.product();
             byProduct.computeIfAbsent(new Key(product.name(), product.type()), k -> new HashMap<>())
-                .put(stock.location(), product.availableAmount());
+                .put(stock.location(), stock);
         }
         return byProduct.entrySet().stream()
             .map(e -> new ProductStock(e.getKey().name(), e.getKey().type(), e.getValue()))

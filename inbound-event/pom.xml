@@ -15,12 +15,17 @@
 
   <name>inbound-event</name>
   <description>Inbound adapter: CDI event observers (@ObservesAsync) that translate domain events fired by
-    core into calls against core use cases (Handlers) - in-process, like the Kafka receivers are for messages.</description>
+    core into calls against core use cases (Handlers) - in-process, like the Kafka receivers are for messages. Also timer-driven use cases (@Scheduled).</description>
 
   <dependencies>
     <dependency>
       <groupId>org.svenehrke</groupId>
       <artifactId>core</artifactId>
+    </dependency>
+    <!-- DemandPeriodReceiver: closes the demand period on a timer -->
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-scheduler</artifactId>
     </dependency>
   </dependencies>
 </project>

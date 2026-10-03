@@ -7,9 +7,10 @@ import org.svenehrke.triptychdemo.cross.inventory.OnShortage;
 import org.svenehrke.triptychdemo.cross.inventory.Shortage;
 import org.svenehrke.triptychdemo.cross.inventory.StockDeducted;
 import org.svenehrke.triptychdemo.cross.inventory.StockDeduction;
-import org.svenehrke.triptychdemo.cross.location.Location;
 import org.svenehrke.triptychdemo.cross.location.Locations;
+import org.svenehrke.triptychdemo.cross.location.Replenished;
 import org.svenehrke.triptychdemo.cross.location.Store;
+import org.svenehrke.triptychdemo.cross.products.Product;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Event;
 import jakarta.inject.Inject;
@@ -17,7 +18,10 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
-/** Online checkout and physical-store sale differ only in what a shortage means - see {@link OnShortage}. */
+/**
+ * Online checkout and physical-store sale differ only in what a shortage means - see {@link OnShortage}. Both record
+ * what the customer asked for as demand, which the reorder levels are learned from ({@code ReorderPolicyHandler}).
+ */
 @ApplicationScoped
 public class PurchaseHandler {
 
@@ -52,13 +56,16 @@ public class PurchaseHandler {
             auditLog.log("PurchaseHandler: STOCK_DISCREPANCY", store.id() + ": " + shortage.discrepancyMessage()));
     }
 
-    private StockDeduction deduct(Location location, Purchase purchase, OnShortage onShortage) {
+    /** Records the demand after the deduction, so a product the location had no row for is reported as a shortage only. */
+    private StockDeduction deduct(Replenished location, Purchase purchase, OnShortage onShortage) {
         auditLog.log("PurchaseHandler: PURCHASE_PROCESSING", location.id() + ": " +
             purchase.items().stream().map(i -> i.productName() + " qty=" + i.quantity()).collect(Collectors.joining(", ")));
         var quantitiesByName = quantitiesByName(purchase);
         var deduction = inventoryRepository.deductAll(location, quantitiesByName, onShortage);
+        inventoryRepository.recordDemand(location, quantitiesByName);
         if (!deduction.updated().isEmpty()) {
-            inventoryEvents.fireAsync(new StockDeducted(location));
+            inventoryEvents.fireAsync(new StockDeducted(location,
+                deduction.updated().stream().map(Product::name).collect(Collectors.toSet())));
             auditLog.log("PurchaseHandler: INVENTORY_DEDUCTED", location.id() + ": " + deduction.updated().stream()
                 .map(p -> p.name() + " -" + quantitiesByName.get(p.name()) + " total=" + p.availableAmount())
                 .collect(Collectors.joining(", ")));

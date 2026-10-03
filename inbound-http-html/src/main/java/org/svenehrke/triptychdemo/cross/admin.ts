@@ -5,12 +5,14 @@ import type {
 	AdminRequestsVM,
 	AuditEntryVM,
 	AuditPanelVM,
+	LevelsVM,
 	LocationVM,
 	OrderErrorsVM,
 	RequestVM,
 	StockRowVM
 } from "./generated/vm-types";
 import type {HtmlResult} from "./route-types";
+import {OriginTag} from "./location";
 
 type OrderForm = { label: string, action: string, products: string[] };
 type SupplierBox = { id: string, title: string, forms: OrderForm[] };
@@ -104,10 +106,14 @@ export const AdminInventory = (vm: AdminInventoryVM): HtmlResult => html`
 
 const LocationHeader = (l: LocationVM): HtmlResult => html`<th class="has-text-right" data-location="${l.id}">${l.name}</th>`;
 
-// An empty cell is the one to act on: red at the DC (order from the supplier), orange elsewhere (request from the DC).
-const AmountCell = (amount: number, i: number): HtmlResult => html`
-	<td class="has-text-right ${amount > 0 ? '' : i === 0 ? 'has-text-danger has-text-weight-bold' : 'has-text-warning-dark'}">${amount}</td>
-`;
+// The cells to act on: an empty DC (order from the supplier) is red; a store / the online FC below its learned reorder
+// point is orange (it requests from the DC automatically), its title shows the levels.
+// (A location without a row for the product has no levels yet: there, only 0 counts as low.)
+const AmountCell = (amount: number, levels: LevelsVM | null, i: number): HtmlResult => {
+	const low = levels ? amount < levels.min : amount === 0;
+	const lowClass = i === 0 ? 'has-text-danger has-text-weight-bold' : 'has-text-warning-dark has-text-weight-bold';
+	return html`<td class="has-text-right ${low ? lowClass : ''}" title="${levels ? `min ${levels.min} / max ${levels.max}` : ''}">${amount}</td>`;
+};
 
 // Name+type is the product key. Like the cart rows on /shop, the quantity input has no value attribute, so a
 // morph never resets what was typed; it is kept after a restock, too, so the same amount can be ordered again.
@@ -115,7 +121,7 @@ const InventoryRow = (p: StockRowVM): HtmlResult => html`
 	<tr id="row-${p.name}-${p.type}">
 		<td>${p.name}</td>
 		<td>${p.type}</td>
-		${p.amounts.map(AmountCell)}
+		${p.amounts.map((amount, i) => AmountCell(amount, p.levels[i], i))}
 		<td>
 			<form hx-post="${RESTOCK_ACTIONS[p.type]}" hx-target="next .restock-error" hx-swap="innerHTML" class="field has-addons restock-form">
 				<input type="hidden" name="productName" value="${p.name}">
@@ -127,8 +133,8 @@ const InventoryRow = (p: StockRowVM): HtmlResult => html`
 	</tr>
 `;
 
-// Pending requests of all locations, oldest first (the order deliveries serve them in). Fulfil sends what the DC has
-// right away, ahead of older requests; the rest stays pending. Both answer with an empty 200 and the change event
+// Pending requests of all locations, oldest first; a delivery is shared among them in proportion to what each still
+// needs. Fulfil sends what the DC has to this one right away, ahead of the others; the rest stays pending. Both answer with an empty 200 and the change event
 // then refreshes this list, or with a 409 shown in the row's error cell.
 export const AdminRequests = (vm: AdminRequestsVM): HtmlResult => html`
 	${vm.requests.length === 0
@@ -136,7 +142,7 @@ export const AdminRequests = (vm: AdminRequestsVM): HtmlResult => html`
 		: html`
 			<table class="table is-fullwidth is-striped is-narrow" id="pending-requests">
 				<thead>
-				<tr><th>#</th><th>Location</th><th>Product</th><th class="has-text-right">Delivered</th><th>Requested at</th><th></th><th></th></tr>
+				<tr><th>#</th><th>Location</th><th>Product</th><th class="has-text-right">Delivered</th><th>Origin</th><th>Requested at</th><th></th><th></th></tr>
 				</thead>
 				<tbody>
 				${vm.requests.map(PendingRequestRow)}
@@ -150,6 +156,7 @@ const PendingRequestRow = (r: RequestVM): HtmlResult => html`
 		<td>${r.locationName}</td>
 		<td>${r.productName}</td>
 		<td class="has-text-right">${r.delivered} / ${r.requested}</td>
+		<td>${OriginTag(r)}</td>
 		<td>${r.createdAt}</td>
 		<td>
 			<div class="buttons has-addons">

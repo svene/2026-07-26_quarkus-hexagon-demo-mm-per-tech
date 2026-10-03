@@ -19,34 +19,47 @@ public class ReplenishmentService implements ReplenishmentRepositorySPI {
 
     @Override
     @Transactional
-    public Optional<Transfer> request(StockRequest request) {
+    public Optional<Requested> request(StockRequest request) {
         var dcStock = StockEntity.findByNameForUpdate(Locations.DC, request.productName()).orElse(null);
         if (dcStock == null) return Optional.empty();
-        boolean olderPending = ReplenishmentRequestEntity.anyPending(request.productName());
-        var entity = ReplenishmentRequestEntity.create(request);
-        int quantity = olderPending ? 0 : serve(dcStock, entity);
-        return Optional.of(new Transfer(entity.toDomain(), quantity));
+        var entity = ReplenishmentRequestEntity.create(request, RequestOrigin.MANUAL);
+        var transfers = allocate(dcStock);
+        return Optional.of(new Requested(entity.toDomain(), transfers));
+    }
+
+    /**
+     * The location's row is locked after the DC row (the lock order of {@link #transfer}); with the DC row locked, no
+     * other request of the product can be stored concurrently, so the outstanding sum stays valid until the new
+     * request is stored.
+     */
+    @Override
+    @Transactional
+    public Optional<ReplenishmentRequest> requestIfLow(Replenished location, String productName) {
+        var dcStock = StockEntity.findByNameForUpdate(Locations.DC, productName).orElse(null);
+        if (dcStock == null) return Optional.empty();
+        var stock = StockEntity.findForUpdate(location, productName, dcStock.type)
+            .orElseGet(() -> StockEntity.create(location, productName, dcStock.type));
+        int quantity = stock.levels().reorderQuantity(stock.availableAmount,
+            ReplenishmentRequestEntity.outstanding(location.id(), productName));
+        if (quantity <= 0) return Optional.empty();
+        var request = new StockRequest(location, productName, Math.min(quantity, StockRequest.MAX_QUANTITY));
+        return Optional.of(ReplenishmentRequestEntity.create(request, RequestOrigin.AUTOMATIC).toDomain());
     }
 
     @Override
     @Transactional
-    public List<Transfer> fulfilPending(String productName) {
-        var dcStock = StockEntity.findByNameForUpdate(Locations.DC, productName).orElse(null);
-        if (dcStock == null) return List.of();
-        var transfers = new ArrayList<Transfer>();
-        for (var request : ReplenishmentRequestEntity.findPendingForUpdate(productName)) {
-            if (dcStock.availableAmount == 0) break;
-            int quantity = serve(dcStock, request);
-            transfers.add(new Transfer(request.toDomain(), quantity));
-        }
-        return transfers;
+    public List<Transfer> allocate(String productName) {
+        return StockEntity.findByNameForUpdate(Locations.DC, productName)
+            .map(ReplenishmentService::allocate)
+            .orElse(List.of());
     }
 
     @Override
     @Transactional
     public Optional<Transfer> fulfil(long requestId) {
         return lockDcStockAndPendingRequest(requestId).map(locked -> {
-            int quantity = serve(locked.dcStock(), locked.request());
+            int quantity = Math.min(locked.dcStock().availableAmount, locked.request().outstanding());
+            transfer(locked.dcStock(), locked.request(), quantity);
             return new Transfer(locked.request().toDomain(), quantity);
         });
     }
@@ -73,6 +86,23 @@ public class ReplenishmentService implements ReplenishmentRepositorySPI {
             .stream().map(ReplenishmentRequestEntity::toDomain).toList();
     }
 
+    /**
+     * Shares the (locked) DC stock among the pending requests of its product, see {@link FairShare}; requests are
+     * locked oldest first, their target rows in the same order.
+     */
+    private static List<Transfer> allocate(StockEntity dcStock) {
+        var pending = ReplenishmentRequestEntity.findPendingForUpdate(dcStock.name);
+        var shares = FairShare.allocate(dcStock.availableAmount,
+            pending.stream().map(ReplenishmentRequestEntity::outstanding).toList());
+        var transfers = new ArrayList<Transfer>();
+        for (int i = 0; i < pending.size(); i++) {
+            if (shares.get(i) == 0) continue;
+            transfer(dcStock, pending.get(i), shares.get(i));
+            transfers.add(new Transfer(pending.get(i).toDomain(), shares.get(i)));
+        }
+        return transfers;
+    }
+
     private record Locked(StockEntity dcStock, ReplenishmentRequestEntity request) {}
 
     /** The request's product is read first without a lock, to keep the lock order: DC stock, then the request. */
@@ -83,10 +113,9 @@ public class ReplenishmentService implements ReplenishmentRepositorySPI {
                 .map(request -> new Locked(dcStock, request)));
     }
 
-    /** Moves as much as the DC has, at most what is outstanding, to the request's location. */
-    private static int serve(StockEntity dcStock, ReplenishmentRequestEntity request) {
-        int quantity = Math.min(dcStock.availableAmount, request.outstanding());
-        if (quantity == 0) return 0;
+    /** Moves {@code quantity} (at most what the DC has and the request still needs) to the request's location. */
+    private static void transfer(StockEntity dcStock, ReplenishmentRequestEntity request, int quantity) {
+        if (quantity == 0) return;
         dcStock.availableAmount -= quantity;
         var location = Locations.replenishedOf(request.locationId);
         var target = StockEntity.findForUpdate(location, dcStock.name, dcStock.type)
@@ -94,6 +123,5 @@ public class ReplenishmentService implements ReplenishmentRepositorySPI {
         target.availableAmount += quantity;
         request.delivered += quantity;
         if (request.outstanding() == 0) request.status = RequestStatus.FULFILLED;
-        return quantity;
     }
 }

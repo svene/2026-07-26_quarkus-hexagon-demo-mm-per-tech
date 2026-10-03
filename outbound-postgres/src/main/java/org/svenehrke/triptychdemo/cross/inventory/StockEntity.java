@@ -2,8 +2,13 @@ package org.svenehrke.triptychdemo.cross.inventory;
 
 import org.svenehrke.triptychdemo.cross.location.Location;
 import org.svenehrke.triptychdemo.cross.location.Locations;
+import org.svenehrke.triptychdemo.cross.location.Replenished;
+import org.svenehrke.triptychdemo.cross.location.Warehouse;
 import org.svenehrke.triptychdemo.cross.products.Product;
 import org.svenehrke.triptychdemo.cross.products.ProductType;
+import org.svenehrke.triptychdemo.cross.reorder.DemandEstimate;
+import org.svenehrke.triptychdemo.cross.reorder.LearnedLevels;
+import org.svenehrke.triptychdemo.cross.reorder.ReorderPolicy;
 import io.quarkus.hibernate.orm.panache.PanacheEntity;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -13,7 +18,10 @@ import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import java.util.Optional;
 
-/** One product's stock at one location. */
+/**
+ * One product's stock at one location. At a store or the online FC it also carries the learned demand and levels
+ * (null at the DC, which has no {@link ReorderPolicy} yet); a new row starts with the cold-start estimate.
+ */
 @Entity
 @Table(name = "stock", uniqueConstraints = @UniqueConstraint(columnNames = {"locationId", "name", "type"}))
 public class StockEntity extends PanacheEntity {
@@ -27,11 +35,30 @@ public class StockEntity extends PanacheEntity {
 
     public int availableAmount;
 
+    /** What customers asked for in the current demand period. */
+    public int periodDemand;
+
+    public Double avgDemand;
+
+    public Double demandVar;
+
+    /** Not {@code min}/{@code max}: SQL keywords. */
+    public Integer minLevel;
+
+    public Integer maxLevel;
+
     public static StockEntity create(Location location, String name, ProductType type) {
         var entity = new StockEntity();
         entity.locationId = location.id();
         entity.name = name;
         entity.type = type;
+        switch (location) {
+            case Warehouse warehouse -> {}
+            case Replenished replenished -> {
+                var policy = ReorderPolicy.of(replenished);
+                entity.learned(DemandEstimate.initial(policy), policy);
+            }
+        }
         entity.persist();
         return entity;
     }
@@ -50,7 +77,30 @@ public class StockEntity extends PanacheEntity {
         return Locations.of(locationId);
     }
 
+    /** Null at the DC. */
+    public DemandEstimate estimate() {
+        return avgDemand == null ? null : new DemandEstimate(avgDemand, demandVar);
+    }
+
+    /** Null at the DC. */
+    public LearnedLevels levels() {
+        return minLevel == null ? null : new LearnedLevels(minLevel, maxLevel);
+    }
+
+    /** Stores {@code estimate} and the levels derived from it. */
+    public void learned(DemandEstimate estimate, ReorderPolicy policy) {
+        var levels = LearnedLevels.of(estimate, policy);
+        avgDemand = estimate.avg();
+        demandVar = estimate.var();
+        minLevel = levels.min();
+        maxLevel = levels.max();
+    }
+
     public Product toDomain() {
         return new Product(name, type, availableAmount);
+    }
+
+    public LocationStock toLocationStock() {
+        return new LocationStock(location(), toDomain(), estimate(), levels());
     }
 }

@@ -95,27 +95,27 @@ class ReplenishmentFlowTest {
     }
 
     @Test
-    void a_delivery_serves_pending_requests_oldest_first() {
+    void a_short_delivery_is_shared_fairly_among_the_pending_requests() {
         inventory.addAmount(Locations.DC, "Apple", ProductType.FRUIT, 0);
         request(Locations.BERN, "Apple", "5").then().statusCode(200);
         request(Locations.ZURICH, "Apple", "5").then().statusCode(200);
 
         inventoryHandler.updateFruitAmount(new FruitDelivery("Apple", 7));
 
-        await().atMost(5, SECONDS).untilAsserted(() -> assertThat(available(Locations.ZURICH, "Apple")).isEqualTo(2));
-        assertThat(available(Locations.BERN, "Apple")).isEqualTo(5);
-        assertThat(available(Locations.ZURICH, "Apple")).isEqualTo(2);
+        // 3.5 each: the unit left over goes to the older request
+        await().atMost(5, SECONDS).untilAsserted(() -> assertThat(available(Locations.ZURICH, "Apple")).isEqualTo(3));
+        assertThat(available(Locations.BERN, "Apple")).isEqualTo(4);
         assertThat(available(Locations.DC, "Apple")).isZero();
         var pending = given().get("/admin/requests-fragment").jsonPath();
-        assertThat(pending.getList("vm.requests.locationName")).containsExactly("Store Zurich");
-        assertThat(pending.getList("vm.requests.delivered")).containsExactly(2);
+        assertThat(pending.getList("vm.requests.locationName")).containsExactly("Store Bern", "Store Zurich");
+        assertThat(pending.getList("vm.requests.delivered")).containsExactly(4, 3);
     }
 
     @Test
     void a_failure_serving_the_pending_requests_neither_fails_nor_repeats_the_delivery() {
         inventory.addAmount(Locations.DC, "Mango", ProductType.FRUIT, 0);
         request(Locations.BERN, "Mango", "3").then().statusCode(200);
-        doThrow(new IllegalStateException("database hiccup")).when(replenishmentService).fulfilPending("Mango");
+        doThrow(new IllegalStateException("database hiccup")).when(replenishmentService).allocate("Mango");
 
         given().contentType(ContentType.JSON)
             .body("""
@@ -134,15 +134,17 @@ class ReplenishmentFlowTest {
     }
 
     @Test
-    void a_new_request_waits_behind_older_pending_ones() {
+    void a_new_request_shares_the_dc_stock_with_older_pending_ones() {
         inventory.addAmount(Locations.DC, "Apple", ProductType.FRUIT, 0);
         request(Locations.BERN, "Apple", "5").then().statusCode(200);
-        // stock that reached the DC without a delivery (e.g. a stock correction) - must not let Zurich jump the queue
+        // stock that reached the DC without a delivery (e.g. a stock correction) - the next allocation shares it
         inventory.addAmount(Locations.DC, "Apple", ProductType.FRUIT, 5);
 
         request(Locations.ZURICH, "Apple", "2").then().statusCode(200);
 
-        assertThat(given().get("/api/locations/zurich/products").asString()).isEqualTo("[]");
+        // 5·5/7 = 3.57, 5·2/7 = 1.43 → 3 and 1, the unit left over to the larger remainder
+        assertThat(available(Locations.BERN, "Apple")).isEqualTo(4);
+        assertThat(available(Locations.ZURICH, "Apple")).isEqualTo(1);
         assertThat(given().get("/admin/requests-fragment").jsonPath().getList("vm.requests.locationName"))
             .containsExactly("Store Bern", "Store Zurich");
     }

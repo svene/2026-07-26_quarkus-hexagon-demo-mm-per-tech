@@ -5,7 +5,7 @@ distribution centre (DC) that all supplier deliveries go to, 3 physical stores a
 fulfilment centre (dark store). Locations are replenished from the DC by **pull**; reorder levels
 are **learned from sales**, not maintained by hand. Tracked as `PLAN.md` `split-inventory`.
 
-Status: **PHASE 1 DONE (staged), PHASE 2 APPROVED** — phase 1 approved and implemented 2026-10-03; phase 2 plan (incl. all open-point recommendations) approved 2026-10-03, not started.
+Status: **PHASE 1 DONE, PHASE 2 DONE (staged)** — phase 1 implemented and committed 2026-10-03; phase 2 implemented 2026-10-03 (staged, not committed); phase 3 (DC stage) not started.
 
 ## Current state
 
@@ -387,6 +387,26 @@ Builds on what phase 1 changed after this design was written: `Location` is seal
 6. **What's left out of phase 2**: DC levels, automatic supplier orders, open supplier orders (phase 3);
    per-location SSE filtering (not needed yet).
 
+## Fair share of a DC shortfall (APPROVED and DONE 2026-10-03)
+
+Found in the dev demo after phase 2: the first period close requested 39 + 39 + 39 + 58 Bananas against 50 in the DC;
+strict FIFO in the fixed check order gave Zurich 39, Bern 11, Basel and online 0 - and always would favour the same
+locations. **Replaces the strict-FIFO rule** (phase 1 decision 2 and its refinement); age only breaks ties.
+
+- **Rule:** wherever DC stock is handed out (delivery, manual request, automatic request), the available stock of a
+  product is split among *all* its pending requests in proportion to their `outstanding`, capped at it. Enough stock →
+  everyone in full. Rounding: largest remainder (`⌊stock·o/Σo⌋`, leftover units to the largest remainders, ties to the
+  oldest request). Head office "Fulfil" stays an explicit override serving one request first.
+- **Core:** pure `FairShare.allocate(stock, outstanding) → shares`. SPI: `fulfilPending` → `allocate(productName)`;
+  `request` = store + `allocate` in one transaction (no "older pending" special case); `requestIfLow` only creates the
+  request. Handler: `replenishIfLow(location, names)` (after a sale: create, then allocate) and new
+  `replenishAllIfLow(names)` (after a period close: create for all locations, then one allocate per product).
+  A request created but not yet allocated (crash in between) stays PENDING and is served by the next allocation.
+- **outbound-postgres:** `allocate` locks the DC row, the pending requests (by id), then the target rows in request order.
+- **Tests:** `FairShareTest`; `ReplenishmentFlowTest` short delivery 7 for Bern 5 + Zurich 5 → 4/3, new request shares
+  with older ones; `AutoReplenishmentFlowTest` period close with too little DC stock splits it across all four.
+- **Accepted:** small amounts are split into single items (no minimum batch).
+
 ## Progress log
 
 _(append dated entries as steps land)_
@@ -432,3 +452,30 @@ _(append dated entries as steps land)_
   `ReplenishmentChanged(location)` (they share `cross.inventory`, since core is no named module). The SSE stream is
   fed by `InventoryEventBroadcaster` (inbound-http-html, `@ObservesAsync InventoryEvent`); `DeliveryEventReceiver`
   still observes only `DeliveredToDc`. The events carry the location, so per-location SSE filtering is now easy.
+- **2026-10-03, phase 2 code landed (staged, not committed).** Core: `cross.reorder` (`ReorderPolicy` - constants
+  per `Replenished` type, `DemandEstimate`, `LearnedLevels`, `ReorderPolicyHandler.closePeriod()`), new event
+  `LevelsRecalculated`, `StockDeducted(location, productNames)`, `RequestOrigin` (`MANUAL | AUTOMATIC`) on requests,
+  `ReplenishmentHandler.replenishIfLow`. `PurchaseHandler` records the requested quantities after the deduction
+  (`InventoryRepositorySPI.recordDemand`, own transaction, so a rejected checkout keeps its demand). outbound-postgres:
+  `StockEntity` gets `periodDemand`, `avgDemand`, `demandVar`, `minLevel`, `maxLevel` (null at the DC; a new row of a
+  store / the online FC starts with the cold-start estimate), `InventoryService.closePeriod` (one transaction per row),
+  `ReplenishmentService.requestIfLow` (DC row, then location row locked). inbound-event: `AutoReplenishmentReceiver`,
+  `DemandPeriodReceiver` (+ `quarkus-scheduler`). Config: `inventory.demand-period=1m`,
+  `inventory.auto-replenishment.enabled=true`, both off in `%test` and on the e2e dev server (`playwright.config.ts`).
+  UI: location page `Avg`/`Min`/`Max` + red below min / grey above max; admin matrix cells orange below min with
+  `min/max` in the title; `Origin` column (auto/manual) in both request lists.
+  - Deviation: the plan's audit event `AUTO_REQUEST_PROCESSING` became `AUTO_REQUEST_CREATED`, logged only when a
+    request was actually created - a `…_PROCESSING` entry per sale and product would flood the audit log.
+    `AutoReplenishmentReceiver` logs no `…_RECEIVED` either (one per sale / period), only failures.
+  - Tests: `DemandEstimateTest`, `LearnedLevelsTest`, `AutoReplenishmentFlowTest` (7, own test profile with auto
+    replenishment on and the scheduler off - also stops `CashpointStub`); all 150 core + 129 app-server tests and
+    22 e2e tests (`--retries=0`) green.
+  - Docs: `architecture-module-participants.md`, `architecture-flow.md` (new section "Event and Timer Inbound
+    Flows"), `architecture-flow-kafka-reference.md`, new `flows/auto-replenishment.puml`.
+  - Still open: `docs/ai/session-notes.md` commit-hash baseline, to be set in the commit itself.
+- **2026-10-03, fair share of a DC shortfall (staged).** As planned in the section above: `FairShare` (core, pure),
+  `Requested`, SPI `fulfilPending` → `allocate`, `requestIfLow` only creates, `ReplenishmentHandler.replenishAllIfLow`
+  for the period close (the handler method after a delivery keeps its name `fulfilPending`). Tests: `FairShareTest`,
+  `ReplenishmentFlowTest` (short delivery 4/3, new request shares with an older one),
+  `AutoReplenishmentFlowTest` (50 Apples for 39/39/39/58 → 11/11/11/17); 157 core + 130 app-server tests green; e2e
+  not re-run (the user's dev server was running). Docs: participants, flow, Kafka reference, 6 `.puml` files.

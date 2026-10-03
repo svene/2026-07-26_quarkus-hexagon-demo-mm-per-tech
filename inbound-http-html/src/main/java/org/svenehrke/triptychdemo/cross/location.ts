@@ -20,7 +20,7 @@ export const LocationInventory = (vm: LocationInventoryVM): HtmlResult => html`
 				: html`
 					<table class="table is-fullwidth is-striped is-narrow" id="location-stock">
 						<thead>
-						<tr><th>Name</th><th>Type</th><th class="has-text-right">Available</th><th class="has-text-right">DC</th><th>Request from DC</th><th></th></tr>
+						<tr><th>Name</th><th>Type</th><th class="has-text-right">Available</th><th class="has-text-right" title="Learned demand per period">Avg</th><th class="has-text-right" title="Reorder point: below it, stock is requested from the DC automatically">Min</th><th class="has-text-right" title="Order-up-to level: how far an automatic request fills up">Max</th><th class="has-text-right">DC</th><th>Request from DC</th><th></th></tr>
 						</thead>
 						<tbody>
 						${vm.products.map(p => StockRow(vm.locationId, p))}
@@ -34,7 +34,7 @@ export const LocationInventory = (vm: LocationInventoryVM): HtmlResult => html`
 				: html`
 					<table class="table is-fullwidth is-striped is-narrow" id="location-requests">
 						<thead>
-						<tr><th>#</th><th>Product</th><th class="has-text-right">Delivered</th><th>Status</th><th>Requested at</th></tr>
+						<tr><th>#</th><th>Product</th><th class="has-text-right">Delivered</th><th>Status</th><th>Origin</th><th>Requested at</th></tr>
 						</thead>
 						<tbody>
 						${vm.requests.map(RequestRow)}
@@ -44,13 +44,25 @@ export const LocationInventory = (vm: LocationInventoryVM): HtmlResult => html`
 	</div>
 `;
 
+// Available against the learned levels: red below min (an automatic request is due), grey above max (overstocked).
+// Without levels (no row for the product yet), only an empty shelf is red.
+const availableClass = (p: LocationProductRowVM): string => {
+	const belowMin = p.levels ? p.availableAmount < p.levels.min : p.availableAmount === 0;
+	if (belowMin) return 'has-text-danger has-text-weight-bold';
+	return p.levels && p.availableAmount > p.levels.max ? 'has-text-grey' : '';
+};
+
 // Name+type is the product key. As on /admin, the quantity input has no value attribute, so a morph never resets what
-// was typed. min/max mirror StockRequest's @Min(1) @Max(2000) - UX only, the server validates again.
+// was typed. min/max mirror StockRequest's @Min(1) @Max(2000) - UX only, the server validates again. Avg/Min/Max
+// are learned (ReorderPolicyHandler) and read-only.
 const StockRow = (locationId: string, p: LocationProductRowVM): HtmlResult => html`
 	<tr id="row-${p.name}-${p.type}">
 		<td>${p.name}</td>
 		<td>${p.type}</td>
-		<td class="has-text-right ${p.availableAmount > 0 ? '' : 'has-text-danger has-text-weight-bold'}">${p.availableAmount}</td>
+		<td class="has-text-right ${availableClass(p)}">${p.availableAmount}</td>
+		<td class="has-text-right has-text-grey">${p.avgDemand == null ? '–' : p.avgDemand.toFixed(1)}</td>
+		<td class="has-text-right has-text-grey">${p.levels ? p.levels.min : '–'}</td>
+		<td class="has-text-right has-text-grey">${p.levels ? p.levels.max : '–'}</td>
 		<td class="has-text-right has-text-grey">${p.dcAvailableAmount}</td>
 		<td>
 			<form hx-post="/locations/${locationId}/requests" hx-target="next .request-error" hx-swap="innerHTML" class="field has-addons request-form">
@@ -65,12 +77,16 @@ const StockRow = (locationId: string, p: LocationProductRowVM): HtmlResult => ht
 
 const STATUS_TAGS: Record<string, string> = {PENDING: "is-warning", FULFILLED: "is-success", REJECTED: "is-danger"};
 
+export const OriginTag = (r: RequestVM): HtmlResult =>
+	r.origin === 'AUTOMATIC' ? html`<span class="tag is-info is-light">auto</span>` : html`<span class="has-text-grey">manual</span>`;
+
 const RequestRow = (r: RequestVM): HtmlResult => html`
 	<tr id="request-${r.id}">
 		<td>${r.id}</td>
 		<td>${r.productName}</td>
 		<td class="has-text-right">${r.delivered} / ${r.requested}</td>
 		<td><span class="tag ${STATUS_TAGS[r.status] ?? ''}">${r.status}</span></td>
+		<td>${OriginTag(r)}</td>
 		<td>${r.createdAt}</td>
 	</tr>
 `;

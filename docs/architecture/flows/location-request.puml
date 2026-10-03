@@ -33,15 +33,15 @@ alt DC never carried the product
   handler -> audit: log("REQUEST_REJECTED")
   receiver --> user: 409 {route: OrderErrors, vm}\n["X: not carried by the DC"]
 else
-  service -> db: older PENDING requests of the product?
   service -> db: INSERT request (PENDING)
-  opt no older pending request
-    service -> db: move min(DC stock, quantity):\nDC row -, location row + (created if missing)
+  service -> db: lock all PENDING requests of the product
+  opt DC stock > 0
+    service -> db: FairShare: split DC stock in proportion to outstanding;\nper request: DC row -, location row + (created if missing)
     service -> db: delivered += moved; all delivered? FULFILLED
   end
   service -> db: COMMIT
-  service --> handler: Transfer(request, moved)
-  handler -> audit: log("STOCK_TRANSFERRED") if moved > 0;\nlog("REQUEST_PENDING") if still pending
+  service --> handler: Requested(request, transfers)
+  handler -> audit: log("STOCK_TRANSFERRED") per transfer;\nlog("REQUEST_PENDING") if still pending
   handler ->> changes: fireAsync(ReplenishmentChanged)
   receiver --> user: 200 (empty body)
   note right of user
@@ -49,7 +49,7 @@ else
     re-fetch GET /locations/{id}/inventory-fragment.
     A PENDING rest is served by the next delivery to the DC
     (InventoryHandler → DeliveredToDc event → DeliveryEventReceiver
-    → fulfilPending, oldest first).
+    → fulfilPending, shared fairly among all pending requests).
   end note
 end
 

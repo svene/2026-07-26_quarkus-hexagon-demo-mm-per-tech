@@ -5,10 +5,15 @@ import org.svenehrke.triptychdemo.cross.products.ProductStock;
 
 import java.util.List;
 
-/** One row of the admin's product × location matrix: {@code amounts} in the order of the matrix columns. */
-public record StockRowVM(String name, String type, List<Integer> amounts) {
+/**
+ * One row of the admin's product × location matrix: {@code amounts} and {@code levels} in the order of the matrix
+ * columns; a level is null at the DC (no levels yet) and where the location has no row for the product.
+ */
+public record StockRowVM(String name, String type, List<Integer> amounts, List<LevelsVM> levels) {
 
     static StockRowVM of(ProductStock stock, List<Location> columns) {
-        return new StockRowVM(stock.name(), stock.type().name(), columns.stream().map(stock::availableAt).toList());
+        return new StockRowVM(stock.name(), stock.type().name(),
+            columns.stream().map(stock::availableAt).toList(),
+            columns.stream().map(l -> stock.levelsAt(l).map(LevelsVM::of).orElse(null)).toList());
     }
 }

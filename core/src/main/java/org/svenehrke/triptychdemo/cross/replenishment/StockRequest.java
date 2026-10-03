@@ -20,8 +20,10 @@ import static org.svenehrke.triptychdemo.cross.validation.ConstructorValidation.
  * it is a {@link ReplenishmentRequest}. Same parse() mechanism and limits as the supplier orders (see
  * {@code FruitOrder}, validation.md).
  */
-public record StockRequest(@NotNull Replenished location, @NotBlank String productName, @Min(1) @Max(2000) int quantity)
+public record StockRequest(@NotNull Replenished location, @NotBlank String productName, @Min(1) @Max(MAX_QUANTITY) int quantity)
 	implements ParsedStockRequest {
+
+	public static final int MAX_QUANTITY = 2000;
 
 	private static final Constructor<StockRequest> CANONICAL_CONSTRUCTOR =
 		declaredConstructor(StockRequest.class, Replenished.class, String.class, int.class);

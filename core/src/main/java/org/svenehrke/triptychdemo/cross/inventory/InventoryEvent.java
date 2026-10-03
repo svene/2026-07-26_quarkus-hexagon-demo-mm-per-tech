@@ -11,4 +11,4 @@ package org.svenehrke.triptychdemo.cross.inventory;
  * The permitted events live in this package because core is not a named module: a sealed type's permitted
  * subclasses then have to share its package.
  */
-public sealed interface InventoryEvent permits DeliveredToDc, StockDeducted, ReplenishmentChanged {}
+public sealed interface InventoryEvent permits DeliveredToDc, StockDeducted, ReplenishmentChanged, LevelsRecalculated {}

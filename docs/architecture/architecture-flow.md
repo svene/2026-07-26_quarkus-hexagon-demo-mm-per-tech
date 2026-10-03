@@ -111,7 +111,7 @@ AdminReceiver.orderFruits()
    │                          └─ DeliveryEventReceiver (inbound-event, @ObservesAsync)
    │                             ├─ AuditLogHandler.log("DELIVERED_TO_DC_RECEIVED")
    │                             └─ ReplenishmentHandler.fulfilPending(productName)
-   │                                └─ ReplenishmentRepositorySPI.fulfilPending()   (oldest first, partial allowed)
+   │                                └─ ReplenishmentRepositorySPI.allocate()   (shared among all pending requests, FairShare)
    │                                   └─ ReplenishmentService (outbound-postgres) → PostgreSQL
    └─ AuditLogSPI.log("FRUITS_ORDER_PLACED")
       └─ AuditLogService (outbound-mongodb)
@@ -256,7 +256,8 @@ InventoryEventsReceiver.events()   → text/event-stream, never ends
 │  └─ event: inventoryChanged per InventoryEvent, fired by core with fireAsync after a committed change:
 │     ├─ DeliveredToDc          ← InventoryHandler.update*Amount()   (every Kafka delivery)
 │     ├─ StockDeducted          ← PurchaseHandler.deduct()           (shop/JSON API checkout, cashpoint sale; only if something was deducted)
-│     └─ ReplenishmentChanged   ← ReplenishmentHandler               (every request, fulfil, reject; fulfilPending per location served)
+│     ├─ ReplenishmentChanged   ← ReplenishmentHandler               (every request, fulfil, reject, automatic request; fulfilPending per location served)
+│     └─ LevelsRecalculated     ← ReorderPolicyHandler.closePeriod() (end of every demand period)
 └─ ": heartbeat" comment every 15 s
 ```
 
@@ -271,6 +272,8 @@ ShopReceiver.checkout(productNames[], quantities[])
    ├─ InventoryRepositorySPI.deductAll(ONLINE, quantities, REJECT)  (one transaction, all-or-nothing)
    │  └─ InventoryService (outbound-postgres)
    │     └─ PostgreSQL (SELECT ... FOR UPDATE per product, sorted by name)
+   ├─ InventoryRepositorySPI.recordDemand(ONLINE, quantities)   (own transaction: a rejected checkout is demand, too)
+   ├─ Event<InventoryEvent>.fireAsync(StockDeducted)   (if something was deducted; see Automatic Replenishment below)
    └─ Completed: AuditLogSPI.log("INVENTORY_DEDUCTED") → 200 UiResponse(ShopPage), fresh page
       Rejected:  AuditLogSPI.log("PURCHASE_REJECTED") → 409 UiResponse(ShopPage) with shortage messages, nothing deducted
          └─ AuditLogService (outbound-mongodb)
@@ -310,8 +313,8 @@ LocationReceiver.request(id, productName, quantity)
    ├─ AuditLogSPI.log("REQUEST_PROCESSING")
    ├─ ReplenishmentRepositorySPI.request()   (one transaction)
    │  └─ ReplenishmentService (outbound-postgres)
-   │     └─ PostgreSQL: lock DC stock row; store the request; unless older ones of the product are pending,
-   │        move what the DC has (at most the quantity) to the location - the rest stays PENDING
+   │     └─ PostgreSQL: lock DC stock row; store the request; share what the DC has among all pending requests
+   │        of the product in proportion to what each still needs (FairShare) - the rest stays PENDING
    ├─ AuditLogSPI.log("STOCK_TRANSFERRED" / "REQUEST_PENDING")
    └─ Event<InventoryEvent>.fireAsync(ReplenishmentChanged(location))
    → 200 empty body; 409 UiResponse(OrderErrors) if the DC never carried the product ("REQUEST_REJECTED")
@@ -362,6 +365,8 @@ ProductApiReceiver.purchase(request)
    ├─ InventoryRepositorySPI.deductAll(ONLINE, quantities, REJECT)  (one transaction, all-or-nothing)
    │  └─ InventoryService (outbound-postgres)
    │     └─ PostgreSQL (SELECT ... FOR UPDATE per product, sorted by name)
+   ├─ InventoryRepositorySPI.recordDemand(ONLINE, quantities)   (own transaction: a rejected checkout is demand, too)
+   ├─ Event<InventoryEvent>.fireAsync(StockDeducted)   (if something was deducted; see Automatic Replenishment below)
    └─ Completed: AuditLogSPI.log("INVENTORY_DEDUCTED") → 204
       Rejected:  AuditLogSPI.log("PURCHASE_REJECTED") → 409 with shortage messages, nothing deducted
          └─ AuditLogService (outbound-mongodb)
@@ -378,6 +383,41 @@ LocationApiReceiver.list(id)
    └─ InventoryRepositorySPI.findAll(location)
       └─ InventoryService (outbound-postgres)
          └─ PostgreSQL
+```
+
+## Event and Timer Inbound Flows (inbound-event)
+
+Automatic replenishment of the stores and the online FC (`split-inventory` phase 2). Both switches are off in `%test`
+and in the e2e dev server (`inventory.demand-period=off`, `inventory.auto-replenishment.enabled=false`).
+
+#### Timer: end of a demand period (`inventory.demand-period`, 1 min)
+```
+DemandPeriodReceiver.closePeriod()   (@Scheduled)
+└─ ReorderPolicyHandler.closePeriod()
+   ├─ InventoryRepositorySPI.closePeriod()
+   │  └─ InventoryService (outbound-postgres)
+   │     ├─ every store / online FC gets a row for every DC product (available 0, cold-start estimate)
+   │     └─ per row, one transaction (FOR UPDATE): DemandEstimate.next(periodDemand) → LearnedLevels.of() → periodDemand = 0
+   ├─ AuditLogSPI.log("PERIOD_CLOSED")
+   └─ Event<InventoryEvent>.fireAsync(LevelsRecalculated)
+      └─ AutoReplenishmentReceiver.onLevelsRecalculated (@ObservesAsync)
+         └─ ReplenishmentHandler.replenishAllIfLow(DC products)
+            └─ per product: requestIfLow for every store and the online FC, then one allocate (as below),
+               so a DC shortfall is shared among all of them
+```
+
+#### Event: StockDeducted (after a checkout or a cashpoint sale)
+```
+AutoReplenishmentReceiver.onStockDeducted (@ObservesAsync)
+└─ ReplenishmentHandler.replenishIfLow(location, productNames)
+   ├─ ReplenishmentRepositorySPI.requestIfLow(location, productName)   per product, one transaction
+   │  └─ ReplenishmentService (outbound-postgres) → PostgreSQL
+   │     (DC row, then location row FOR UPDATE; available + outstanding < min → AUTOMATIC request up to max,
+   │      not served yet)
+   ├─ ReplenishmentRepositorySPI.allocate(productName)   if a request was created: DC stock shared among all
+   │                                                      pending requests (FairShare), one transaction
+   ├─ AuditLogSPI.log("AUTO_REQUEST_CREATED"), ("STOCK_TRANSFERRED"), ("REQUEST_PENDING")
+   └─ Event<InventoryEvent>.fireAsync(ReplenishmentChanged)   (if a request was created)
 ```
 
 ## Note: Kafka Delivery Receivers

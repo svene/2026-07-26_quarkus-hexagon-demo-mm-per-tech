@@ -1,13 +1,17 @@
 package org.svenehrke.triptychdemo.cross.inventory;
 
 import org.svenehrke.triptychdemo.cross.location.Location;
+import org.svenehrke.triptychdemo.cross.location.Locations;
+import org.svenehrke.triptychdemo.cross.location.Replenished;
 import org.svenehrke.triptychdemo.cross.products.Product;
 import org.svenehrke.triptychdemo.cross.products.ProductType;
+import org.svenehrke.triptychdemo.cross.reorder.ReorderPolicy;
 import io.quarkus.narayana.jta.QuarkusTransaction;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.transaction.Transactional;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.SortedMap;
 
 /**
@@ -48,6 +52,44 @@ public class InventoryService implements InventoryRepositorySPI {
         return new StockDeduction(updated, shortages);
     }
 
+    /** Locks the rows in the map's (sorted) order, like {@link #deductAll}. */
+    @Override
+    @Transactional(Transactional.TxType.REQUIRES_NEW)
+    public void recordDemand(Replenished location, SortedMap<String, Integer> quantitiesByName) {
+        quantitiesByName.forEach((name, quantity) -> {
+            var entity = StockEntity.findByNameForUpdate(location, name)
+                .or(() -> dcType(name).map(type -> StockEntity.create(location, name, type)))
+                .orElse(null);
+            if (entity != null) entity.periodDemand += quantity;
+        });
+    }
+
+    /**
+     * Not {@code @Transactional}: each row gets a transaction of its own, so this never holds two locks and cannot
+     * deadlock with a sale or a transfer (or block them for the whole run).
+     */
+    @Override
+    public int closePeriod() {
+        record Key(String name, ProductType type) {}
+        var dcProducts = QuarkusTransaction.requiringNew().call(() ->
+            StockEntity.<StockEntity>list("locationId", Locations.DC.id()).stream()
+                .map(e -> new Key(e.name, e.type)).toList());
+        int rows = 0;
+        for (var location : Locations.REPLENISHED) {
+            var policy = ReorderPolicy.of(location);
+            for (var product : dcProducts) {
+                QuarkusTransaction.requiringNew().run(() -> {
+                    var entity = StockEntity.findForUpdate(location, product.name(), product.type())
+                        .orElseGet(() -> StockEntity.create(location, product.name(), product.type()));
+                    entity.learned(entity.estimate().next(entity.periodDemand, policy), policy);
+                    entity.periodDemand = 0;
+                });
+                rows++;
+            }
+        }
+        return rows;
+    }
+
     @Override
     public List<Product> findAll(Location location) {
         return StockEntity.<StockEntity>list("locationId", location.id()).stream()
@@ -58,7 +100,12 @@ public class InventoryService implements InventoryRepositorySPI {
     @Override
     public List<LocationStock> findAllLocations() {
         return StockEntity.<StockEntity>listAll().stream()
-                .map(e -> new LocationStock(e.location(), e.toDomain()))
+                .map(StockEntity::toLocationStock)
                 .toList();
+    }
+
+    private static Optional<ProductType> dcType(String name) {
+        return StockEntity.<StockEntity>find("locationId = ?1 and name = ?2", Locations.DC.id(), name)
+            .firstResultOptional().map(e -> e.type);
     }
 }

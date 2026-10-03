@@ -14,11 +14,14 @@ Technical reference for understanding the Kafka-based integration patterns and t
 - **InventoryService**: Manages stock per location (DC, 3 stores, online FC)
   - `addAmount(location, …)`: Called by InventoryHandler for every delivery - always to the DC
   - `deductAll(location, quantities, OnShortage)`: Called by PurchaseHandler - one transaction, rows locked; `REJECT` for online checkouts (shop, JSON API, online FC: nothing deducted on a shortage), `CAP_AT_ZERO` for cashpoint sales (the message's store; never rejects, stock floors at 0)
+  - `recordDemand(location, quantities)`: Called by PurchaseHandler after every sale, own transaction (lost online sales count too)
+  - `closePeriod()`: Called by ReorderPolicyHandler at the end of each demand period - learns avg/min/max per row
   - `findAll(location)`, `findAllLocations()`: Called by product list endpoints and the admin matrix
   - Storage: `stock` table (StockEntity)
 - **ReplenishmentService**: Requests of the stores / online FC to the DC, and the transfers serving them
-  - `fulfilPending(productName)`: Called by ReplenishmentHandler after each delivery (via the async `DeliveredToDc` event and inbound-event's `DeliveryEventReceiver`) - serves pending requests oldest first
+  - `allocate(productName)`: Called by ReplenishmentHandler after each delivery (via the async `DeliveredToDc` event and inbound-event's `DeliveryEventReceiver`) and after automatic requests - shares the DC stock among all pending requests in proportion to what each still needs (`FairShare`)
   - `request`, `fulfil`, `reject`: Called from the location page and head office; each is one transaction with the stock transfer
+  - `requestIfLow(location, productName)`: Called by ReplenishmentHandler for automatic replenishment (after a sale, after a period close); creates the request only, `allocate` serves it
   - Storage: `replenishment_request` table (ReplenishmentRequestEntity)
 
 ### MongoDB (outbound-mongodb)
@@ -127,7 +130,7 @@ These cycles show how external supplier integrations (REST/SOAP stubs) are decou
 - **Producer**: External checkout systems (simulated by CashpointStub: a random store, reading its stock from `GET /api/locations/{id}/products`)
 - **Consumer**: CashpointReceiver (in inbound-kafka)
 - **Message**: `{storeId, items: [{productName, quantity}]}`; a missing `storeId` goes to the DLQ, an id that is no store is audit-logged `INVALID` and skipped
-- **Flow**: Cashpoint event → PurchaseHandler.recordStoreSale(store, …) → that store's stock deducted (capped at 0; overselling is logged as `STOCK_DISCREPANCY`, never rejected)
+- **Flow**: Cashpoint event → PurchaseHandler.recordStoreSale(store, …) → that store's stock deducted (capped at 0; overselling is logged as `STOCK_DISCREPANCY`, never rejected), the sold quantities recorded as demand
 - **Config**: 
   - Incoming: `mp.messaging.incoming.cashpoint-purchases.topic=cashpoint-purchases`
   - Outgoing (for testing): `mp.messaging.outgoing.cashpoint-purchases-out.topic=cashpoint-purchases`
