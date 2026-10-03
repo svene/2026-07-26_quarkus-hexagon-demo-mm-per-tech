@@ -78,8 +78,8 @@ Purchase POST body: `{"items":[{"productName":"Mango","quantity":5}]}`.
 ### Admin UI
 
 The admin page at **http://localhost:8080/admin** covers everything above:
-the inventory table and supplier order forms on the left, and the audit log
-(event, details, timestamp, read from MongoDB) in a column on the right — one
+the supplier order forms with the audit log (event, details, timestamp, read
+from MongoDB) below them on the left, and the inventory table on the right — one
 page, no separate audit route. The inventory table updates as soon as the
 inventory changes (same server-sent event as `/shop`), and each row has a
 *Restock* quantity and button that orders more of that product from its

@@ -61,6 +61,8 @@ export const AdminPage = (vm: AdminPageVM): HtmlResult => html`
 				</div>
 				${SUPPLIER_BOXES.map(SupplierPanel)}
 			</div>
+
+			${AuditPanel({auditEntries: vm.auditEntries})}
 		</div>
 
 		<div class="column is-half">
@@ -68,8 +70,6 @@ export const AdminPage = (vm: AdminPageVM): HtmlResult => html`
 			<div id="admin-inventory" hx-get="/admin/inventory-fragment" hx-trigger="inventoryChanged from:body" hx-sync="this:replace" hx-swap="innerMorph">
 				${AdminInventory({products: vm.products})}
 			</div>
-
-			${AuditPanel({auditEntries: vm.auditEntries})}
 		</div>
 	</div>
 `;
