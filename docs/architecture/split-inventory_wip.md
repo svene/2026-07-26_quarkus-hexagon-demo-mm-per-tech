@@ -5,7 +5,7 @@ distribution centre (DC) that all supplier deliveries go to, 3 physical stores a
 fulfilment centre (dark store). Locations are replenished from the DC by **pull**; reorder levels
 are **learned from sales**, not maintained by hand. Tracked as `PLAN.md` `split-inventory`.
 
-Status: **PHASE 1 IN PROGRESS** — decisions agreed and phase 1 plan (incl. open points) approved 2026-10-03.
+Status: **PHASE 1 DONE (staged), PHASE 2 APPROVED** — phase 1 approved and implemented 2026-10-03; phase 2 plan (incl. all open-point recommendations) approved 2026-10-03, not started.
 
 ## Current state
 
@@ -277,6 +277,115 @@ Found by checking the phase 1 plan against the current code. All recommendations
    annoying in demos.
 7. **Existing quirk, out of scope:** `deductAll` looks rows up by name only, while uniqueness is
    `name`+`type`. Unchanged here; it just gets the location added.
+
+## Phase 2 implementation plan (APPROVED 2026-10-03)
+
+Goal: stores and the online FC keep themselves stocked. Demand is learned per location and product; when the
+*inventory position* (available + still outstanding requests) falls below the learned `min`, a request to the DC
+is created automatically, sized up to `max`. The DC itself is phase 3: here it only serves requests, it neither
+learns levels nor orders from suppliers.
+
+Builds on what phase 1 changed after this design was written: `Location` is sealed
+(`Warehouse | Replenished(Store | OnlineFc)`), core fires one `InventoryEvent` per change, and the
+`inbound-event` module already exists (`DeliveryEventReceiver`).
+
+**Core - the policy (pure, unit-tested)**
+- `cross.reorder.ReorderPolicy` - parameters per location type, chosen by an exhaustive `switch` over the sealed
+  `Location` (domain constants, like `Locations`; tuned in code, see the open points): α, z, L, R, initial avg.
+  `Warehouse` gets none in phase 2.
+- `cross.reorder.DemandEstimate(avg, var)` + `LearnedLevels(min, max)`, with static pure functions:
+  - `DemandEstimate.initial(policy)` - `avg` = initial avg, `var` = initial avg (Poisson-like assumption, so the
+    cold start already has a safety stock instead of `√0`).
+  - `estimate.next(periodDemand, policy)` - `e = d − avg`, `avg' = avg + α·e`, `var' = (1−α)·(var + α·e²)`
+    (the exponentially weighted variance; same as the design's formula, written so it uses the *old* avg).
+  - `LearnedLevels.of(estimate, policy)` - `min = ⌈avg·L + z·√var⌉`, `max = ⌈min + avg·R⌉`.
+  - `LearnedLevels.reorderQuantity(available, outstanding)` - `max − (available + outstanding)` if
+    `available + outstanding < min`, else 0.
+- Domain read model: `LocationStock` gets `DemandEstimate` + `LearnedLevels` (null for the DC), so
+  `ProductStock`/the pages can show `avg`/`min`/`max`.
+
+**Core - demand recording**
+- `PurchaseHandler.deduct` additionally calls `InventoryRepositorySPI.recordDemand(location, quantitiesByName)`
+  in **its own transaction**, because a rejected checkout rolls the deduction back but its demand must stay
+  (a lost sale is demand). Recorded: the *requested* quantity - rejected online checkouts and capped cashpoint
+  sales included. A product the DC never carried (`Ghost`) is ignored; one the location has no row for yet gets
+  a row (available 0, initial estimate and levels).
+
+**Core - period close**
+- `ReorderPolicyHandler.closePeriod()`:
+  1. `InventoryRepositorySPI.closePeriod()` - for every `Replenished` location × every product the DC carries:
+     create a missing row (available 0, initial estimate); then per row, **one short transaction each** (row
+     `FOR UPDATE`): `estimate.next(periodDemand)`, `LearnedLevels.of(...)`, `periodDemand = 0`. The adapter calls
+     core's pure functions, so the maths stays in core and only the transaction in the adapter (option (a)).
+     One transaction per row, so it never holds two locks and cannot deadlock with transfers or sales.
+  2. Fires `InventoryEvent` `LevelsRecalculated()` (new subtype), which refreshes the pages and lets every
+     location re-check its position (see automatic replenishment).
+  3. Audit `ReorderPolicyHandler: PERIOD_CLOSED` (`n rows`).
+
+**Core - automatic replenishment**
+- `ReplenishmentHandler.replenishIfLow(Replenished location, Collection<String> productNames)` →
+  `ReplenishmentRepositorySPI.requestIfLow(location, productName)` per product: **one transaction** that locks the
+  DC row, then the location's row (the existing lock order), sums the location's outstanding PENDING requests,
+  and - if `reorderQuantity > 0` - creates and serves a request exactly like a manual one (oldest-first rule
+  included). Check and create in one locked transaction, so two concurrent sales cannot both order.
+- Requests get an `origin` (`MANUAL | AUTOMATIC`), shown in the UI and the audit
+  (`ReplenishmentHandler: AUTO_REQUEST_PROCESSING`).
+- `StockDeducted` gets the product names: `StockDeducted(Replenished location, Set<String> productNames)` (sales
+  only ever happen at a `Replenished` location, so the type can say so).
+
+**inbound-event**
+- `AutoReplenishmentReceiver`:
+  - `@ObservesAsync StockDeducted` → `replenishmentHandler.replenishIfLow(location, productNames)`.
+  - `@ObservesAsync LevelsRecalculated` → `replenishIfLow` for every `Replenished` location and every DC product
+    (this is what fills the stores from empty: the cold-start `min > 0`).
+  - Failures are audit-logged (`AUTO_REPLENISHMENT_FAILED`), like `DeliveryEventReceiver`.
+- `DemandPeriodReceiver`: `@Scheduled(every = "${inventory.demand-period}")` → `reorderPolicyHandler.closePeriod()`.
+  New dependency `quarkus-scheduler` for this module.
+- Switches (config in app-server, read by the Receivers): `inventory.demand-period=1m` and
+  `inventory.auto-replenishment.enabled=true`; both **off in `%test`** and in the e2e dev server (see testing).
+
+**outbound-postgres**
+- `StockEntity`: `periodDemand`, `avgDemand`, `demandVar`, `minLevel`, `maxLevel` (`min`/`max` are SQL keywords);
+  `InventoryService.recordDemand`, `closePeriod`; `ReplenishmentRequestEntity.origin`;
+  `ReplenishmentService.requestIfLow`.
+
+**UI**
+- Location page: columns `Avg` / `Min` / `Max` (read-only); `Available` red below `min`, normal up to `max`,
+  grey above; requests list shows `auto` for automatic ones.
+- Admin matrix: a store/online cell is highlighted when below its `min` (replacing phase 1's "0 = orange"); its
+  `title` shows `min`/`max`. Pending requests: an "Origin" column.
+- No editing of levels anywhere (decided).
+
+**Testing**
+- Unit (core): `DemandEstimate`/`LearnedLevels` maths, cold start, reorder quantity edge cases (exactly at `min`,
+  outstanding covers the gap, `qty ≤ 0`).
+- Flow (`@QuarkusTest`, a test profile enabling auto replenishment, period closed by calling the handler directly
+  - deterministic): demand incl. lost online sales; period close learns and resets; a sale below `min` creates
+  one automatic request up to `max`; repeated sales do not order again while a request is outstanding;
+  concurrent sales create one request; `LevelsRecalculated` fills an empty store from the DC.
+- Existing tests: unchanged, since `%test` has both switches off.
+- Playwright: the e2e dev server is started with both switches off (the admin "ordering raises the DC amount"
+  checks would otherwise race with automatic requests draining the DC); a location spec checks that
+  `Avg/Min/Max` are shown. The automatic behaviour itself is covered by the flow tests and the dev-mode demo.
+
+**Docs**: `update-architecture-docs` (new Receivers, Handler, SPI methods, `LevelsRecalculated`), WIP progress log.
+
+### Phase 2 open points (all recommendations approved 2026-10-03)
+
+1. **Trigger: reuse `StockDeducted` instead of a new `StockBelowMinimum` event** (deviation from the design
+   above). With `StockBelowMinimum`, core would have to know `min` after a deduction (the deduction result would
+   carry levels) and fire a second event per sale; and the "below min?" decision would be made outside the
+   transaction that creates the request, so two concurrent sales could both order. Recommended: the Receiver
+   reacts to `StockDeducted`, and the check + request happen in one locked transaction (`requestIfLow`).
+2. **Policy parameters as code constants in core** (switch over the sealed `Location`), not Quarkus config:
+   keeps core config-free, and they are part of the domain model. Only the period length and the on/off switch
+   are config. Alternative: `@ConfigMapping` in app-server, passed to core via a Handler method.
+3. **Auto replenishment and the period close off in `%test` and e2e**, on in dev and prod (see testing).
+4. **Rows for every DC product at every location**, created at the period close (not at the first delivery), so
+   a brand-new product reaches the stores within one period. Recommended: yes - simple, and the period is 1 min.
+5. **Rounding**: `min`/`max` rounded up (`⌈ ⌉`), so a small learned demand never yields `min = 0`.
+6. **What's left out of phase 2**: DC levels, automatic supplier orders, open supplier orders (phase 3);
+   per-location SSE filtering (not needed yet).
 
 ## Progress log
 
