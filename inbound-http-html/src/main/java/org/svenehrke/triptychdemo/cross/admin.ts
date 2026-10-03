@@ -50,11 +50,6 @@ const RESTOCK_ACTIONS: Record<string, string> = {
 export const AdminPage = (vm: AdminPageVM): HtmlResult => html`
 	<div class="columns">
 		<div class="column is-half">
-			<h2 class="title is-4">Current Inventory</h2>
-			<div id="admin-inventory" hx-get="/admin/inventory-fragment" hx-trigger="inventoryChanged from:body" hx-sync="this:replace" hx-swap="innerMorph">
-				${AdminInventory({products: vm.products})}
-			</div>
-
 			<h2 class="title is-4">Restock Inventory
 				<!-- Randomize only fills the forms: a random product, and either a random preset quantity or a custom one
 				     of 80-600 (setting .checked/.value is invisible to hx-live, hence the refresh);
@@ -76,6 +71,11 @@ export const AdminPage = (vm: AdminPageVM): HtmlResult => html`
 		</div>
 
 		<div class="column is-half">
+			<h2 class="title is-4">Current Inventory</h2>
+			<div id="admin-inventory" hx-get="/admin/inventory-fragment" hx-trigger="inventoryChanged from:body" hx-sync="this:replace" hx-swap="innerMorph">
+				${AdminInventory({products: vm.products})}
+			</div>
+
 			${AuditPanel({auditEntries: vm.auditEntries})}
 		</div>
 	</div>
