@@ -1,7 +1,16 @@
-import { test, expect, Page, APIRequestContext } from '@playwright/test';
+import { test, expect, Page, APIRequestContext, Locator } from '@playwright/test';
 
 // Unique suffix prevents cross-run state collisions in the persistent Postgres inventory.
 const RUN_ID = Date.now();
+
+// The radios are rendered as Bulma buttons: the native input is visually hidden, so choose one like a user does,
+// by clicking its button (the wrapping label), which hx-live then highlights with is-link.
+async function choose(radio: Locator) {
+  const button = radio.locator('..');
+  await button.click();
+  await expect(radio).toBeChecked();
+  await expect(button).toHaveClass(/\bis-link\b/);
+}
 
 // Inventory updates arrive asynchronously via Kafka; the panel picks them up through the SSE stream,
 // so no reload: waiting for the row also proves the panel is live.
@@ -97,13 +106,14 @@ test('order buttons stay disabled until their form is valid; submit all until ev
   await expect(orderBtn).toBeDisabled();
   await expect(submitAll).toBeDisabled();
 
-  await form.getByRole('radio', { name: 'Mango', exact: true }).check();
+  await choose(form.getByRole('radio', { name: 'Mango', exact: true }));
   await expect(orderBtn).toBeDisabled(); // no quantity yet
-  await form.getByRole('radio', { name: '100', exact: true }).check();
+  await choose(form.getByRole('radio', { name: '100', exact: true }));
   await expect(orderBtn).toBeEnabled();
 
-  await form.getByRole('radio', { name: 'Custom quantity' }).check();
+  await choose(form.getByRole('radio', { name: 'Custom quantity' }));
   await expect(orderBtn).toBeDisabled(); // custom chosen, but nothing typed
+  await expect(form.getByRole('radio', { name: '100', exact: true }).locator('..')).not.toHaveClass(/\bis-link\b/);
   const custom = form.locator('.qty-custom-input');
   await custom.fill('2001'); // above @Max(2000)
   await expect(orderBtn).toBeDisabled();
@@ -130,8 +140,8 @@ test('the custom quantity input is readonly until its radio is chosen, and focus
 
   // An out-of-range leftover must not block a preset quantity: the readonly input is exempt from validation.
   await custom.fill('5000');
-  await form.getByRole('radio', { name: 'Banana', exact: true }).check();
-  await form.getByRole('radio', { name: '50', exact: true }).check();
+  await choose(form.getByRole('radio', { name: 'Banana', exact: true }));
+  await choose(form.getByRole('radio', { name: '50', exact: true }));
   await expect(custom).not.toBeEditable();
   await expect(form.getByRole('button', { name: 'Order' })).toBeEnabled();
 });
@@ -166,12 +176,12 @@ for (const { action, type, products } of ORDER_FORMS) {
     const before = await availableAmount(page, product);
 
     const form = orderForm(page, action);
-    await form.getByRole('radio', { name: product, exact: true }).check();
+    await choose(form.getByRole('radio', { name: product, exact: true }));
     if (custom) {
-      await form.getByRole('radio', { name: 'Custom quantity' }).check();
+      await choose(form.getByRole('radio', { name: 'Custom quantity' }));
       await form.locator('.qty-custom-input').fill(String(qty));
     } else {
-      await form.getByRole('radio', { name: String(qty), exact: true }).check();
+      await choose(form.getByRole('radio', { name: String(qty), exact: true }));
     }
     await form.getByRole('button', { name: 'Order' }).click();
 

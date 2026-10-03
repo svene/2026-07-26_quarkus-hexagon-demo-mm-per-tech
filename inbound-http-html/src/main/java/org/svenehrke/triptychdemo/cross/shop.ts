@@ -35,7 +35,7 @@ export const ShopProducts = (vm: ShopProductsVM): HtmlResult => html`
 				</table>
 				<div class="field is-grouped">
 					<div class="control"><button class="button is-link" type="submit" id="shop-purchase-btn"
-						:disabled="!this.form.matches(':valid') || !q('.qty-input').some(i => i.valueAsNumber > 0)">Purchase</button></div>
+						hx-live="this.disabled = !this.form.matches(':valid') || !q('.qty-input').some(i => i.valueAsNumber > 0)">Purchase</button></div>
 					<!-- Randomize fills 2-4 random rows with a quantity up to 10 (or the row's stock); the customer still clicks
 					     Purchase. Setting .value is invisible to hx-live, hence the refresh. -->
 					<div class="control"><button class="button is-light" type="button" id="shop-randomize-btn"
@@ -44,7 +44,7 @@ export const ShopProducts = (vm: ShopProductsVM): HtmlResult => html`
 								.forEach(i => i.value = 1 + Math.floor(Math.random() * Math.min(+i.max, 10)));
 							htmx.live.refresh()">Randomize (dev)</button></div>
 					<div class="control"><span class="button is-static" id="shop-cart-summary"
-						:text="q('.qty-input').filter(i => i.valueAsNumber > 0).length + ' products, ' + q('.qty-input').reduce((n, i) => n + (i.valueAsNumber || 0), 0) + ' items'"></span></div>
+						hx-live="this.textContent = q('.qty-input').filter(i => i.valueAsNumber > 0).length + ' products, ' + q('.qty-input').reduce((n, i) => n + (i.valueAsNumber || 0), 0) + ' items'"></span></div>
 				</div>
 			</form>`}
 `;
@@ -61,7 +61,7 @@ const CartRow = (p: ProductRowVM): HtmlResult => html`
 		<td>
 			<input type="hidden" name="productName" value="${p.name}">
 			<input type="number" name="quantity" class="input qty-input" min="0" max="${p.availableAmount}" style="width:100px"
-				:.is-danger="!this.matches(':valid')">
+				hx-live="class.toggle('is-danger', !this.matches(':valid'))">
 		</td>
 	</tr>
 `;

@@ -69,7 +69,7 @@ export const AdminPage = (vm: AdminPageVM): HtmlResult => html`
 					}); htmx.live.refresh()">Randomize (dev)</button>
 				<button class="button is-link is-small" type="button" id="admin-submit-all-btn"
 					hx-on:click="q('.order-form').requestSubmit()"
-					:disabled="!q('.order-form').every(f => f.matches(':valid'))">Submit all</button>
+					hx-live="this.disabled = !q('.order-form').every(f => f.matches(':valid'))">Submit all</button>
 			</h2>
 
 			${SUPPLIER_BOXES.map(SupplierBox)}
@@ -109,7 +109,7 @@ const InventoryRow = (p: ProductRowVM): HtmlResult => html`
 			<form hx-post="${RESTOCK_ACTIONS[p.type]}" hx-target="next .restock-error" hx-swap="innerHTML" class="field has-addons restock-form">
 				<input type="hidden" name="productName" value="${p.name}">
 				<div class="control"><input class="input is-small" name="quantity" type="number" placeholder="Qty" min="1" max="2000" required style="width:80px"></div>
-				<div class="control"><button class="button is-link is-small" type="submit" :disabled="!this.form.matches(':valid')">Restock</button></div>
+				<div class="control"><button class="button is-link is-small" type="submit" hx-live="this.disabled = !this.form.matches(':valid')">Restock</button></div>
 			</form>
 		</td>
 		<td class="help is-danger restock-error"></td>
@@ -121,6 +121,12 @@ const SupplierBox = (box: SupplierBox): HtmlResult => html`
 		<h3 class="subtitle is-6">${box.title} <span class="tag is-light">${box.adapter}</span></h3>
 		${box.forms.map(OrderFormRow)}
 	</div>
+`;
+
+// A radio styled as a Bulma button: the native dot is hidden with is-sr-only (still focusable and clickable via the
+// label) and hx-live toggles is-link on the label to follow its radio's checked state.
+const RadioButton = (name: string, value: string, text: string): HtmlResult => html`
+	<label class="button is-small mb-0" hx-live="class.toggle('is-link', q('input in this').checked)"><input type="radio" name="${name}" value="${value}" class="is-sr-only" required>${text}</label>
 `;
 
 // `method`/`action` stay for the e2e selectors (form[action=…]); htmx submits via hx-post.
@@ -136,20 +142,20 @@ const OrderFormRow = (f: OrderForm): HtmlResult => html`
 			<div class="field-label"><label class="label">${f.label}</label></div>
 			<div class="field-body">
 				<div class="field">
-					<div class="control radios mb-2">
-						${f.products.map(p => html`<label class="radio"><input type="radio" name="productName" value="${p}" required> ${p}</label>`)}
+					<div class="buttons has-addons mb-2">
+						${f.products.map(p => RadioButton('productName', p, p))}
 					</div>
 					<div class="field is-grouped is-align-items-center">
-						<div class="control radios is-align-items-center">
-							${PRESET_QUANTITIES.map(n => html`<label class="radio"><input type="radio" name="quantity" value="${n}" required> ${n}</label>`)}
-							<label class="radio"><input type="radio" name="quantity" value="" class="qty-custom" aria-label="Custom quantity"></label>
+						<div class="control buttons has-addons is-align-items-center mb-0">
+							${PRESET_QUANTITIES.map(n => RadioButton('quantity', String(n), String(n)))}
+							<label class="button is-small mb-0" hx-live="class.toggle('is-link', q('input in this').checked)"><input type="radio" name="quantity" value="" class="qty-custom is-sr-only" aria-label="Custom quantity">Other</label>
 							<input class="input is-small qty-custom-input" type="number" placeholder="Qty" min="1" max="2000" required style="width:90px"
 								aria-label="${f.label} custom quantity"
-								:readonly="!this.form.querySelector('.qty-custom').checked"
+								hx-live="this.readOnly = !q('previous .qty-custom').checked"
 								hx-on:focus="q('previous .qty-custom').checked = true"
 								hx-on:input="q('previous .qty-custom').value = this.value">
 						</div>
-						<div class="control"><button class="button is-link is-small" type="submit" :disabled="!this.form.matches(':valid')">Order</button></div>
+						<div class="control"><button class="button is-link is-small" type="submit" hx-live="this.disabled = !this.form.matches(':valid')">Order</button></div>
 					</div>
 				</div>
 			</div>

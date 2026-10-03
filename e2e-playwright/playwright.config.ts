@@ -3,6 +3,8 @@ import * as path from 'path';
 
 export default defineConfig({
   testDir: './tests',
+  // Above the 15s expect.poll waits for async (Kafka) inventory updates, well below the 30s default.
+  timeout: 20_000,
   globalSetup: require.resolve('./global-setup'),
 
   // Quarkus dev mode starts the app with Dev Services (Postgres, MongoDB, Kafka via Docker).
@@ -13,7 +15,7 @@ export default defineConfig({
     // -Dquarkus.analytics.disabled=true suppresses the first-run analytics prompt.
     command: 'mvn -pl app-server quarkus:dev -Dnodebug -Dquarkus.console.enabled=false -Dquarkus.analytics.disabled=true',
     url: 'http://localhost:8080/admin',
-    timeout: 300_000,
+    timeout: 120_000,
     // Reuse a running server locally so you can keep quarkus:dev open in a terminal.
     // In CI (CI=true) always start fresh.
     reuseExistingServer: !process.env.CI,
@@ -27,6 +29,8 @@ export default defineConfig({
 
   use: {
     baseURL: 'http://localhost:8080',
+    // Default is no limit, so a stuck click/check would otherwise burn the whole test timeout.
+    actionTimeout: 3_000,
     screenshot: 'only-on-failure',
   },
 });
