@@ -18,7 +18,7 @@ const LocationSection = (vm: LocationInventoryVM): HtmlResult => html`
 
 // Stock and requests in one fragment: a request changes both (or only the request list, if it has to wait), and
 // every request publishes an inventoryChanged event. Re-fetched on that event and morphed, so rows that stay keep
-// typed quantities and focus. All ids carry the location id: the page shows every location.
+// focus. All ids carry the location id: the page shows every location.
 export const LocationInventory = (vm: LocationInventoryVM): HtmlResult => html`
 	<div class="columns">
 		<div class="column is-three-fifths">
@@ -42,7 +42,7 @@ export const LocationInventory = (vm: LocationInventoryVM): HtmlResult => html`
 				: html`
 					<table class="table is-fullwidth is-striped is-narrow" id="requests-${vm.locationId}">
 						<thead>
-						<tr><th>#</th><th>Product</th><th class="has-text-right">Delivered</th><th>Status</th><th>Origin</th><th>Requested at</th></tr>
+						<tr><th>#</th><th>Product</th><th class="has-text-right">Delivered</th><th>Status</th><th>Origin</th></tr>
 						</thead>
 						<tbody>
 						${vm.requests.map(RequestRow)}
@@ -60,8 +60,7 @@ const availableClass = (p: LocationProductRowVM): string => {
 	return p.levels && p.availableAmount > p.levels.max ? 'has-text-grey' : '';
 };
 
-// Name+type is the product key. As on /admin, the quantity input has no value attribute, so a morph never resets what
-// was typed. min/max mirror StockRequest's @Min(1) @Max(2000) - UX only, the server validates again. Avg/Min/Max
+// Name+type is the product key. Each quantity button requests that amount from the DC right away. Avg/Min/Max
 // are learned (ReorderPolicyHandler) and read-only.
 const StockRow = (locationId: string, p: LocationProductRowVM): HtmlResult => html`
 	<tr id="row-${locationId}-${p.name}-${p.type}">
@@ -73,14 +72,23 @@ const StockRow = (locationId: string, p: LocationProductRowVM): HtmlResult => ht
 		<td class="has-text-right has-text-grey">${p.levels ? p.levels.max : '–'}</td>
 		<td class="has-text-right has-text-grey">${p.dcAvailableAmount}</td>
 		<td>
-			<form hx-post="/locations/${locationId}/requests" hx-target="next .request-error" hx-swap="innerHTML" class="field has-addons request-form">
+			<form hx-post="/locations/${locationId}/requests" hx-target="next .request-error" hx-swap="innerHTML" class="request-form">
 				<input type="hidden" name="productName" value="${p.name}">
-				<div class="control"><input class="input is-small" name="quantity" type="number" placeholder="Qty" min="1" max="2000" required style="width:80px"></div>
-				<div class="control"><button class="button is-link is-small" type="submit" hx-live="this.disabled = !this.form.matches(':valid')">Request</button></div>
+				${QuantityButtons()}
 			</form>
 		</td>
 		<td class="has-text-danger is-size-7 request-error"></td>
 	</tr>
+`;
+
+const QUANTITIES = [10, 20, 50, 100];
+
+// One submit button per quantity, for a form that carries the productName: htmx adds the clicked button's
+// name/value, so a click submits that quantity right away. Used by the restock column on /admin, too.
+export const QuantityButtons = (): HtmlResult => html`
+	<div class="buttons has-addons are-small is-flex-wrap-nowrap mb-0">
+		${QUANTITIES.map(n => html`<button class="button is-link mb-0" type="submit" name="quantity" value="${n}">${n}</button>`)}
+	</div>
 `;
 
 const STATUS_TAGS: Record<string, string> = {PENDING: "is-warning", FULFILLED: "is-success", REJECTED: "is-danger"};
@@ -91,10 +99,9 @@ export const OriginTag = (r: RequestVM): HtmlResult =>
 const RequestRow = (r: RequestVM): HtmlResult => html`
 	<tr id="request-${r.id}">
 		<td>${r.id}</td>
-		<td>${r.productName}</td>
+		<td>${r.productName}<br><span class="is-size-7 has-text-grey" title="Requested at">${r.createdAt}</span></td>
 		<td class="has-text-right">${r.delivered} / ${r.requested}</td>
 		<td><span class="tag ${STATUS_TAGS[r.status] ?? ''}">${r.status}</span></td>
 		<td>${OriginTag(r)}</td>
-		<td>${r.createdAt}</td>
 	</tr>
 `;

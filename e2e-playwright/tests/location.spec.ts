@@ -40,28 +40,25 @@ test('the locations page shows every store and the online FC as sections, in ord
 test('a store lists what the DC carries and gets a request served live, without a reload', async ({ page }) => {
   const name = `Quince-${RUN_ID}`;
   await page.goto('/locations');
-  await stockDc(page.request, name, 10);
+  await stockDc(page.request, name, 20);
 
-  // The DC's delivery appears through the SSE-triggered refresh: 0 here, 10 at the DC.
+  // The DC's delivery appears through the SSE-triggered refresh: 0 here, 20 at the DC.
   await expect(stockRow(page, 'zurich', name)).toBeVisible({ timeout: 15_000 });
   await expect(cell(page, 'zurich', name, AVAILABLE)).toHaveText('0');
-  await expect(cell(page, 'zurich', name, DC)).toHaveText('10');
+  await expect(cell(page, 'zurich', name, DC)).toHaveText('20');
   // No stock row here yet, so nothing learned yet either.
   await expect(cell(page, 'zurich', name, MIN)).toHaveText('–');
 
-  const request = stockRow(page, 'zurich', name).getByRole('button', { name: 'Request' });
-  await expect(request).toBeDisabled();
-  await stockRow(page, 'zurich', name).locator('input[name="quantity"]').fill('4');
-  await request.click();
+  await stockRow(page, 'zurich', name).getByRole('button', { name: '10', exact: true }).click();
 
-  await expect(cell(page, 'zurich', name, AVAILABLE)).toHaveText('4');
-  await expect(cell(page, 'zurich', name, DC)).toHaveText('6');
+  await expect(cell(page, 'zurich', name, AVAILABLE)).toHaveText('10');
+  await expect(cell(page, 'zurich', name, DC)).toHaveText('10');
   const requested = requestRow(page, 'zurich', name);
-  await expect(requested).toContainText('4 / 4');
+  await expect(requested).toContainText('10 / 10');
   await expect(requested).toContainText('FULFILLED');
   await expect(requested).toContainText('manual');
 
-  // The first transfer created the stock row with a store's cold-start levels (read-only); 4 is below min, so red.
+  // The first transfer created the stock row with a store's cold-start levels (read-only); 10 is below min, so red.
   await expect(cell(page, 'zurich', name, AVG)).toHaveText('10.0');
   await expect(cell(page, 'zurich', name, MIN)).toHaveText('17');
   await expect(cell(page, 'zurich', name, MAX)).toHaveText('47');
@@ -74,11 +71,10 @@ test('a request the DC cannot fully serve stays pending until head office fulfil
   await page.goto('/locations');
   await expect(stockRow(page, 'basel', name)).toBeVisible({ timeout: 15_000 });
 
-  await stockRow(page, 'basel', name).locator('input[name="quantity"]').fill('5');
-  await stockRow(page, 'basel', name).getByRole('button', { name: 'Request' }).click();
+  await stockRow(page, 'basel', name).getByRole('button', { name: '10', exact: true }).click();
   await expect(cell(page, 'basel', name, AVAILABLE)).toHaveText('3');
   const requested = requestRow(page, 'basel', name);
-  await expect(requested).toContainText('3 / 5');
+  await expect(requested).toContainText('3 / 10');
   await expect(requested).toContainText('PENDING');
 
   const admin = await context.newPage();

@@ -168,43 +168,17 @@ for (const { action, type, products } of ORDER_FORMS) {
   });
 }
 
-test('restocking from an inventory row raises its amount live and keeps quantities typed into other rows', async ({ page }) => {
-  const restocked = `Fig-${RUN_ID}`;
-  const other = `Lime-${RUN_ID}`;
-  await page.goto('/admin');
-  for (const name of [restocked, other]) await stockFruit(page.request, name, 5);
-  await waitForProductRow(page, restocked);
-  await waitForProductRow(page, other);
-
-  const otherQty = inventoryRow(page, other).locator('input[name="quantity"]');
-  await otherQty.fill('33');
-
-  const row = inventoryRow(page, restocked);
-  const available = async () => Number(await row.getByRole('cell').nth(2).textContent());
-  const before = await available();
-  await row.locator('input[name="quantity"]').fill('100');
-  await row.getByRole('button', { name: 'Restock' }).click();
-
-  // No reload: the delivery arrives via Kafka and the SSE-triggered morph updates the row.
-  await expect.poll(available, { timeout: 15_000 }).toBeGreaterThan(before);
-  await expect(otherQty).toHaveValue('33');
-  await expect(row.locator('input[name="quantity"]')).toHaveValue('100'); // kept for another restock
-});
-
-test('the restock button of a row is disabled while its quantity is outside 1-2000', async ({ page }) => {
-  const name = `Date-${RUN_ID}`;
+test('clicking a quantity button of an inventory row restocks that amount at the DC, live', async ({ page }) => {
+  const name = `Fig-${RUN_ID}`;
   await page.goto('/admin');
   await stockFruit(page.request, name, 5);
   await waitForProductRow(page, name);
 
   const row = inventoryRow(page, name);
-  const qty = row.locator('input[name="quantity"]');
-  const restock = row.getByRole('button', { name: 'Restock' });
-  await expect(restock).toBeDisabled();
-  await qty.fill('0');
-  await expect(restock).toBeDisabled();
-  await qty.fill('2001');
-  await expect(restock).toBeDisabled();
-  await qty.fill('2000');
-  await expect(restock).toBeEnabled();
+  const available = async () => Number(await row.getByRole('cell').nth(2).textContent());
+  await expect.poll(available, { timeout: 15_000 }).toBe(5);
+  await row.getByRole('button', { name: '20', exact: true }).click();
+
+  // No reload: the delivery arrives via Kafka and the SSE-triggered morph updates the row.
+  await expect.poll(available, { timeout: 15_000 }).toBe(25);
 });
