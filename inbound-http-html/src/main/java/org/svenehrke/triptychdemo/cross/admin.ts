@@ -10,27 +10,27 @@ import type {
 import type {HtmlResult} from "./route-types";
 
 type OrderForm = { label: string, action: string, products: string[] };
-type SupplierBox = { title: string, adapter: string, forms: OrderForm[] };
+type SupplierBox = { id: string, title: string, forms: OrderForm[] };
 
 const PRESET_QUANTITIES = [10, 50, 100, 500];
 
 const SUPPLIER_BOXES: SupplierBox[] = [
 	{
-		title: "REST suppliers", adapter: "outbound-httpclient", forms: [
+		id: "rest", title: "REST suppliers", forms: [
 			{label: "Fruits", action: "/admin/order-fruits", products: ["Mango", "Banana", "Apple", "Orange"]},
 			{label: "Vegetables", action: "/admin/order-vegetables", products: ["Carrot", "Potato", "Tomato", "Cucumber"]},
 			{label: "Dairy", action: "/admin/order-dairy", products: ["Milk", "Cheese", "Yogurt", "Butter"]},
 		]
 	},
 	{
-		title: "SOAP suppliers", adapter: "outbound-webservice", forms: [
+		id: "soap", title: "SOAP suppliers", forms: [
 			{label: "Beverages", action: "/admin/order-beverages", products: ["Cola", "Water", "Juice", "Beer"]},
 			{label: "Meat", action: "/admin/order-meat", products: ["Chicken", "Beef", "Pork", "Lamb"]},
 			{label: "Bakery", action: "/admin/order-bakery", products: ["Bread", "Croissant", "Baguette", "Pretzel"]},
 		]
 	},
 	{
-		title: "Kafka supplier", adapter: "outbound-kafka", forms: [
+		id: "kafka", title: "Kafka supplier", forms: [
 			{label: "Non-food", action: "/admin/order-nonfood", products: ["Detergent", "Soap", "Sponge", "Paper towels"]},
 		]
 	},
@@ -50,24 +50,17 @@ const RESTOCK_ACTIONS: Record<string, string> = {
 export const AdminPage = (vm: AdminPageVM): HtmlResult => html`
 	<div class="columns">
 		<div class="column is-half">
-			<h2 class="title is-4">Restock Inventory
-				<!-- Randomize only fills the forms: a random product, and either a random preset quantity or a custom one
-				     of 80-600 (setting .checked/.value is invisible to hx-live, hence the refresh);
-				     Submit all submits each one as if its Order button was clicked. -->
-				<button class="button is-light is-small" type="button" id="admin-randomize-btn"
-					hx-on:click="q('.order-form').forEach(f => {
-						const pick = rs => rs[Math.floor(Math.random() * rs.length)];
-						pick(f.querySelectorAll('input[name=productName]')).checked = true;
-						const qty = pick(f.querySelectorAll('input[name=quantity]'));
-						qty.checked = true;
-						if (qty.matches('.qty-custom')) qty.value = f.querySelector('.qty-custom-input').value = 80 + Math.floor(Math.random() * 521);
-					}); htmx.live.refresh()">Randomize (dev)</button>
-				<button class="button is-link is-small" type="button" id="admin-submit-all-btn"
-					hx-on:click="q('.order-form').requestSubmit()"
-					hx-live="this.disabled = !q('.order-form').every(f => f.matches(':valid'))">Submit all</button>
-			</h2>
-
-			${SUPPLIER_BOXES.map(SupplierBox)}
+			<h2 class="title is-4">Restock Inventory</h2>
+			<!-- One tab per supplier group. The panels stay in the DOM and are only hidden, so switching tabs keeps
+			     what was chosen in a form; take() moves is-active to the clicked tab and hx-live follows it. -->
+			<div class="box">
+				<div class="tabs is-boxed is-small">
+					<ul role="tablist">
+						${SUPPLIER_BOXES.map((box, i) => SupplierTab(box, i === 0))}
+					</ul>
+				</div>
+				${SUPPLIER_BOXES.map(SupplierPanel)}
+			</div>
 		</div>
 
 		<div class="column is-half">
@@ -116,9 +109,15 @@ const InventoryRow = (p: ProductRowVM): HtmlResult => html`
 	</tr>
 `;
 
-const SupplierBox = (box: SupplierBox): HtmlResult => html`
-	<div class="box">
-		<h3 class="subtitle is-6">${box.title} <span class="tag is-light">${box.adapter}</span></h3>
+const SupplierTab = (box: SupplierBox, active: boolean): HtmlResult => html`
+	<li id="supplier-tab-${box.id}" class="${active ? 'is-active' : ''}" hx-on:click="take('.is-active')">
+		<a role="tab" aria-controls="supplier-panel-${box.id}" hx-live="this.ariaSelected = q('closest li').matches('.is-active')">${box.title}</a>
+	</li>
+`;
+
+const SupplierPanel = (box: SupplierBox, i: number): HtmlResult => html`
+	<div id="supplier-panel-${box.id}" role="tabpanel" ${i === 0 ? '' : 'hidden'}
+		hx-live="this.hidden = !q('#supplier-tab-${box.id}').matches('.is-active')">
 		${box.forms.map(OrderFormRow)}
 	</div>
 `;
@@ -137,7 +136,7 @@ const RadioButton = (name: string, value: string, text: string): HtmlResult => h
 // and thereby exempt from validation - unless its radio is checked; focusing it checks the radio.
 // min/max mirror the *Order records' @Min(1) @Max(2000). All of this is UX only - the server validates again.
 const OrderFormRow = (f: OrderForm): HtmlResult => html`
-	<form method="post" action="${f.action}" hx-post="${f.action}" hx-target="next .order-error" hx-swap="innerHTML" class="order-form">
+	<form method="post" action="${f.action}" hx-post="${f.action}" hx-target="next .order-error" hx-swap="innerHTML">
 		<div class="field is-horizontal mb-2">
 			<div class="field-label"><label class="label">${f.label}</label></div>
 			<div class="field-body">

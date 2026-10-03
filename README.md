@@ -86,11 +86,9 @@ inventory changes (same server-sent event as `/shop`), and each row has a
 supplier; the audit log refreshes itself every 3 seconds via htmx polling. So
 multiple browser tabs (or `/shop` running alongside) stay in sync without a
 manual reload.
-Each of the 7 order forms offers its products and the quantities 10/50/100/500
-as radio buttons, plus a custom quantity field. A *Randomize (dev)* button picks
-a random product and quantity (a preset or a custom one of 80–600) in every form
-but submits nothing; *Submit all* then sends all 7 orders at once (each form's
-*Order* button still works on its own).
+The 7 order forms are grouped into REST / SOAP / Kafka supplier tabs. Each
+offers its products and the quantities 10/50/100/500 as radio buttons, plus a
+custom quantity field; its *Order* button stays disabled until both are chosen.
 
 ### Shop UI
 

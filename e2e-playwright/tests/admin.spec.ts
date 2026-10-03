@@ -35,18 +35,45 @@ async function stockFruit(request: APIRequestContext, productName: string, quant
   expect(res.ok()).toBeTruthy();
 }
 
-function orderForm(page: Page, action: string) {
-  return page.locator(`form[action="${action}"]`);
+// The order forms are grouped into supplier tabs and only the active tab's panel is visible, so open the tab whose
+// panel (aria-controls) contains the form first.
+async function orderForm(page: Page, action: string) {
+  const form = page.locator(`form[action="${action}"]`);
+  const panelId = await form.locator('xpath=ancestor::*[@role="tabpanel"]').getAttribute('id');
+  await page.locator(`[role="tab"][aria-controls="${panelId}"]`).click();
+  await expect(form).toBeVisible();
+  return form;
 }
 
-test('admin page shows heading, supplier sections, and the audit log panel', async ({ page }) => {
+test('admin page shows heading, supplier tabs, and the audit log panel', async ({ page }) => {
   await page.goto('/admin');
   await expect(page.getByRole('heading', { name: 'Supermarket – Admin' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Restock Inventory' })).toBeVisible();
-  await expect(page.getByText('REST suppliers')).toBeVisible();
-  await expect(page.getByText('SOAP suppliers')).toBeVisible();
-  await expect(page.getByText('Kafka supplier')).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'REST suppliers' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'SOAP suppliers' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Kafka supplier' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Audit Log' })).toBeVisible();
+});
+
+test('only the selected supplier tab shows its order forms, REST is selected initially', async ({ page }) => {
+  await page.goto('/admin');
+  const fruits = page.locator('form[action="/admin/order-fruits"]');
+  const beverages = page.locator('form[action="/admin/order-beverages"]');
+  const rest = page.getByRole('tab', { name: 'REST suppliers' });
+  const soap = page.getByRole('tab', { name: 'SOAP suppliers' });
+  await expect(rest).toHaveAttribute('aria-selected', 'true');
+  await expect(fruits).toBeVisible();
+  await expect(beverages).toBeHidden();
+
+  await choose(fruits.getByRole('radio', { name: 'Mango', exact: true }));
+  await soap.click();
+  await expect(soap).toHaveAttribute('aria-selected', 'true');
+  await expect(rest).toHaveAttribute('aria-selected', 'false');
+  await expect(beverages).toBeVisible();
+  await expect(fruits).toBeHidden();
+
+  await rest.click(); // switching back keeps what was chosen
+  await expect(fruits.getByRole('radio', { name: 'Mango', exact: true })).toBeChecked();
 });
 
 const ORDER_FORMS: { action: string, type: string, products: string[] }[] = [
@@ -63,7 +90,7 @@ const PRESET_QUANTITIES = ['10', '50', '100', '500'];
 test('every order form offers its products and the preset quantities as radio buttons, nothing preselected', async ({ page }) => {
   await page.goto('/admin');
   for (const { action, products } of ORDER_FORMS) {
-    const form = orderForm(page, action);
+    const form = await orderForm(page, action);
     await expect(form.locator('input[name="productName"]')).toHaveCount(products.length);
     for (const product of products) await expect(form.getByRole('radio', { name: product, exact: true })).toBeVisible();
     for (const qty of PRESET_QUANTITIES) await expect(form.getByRole('radio', { name: qty, exact: true })).toBeVisible();
@@ -71,40 +98,11 @@ test('every order form offers its products and the preset quantities as radio bu
   }
 });
 
-test('randomize button only fills every order form, it submits nothing', async ({ page }) => {
-  const orderPosts: string[] = [];
-  page.on('request', req => {
-    if (req.method() === 'POST' && req.url().includes('/admin/order-')) orderPosts.push(req.url());
-  });
+test('order buttons stay disabled until their form is valid', async ({ page }) => {
   await page.goto('/admin');
-  await page.getByRole('button', { name: 'Randomize (dev)' }).click();
-
-  for (const { action, products } of ORDER_FORMS) {
-    const form = orderForm(page, action);
-    expect(products).toContain(await form.locator('input[name="productName"]:checked').inputValue());
-    const quantity = form.locator('input[name="quantity"]:checked');
-    const qty = await quantity.inputValue();
-    if (await quantity.evaluate(r => r.classList.contains('qty-custom'))) {
-      expect(Number(qty)).toBeGreaterThanOrEqual(80);
-      expect(Number(qty)).toBeLessThanOrEqual(600);
-      await expect(form.locator('.qty-custom-input')).toHaveValue(qty);
-    } else {
-      expect(PRESET_QUANTITIES).toContain(qty);
-    }
-  }
-
-  // Give a (wrongly) triggered htmx submit time to show up before asserting there was none.
-  await page.waitForTimeout(500);
-  expect(orderPosts).toEqual([]);
-});
-
-test('order buttons stay disabled until their form is valid; submit all until every form is', async ({ page }) => {
-  await page.goto('/admin');
-  const form = orderForm(page, '/admin/order-fruits');
+  const form = await orderForm(page, '/admin/order-fruits');
   const orderBtn = form.getByRole('button', { name: 'Order' });
-  const submitAll = page.getByRole('button', { name: 'Submit all' });
   await expect(orderBtn).toBeDisabled();
-  await expect(submitAll).toBeDisabled();
 
   await choose(form.getByRole('radio', { name: 'Mango', exact: true }));
   await expect(orderBtn).toBeDisabled(); // no quantity yet
@@ -119,15 +117,11 @@ test('order buttons stay disabled until their form is valid; submit all until ev
   await expect(orderBtn).toBeDisabled();
   await custom.fill('2000');
   await expect(orderBtn).toBeEnabled();
-  await expect(submitAll).toBeDisabled(); // the other 6 forms are still empty
-
-  await page.getByRole('button', { name: 'Randomize (dev)' }).click();
-  await expect(submitAll).toBeEnabled();
 });
 
 test('the custom quantity input is readonly until its radio is chosen, and focusing it chooses the radio', async ({ page }) => {
   await page.goto('/admin');
-  const form = orderForm(page, '/admin/order-fruits');
+  const form = await orderForm(page, '/admin/order-fruits');
   const customRadio = form.getByRole('radio', { name: 'Custom quantity' });
   const custom = form.locator('.qty-custom-input');
   await expect(custom).not.toBeEditable();
@@ -146,25 +140,7 @@ test('the custom quantity input is readonly until its radio is chosen, and focus
   await expect(form.getByRole('button', { name: 'Order' })).toBeEnabled();
 });
 
-test('submit all button sends all 7 filled order forms via htmx without a reload', async ({ page }) => {
-  await page.goto('/admin');
-  await page.getByRole('button', { name: 'Randomize (dev)' }).click();
-  const fruit = await orderForm(page, '/admin/order-fruits').locator('input[name="productName"]:checked').inputValue();
-  const nonfood = await orderForm(page, '/admin/order-nonfood').locator('input[name="productName"]:checked').inputValue();
-
-  const posts = ORDER_FORMS.map(({ action }) =>
-    page.waitForResponse(res => res.request().method() === 'POST' && new URL(res.url()).pathname === action && res.ok()));
-  await page.getByRole('button', { name: 'Submit all' }).click();
-  await Promise.all(posts);
-
-  // The page never navigates away (no full-page POST) — submission happened without a reload.
-  expect(new URL(page.url()).pathname).toBe('/admin');
-
-  await waitForProductRow(page, fruit);
-  await waitForProductRow(page, nonfood);
-});
-
-// The fixed products are shared across runs (and with "Submit all"), so each test checks that the amount grew by at
+// The fixed products are shared across runs, so each test checks that the amount grew by at
 // least the ordered quantity rather than for an exact value. Fruits use the custom quantity, the others a preset.
 for (const { action, type, products } of ORDER_FORMS) {
   const product = products[0];
@@ -175,7 +151,7 @@ for (const { action, type, products } of ORDER_FORMS) {
     await expect(page.locator('#admin-inventory')).not.toBeEmpty();
     const before = await availableAmount(page, product);
 
-    const form = orderForm(page, action);
+    const form = await orderForm(page, action);
     await choose(form.getByRole('radio', { name: product, exact: true }));
     if (custom) {
       await choose(form.getByRole('radio', { name: 'Custom quantity' }));

@@ -22,7 +22,7 @@ shop.ts            <div id="shop-products" hx-get="/shop/inventory-fragment"
   dispatches a *named* SSE event as a DOM event on the connecting element; it bubbles to `body`,
   where `#shop-products` listens. The re-fetch goes through the normal htmx/`hono` path and is morphed
   in, so rows keep typed quantities and focus (see `shop-product-set-refresh`). `hx-sync="this:replace"`
-  collapses a burst of events (e.g. admin "Submit all") into the latest request.
+  collapses a burst of events (e.g. several deliveries arriving close together) into the latest request.
 - **Reconnect.** `hx-sse` reconnects automatically (backoff + jitter) and disconnects while the tab
   is in the background. Because the server sends `inventoryChanged` on every (re)connect, changes
   made while disconnected are picked up.
