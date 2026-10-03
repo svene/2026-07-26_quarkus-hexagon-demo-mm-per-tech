@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Supermarket – {{locationName}}</title>
+    <title>Supermarket – Locations</title>
     <link rel="stylesheet" href="/css/bulma.min.css">
     <link rel="stylesheet" href="/css/theme.css">
     <!-- synchronous, before the first paint: applies the saved dark/light choice without a flash -->
@@ -20,13 +20,12 @@
 <section class="section">
 <div class="container is-fluid">
     <div class="level">
-        <h1 class="title level-left">Supermarket – {{locationName}}</h1>
+        <h1 class="title level-left">Supermarket – Locations</h1>
         <button type="button" class="button is-small theme-toggle level-right" title="Toggle dark/light theme" aria-label="Toggle dark/light theme"></button>
     </div>
-    {{nav}}
     <!-- outside #app, so re-rendering the page keeps the stream; its events bubble up to body -->
     <div hx-sse:connect="/inventory/events" hidden></div>
-    <div id="app" hx-get="/locations/{{locationId}}/page" hx-trigger="load" hx-swap="innerHTML"></div>
+    <div id="app" hx-get="/locations/page" hx-trigger="load" hx-swap="innerHTML"></div>
 </div>
 </section>
 

@@ -32,14 +32,15 @@ class AdminReceiverTest {
     }
 
     @Test
-    void get_admin_serves_the_page_shell_that_loads_the_page_view() {
+    void get_admin_serves_the_page_shell_that_loads_the_page_view_without_a_nav() {
         var response = given().get("/admin");
 
         assertThat(response.statusCode()).isEqualTo(200);
         assertThat(response.contentType()).contains("text/html");
         assertThat(response.asString())
             .contains("<script src=\"/js/hono/hx-hono.js\">")
-            .contains("hx-get=\"/admin/page\"");
+            .contains("hx-get=\"/admin/page\"")
+            .doesNotContain("location-nav");
     }
 
     @Test

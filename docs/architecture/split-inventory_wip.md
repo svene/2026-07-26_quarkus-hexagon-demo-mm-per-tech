@@ -479,3 +479,13 @@ _(append dated entries as steps land)_
   `ReplenishmentFlowTest` (short delivery 4/3, new request shares with an older one),
   `AutoReplenishmentFlowTest` (50 Apples for 39/39/39/58 → 11/11/11/17); 157 core + 130 app-server tests green; e2e
   re-run after the commit: all 22 tests (`--retries=0`) green. Docs: participants, flow, Kafka reference, 6 `.puml` files.
+- **2026-10-03, separate entry points instead of the nav tabs (staged).** At the user's request: `/admin` and `/shop`
+  lose the location nav (`PageShell` only fills `{{key}}` placeholders now). The single-location page
+  (`GET /locations/{id}`, `/locations/{id}/page`, `shells/location.html`, `LocationPageVM`) is replaced by one page
+  `GET /locations` (+ `/locations/page`, `LocationsPageVM`) with a section per store and the online FC, each refreshed
+  through the unchanged `GET /locations/{id}/inventory-fragment`; ids are scoped per location (`#location-{id}`,
+  `#stock-{id}`, `#requests-{id}`, `row-{id}-…`). New static landing page `/` (`META-INF/resources/index.html`)
+  with links to `/admin`, `/locations` and `/shop`. Tests: `ReplenishmentFlowTest` (locations page/shell/404s),
+  new `LandingPageTest`, admin/shop shell tests assert no nav, `location.spec.ts` (landing page links, section
+  order, requests scoped to a section); 157 core + 131 app-server tests and 23 e2e tests (`--retries=0`) green
+  (a first e2e run right after `mvn install` had 13 Kafka-delivery timeouts, not reproducible).

@@ -27,7 +27,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 import static org.mockito.Mockito.doThrow;
 
-/** Stores and the online FC pull stock from the DC: {@code /locations/{id}} requests, {@code /admin} decisions. */
+/** Stores and the online FC pull stock from the DC: {@code /locations/{id}/requests}, {@code /admin} decisions. */
 @QuarkusTest
 class ReplenishmentFlowTest {
 
@@ -252,38 +252,40 @@ class ReplenishmentFlowTest {
     }
 
     @Test
-    void location_page_lists_every_dc_product_with_both_stocks() {
+    void locations_page_lists_every_dc_product_with_both_stocks_per_location() {
         inventory.addAmount(Locations.DC, "Apple", ProductType.FRUIT, 10);
         inventory.addAmount(Locations.DC, "Milk", ProductType.DAIRY, 6);
         request(Locations.BERN, "Apple", "4").then().statusCode(200);
 
-        var json = given().get("/locations/bern/page").jsonPath();
+        var json = given().get("/locations/page").jsonPath();
 
-        assertThat(json.getString("route")).isEqualTo("LocationPage");
-        assertThat(json.getString("vm.inventory.locationId")).isEqualTo("bern");
-        assertThat(json.getList("vm.inventory.products.name")).containsExactly("Apple", "Milk");
-        assertThat(json.getList("vm.inventory.products.availableAmount")).containsExactly(4, 0);
-        assertThat(json.getList("vm.inventory.products.dcAvailableAmount")).containsExactly(6, 6);
+        assertThat(json.getString("route")).isEqualTo("LocationsPage");
+        assertThat(json.getList("vm.locations.locationId")).containsExactly("zurich", "bern", "basel", "online");
+        assertThat(json.getList("vm.locations.locationName")).containsExactly("Store Zurich", "Store Bern", "Store Basel", "Online FC");
+        json.setRootPath("vm.locations.find { it.locationId == 'bern' }");
+        assertThat(json.getList("products.name")).containsExactly("Apple", "Milk");
+        assertThat(json.getList("products.availableAmount")).containsExactly(4, 0);
+        assertThat(json.getList("products.dcAvailableAmount")).containsExactly(6, 6);
     }
 
     @Test
-    void location_shell_loads_its_page_and_marks_it_in_the_nav() {
-        var response = given().get("/locations/online");
+    void locations_shell_loads_the_page_of_all_locations_without_a_nav() {
+        var response = given().get("/locations");
 
         assertThat(response.statusCode()).isEqualTo(200);
         assertThat(response.contentType()).contains("text/html");
         assertThat(response.asString())
-            .contains("<title>Supermarket – Online FC</title>")
-            .contains("hx-get=\"/locations/online/page\"")
-            .contains("<li class=\"is-active\"><a href=\"/locations/online\">Online FC</a></li>")
-            .contains("<a href=\"/locations/zurich\">Store Zurich</a>")
+            .contains("<title>Supermarket – Locations</title>")
+            .contains("hx-get=\"/locations/page\"")
+            .doesNotContain("location-nav")
             .doesNotContain("{{");
     }
 
     @Test
-    void the_dc_and_unknown_locations_have_no_location_page() {
-        given().get("/locations/dc").then().statusCode(404);
-        given().get("/locations/paris/page").then().statusCode(404);
+    void the_dc_and_unknown_locations_have_no_location_endpoints() {
+        given().get("/locations/dc/inventory-fragment").then().statusCode(404);
+        given().get("/locations/paris/inventory-fragment").then().statusCode(404);
+        given().get("/locations/bern").then().statusCode(404);
         given().get("/api/locations/paris/products").then().statusCode(404);
     }
 

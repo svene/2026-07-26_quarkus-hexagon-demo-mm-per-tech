@@ -139,6 +139,7 @@ These cycles show how external supplier integrations (REST/SOAP stubs) are decou
 
 | Receiver | Route | Method | Flow Type | Kafka Topic Connection | Data Sinks |
 |----------|-------|--------|-----------|------------------------|-----------|
+| (static resource) | / | GET | Landing page: links to /admin, /locations, /shop | - | - |
 | AdminReceiver | /admin | GET | Static page shell | - | - |
 | AdminReceiver | /admin/page | GET | Query | - | PostgreSQL + MongoDB (read) |
 | AdminReceiver | /admin/inventory-fragment | GET | Query | - | PostgreSQL (read) |
@@ -155,10 +156,10 @@ These cycles show how external supplier integrations (REST/SOAP stubs) are decou
 | ShopReceiver | /shop | GET | Static page shell | - | - |
 | ShopReceiver | /shop/page | GET | Query | - | PostgreSQL (read) |
 | ShopReceiver | /shop/inventory-fragment | GET | Query | - | PostgreSQL (read) |
-| InventoryEventsReceiver | /inventory/events | GET | SSE stream (inventory changes, for /shop, /admin and /locations/{id}) | - | - |
+| InventoryEventsReceiver | /inventory/events | GET | SSE stream (inventory changes, for /shop, /admin and /locations) | - | - |
 | ShopReceiver | /shop/checkout | POST | Command | - | PostgreSQL + MongoDB |
-| LocationReceiver | /locations/{id} | GET | Static page shell | - | - |
-| LocationReceiver | /locations/{id}/page, /inventory-fragment | GET | Query | - | PostgreSQL (read) |
+| LocationReceiver | /locations | GET | Static page shell | - | - |
+| LocationReceiver | /locations/page, /locations/{id}/inventory-fragment | GET | Query | - | PostgreSQL (read) |
 | LocationReceiver | /locations/{id}/requests | POST | Command | - | PostgreSQL + MongoDB |
 | ProductApiReceiver | /api/products | GET | Query | - | PostgreSQL (read) |
 | ProductApiReceiver | /api/products/order-fruits | POST | Command | **→ fruit-deliveries** (stub publishes) | PostgreSQL + MongoDB |

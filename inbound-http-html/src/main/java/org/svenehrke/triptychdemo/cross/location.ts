@@ -1,24 +1,32 @@
 import {html} from "hono/html";
-import type {LocationInventoryVM, LocationPageVM, LocationProductRowVM, RequestVM} from "./generated/vm-types";
+import type {LocationInventoryVM, LocationProductRowVM, LocationsPageVM, RequestVM} from "./generated/vm-types";
 import type {HtmlResult} from "./route-types";
 
-export const LocationPage = (vm: LocationPageVM): HtmlResult => html`
-	<div id="location-inventory" hx-get="/locations/${vm.inventory.locationId}/inventory-fragment" hx-trigger="inventoryChanged from:body" hx-sync="this:replace" hx-swap="innerMorph">
-		${LocationInventory(vm.inventory)}
-	</div>
+// One section per store / the online FC, each refreshed on its own; the section id makes /locations#bern a link to Bern.
+export const LocationsPage = (vm: LocationsPageVM): HtmlResult => html`
+	${vm.locations.map(LocationSection)}
+`;
+
+const LocationSection = (vm: LocationInventoryVM): HtmlResult => html`
+	<section class="block mb-6" id="location-${vm.locationId}">
+		<h2 class="title is-3">${vm.locationName}</h2>
+		<div hx-get="/locations/${vm.locationId}/inventory-fragment" hx-trigger="inventoryChanged from:body" hx-sync="this:replace" hx-swap="innerMorph">
+			${LocationInventory(vm)}
+		</div>
+	</section>
 `;
 
 // Stock and requests in one fragment: a request changes both (or only the request list, if it has to wait), and
 // every request publishes an inventoryChanged event. Re-fetched on that event and morphed, so rows that stay keep
-// typed quantities and focus.
+// typed quantities and focus. All ids carry the location id: the page shows every location.
 export const LocationInventory = (vm: LocationInventoryVM): HtmlResult => html`
 	<div class="columns">
 		<div class="column is-three-fifths">
-			<h2 class="title is-4">Stock</h2>
+			<h3 class="title is-5">Stock</h3>
 			${vm.products.length === 0
 				? html`<p class="has-text-grey"><em>The DC carries no products yet.</em></p>`
 				: html`
-					<table class="table is-fullwidth is-striped is-narrow" id="location-stock">
+					<table class="table is-fullwidth is-striped is-narrow" id="stock-${vm.locationId}">
 						<thead>
 						<tr><th>Name</th><th>Type</th><th class="has-text-right">Available</th><th class="has-text-right" title="Learned demand per period">Avg</th><th class="has-text-right" title="Reorder point: below it, stock is requested from the DC automatically">Min</th><th class="has-text-right" title="Order-up-to level: how far an automatic request fills up">Max</th><th class="has-text-right">DC</th><th>Request from DC</th><th></th></tr>
 						</thead>
@@ -28,11 +36,11 @@ export const LocationInventory = (vm: LocationInventoryVM): HtmlResult => html`
 					</table>`}
 		</div>
 		<div class="column">
-			<h2 class="title is-4">Requests</h2>
+			<h3 class="title is-5">Requests</h3>
 			${vm.requests.length === 0
 				? html`<p class="has-text-grey"><em>No requests yet.</em></p>`
 				: html`
-					<table class="table is-fullwidth is-striped is-narrow" id="location-requests">
+					<table class="table is-fullwidth is-striped is-narrow" id="requests-${vm.locationId}">
 						<thead>
 						<tr><th>#</th><th>Product</th><th class="has-text-right">Delivered</th><th>Status</th><th>Origin</th><th>Requested at</th></tr>
 						</thead>
@@ -56,7 +64,7 @@ const availableClass = (p: LocationProductRowVM): string => {
 // was typed. min/max mirror StockRequest's @Min(1) @Max(2000) - UX only, the server validates again. Avg/Min/Max
 // are learned (ReorderPolicyHandler) and read-only.
 const StockRow = (locationId: string, p: LocationProductRowVM): HtmlResult => html`
-	<tr id="row-${p.name}-${p.type}">
+	<tr id="row-${locationId}-${p.name}-${p.type}">
 		<td>${p.name}</td>
 		<td>${p.type}</td>
 		<td class="has-text-right ${availableClass(p)}">${p.availableAmount}</td>

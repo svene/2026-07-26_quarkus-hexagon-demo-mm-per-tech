@@ -11,7 +11,7 @@ public enum UiRoute {
     AdminRequests,
     AuditPanel,
     OrderErrors,
-    LocationPage,
+    LocationsPage,
     LocationInventory,
     ShopPage,
     ShopProducts,

@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Supermarket</title>
+    <link rel="stylesheet" href="/css/bulma.min.css">
+    <link rel="stylesheet" href="/css/theme.css">
+    <!-- synchronous, before the first paint: applies the saved dark/light choice without a flash -->
+    <script src="/js/theme.js"></script>
+</head>
+<body>
+<section class="section">
+<div class="container">
+    <div class="level">
+        <h1 class="title level-left">Supermarket</h1>
+        <button type="button" class="button is-small theme-toggle level-right" title="Toggle dark/light theme" aria-label="Toggle dark/light theme"></button>
+    </div>
+    <!-- one entry point per audience; the pages themselves don't link to each other -->
+    <ul id="entry-points" class="content">
+        <li><a href="/admin">Admin</a> – head office: supplier orders, DC and location stock, pending requests, audit log</li>
+        <li><a href="/locations">Locations</a> – the stores and the online FC: stock and requests to the DC</li>
+        <li><a href="/shop">Shop</a> – what customers see</li>
+    </ul>
+</div>
+</section>
+</body>
+</html>

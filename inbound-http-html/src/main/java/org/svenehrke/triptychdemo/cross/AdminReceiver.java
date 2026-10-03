@@ -73,7 +73,7 @@ public class AdminReceiver {
     @GET
     @Produces(MediaType.TEXT_HTML)
     public String shell() {
-        return PageShell.render("/shells/admin.html", "/admin", Map.of());
+        return PageShell.render("/shells/admin.html", Map.of());
     }
 
     @GET

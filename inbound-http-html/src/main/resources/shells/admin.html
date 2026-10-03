@@ -23,7 +23,6 @@
         <h1 class="title level-left">Supermarket – Admin</h1>
         <button type="button" class="button is-small theme-toggle level-right" title="Toggle dark/light theme" aria-label="Toggle dark/light theme"></button>
     </div>
-    {{nav}}
     <!-- outside #app, so re-rendering the page keeps the stream; its events bubble up to body -->
     <div hx-sse:connect="/inventory/events" hidden></div>
     <div id="app" hx-get="/admin/page" hx-trigger="load" hx-swap="innerHTML"></div>

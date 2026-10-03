@@ -3,6 +3,7 @@ package org.svenehrke.triptychdemo.cross;
 import org.svenehrke.triptychdemo.cross.auditlog.AuditLogHandler;
 import org.svenehrke.triptychdemo.cross.location.Locations;
 import org.svenehrke.triptychdemo.cross.location.Replenished;
+import org.svenehrke.triptychdemo.cross.products.ProductStock;
 import org.svenehrke.triptychdemo.cross.products.ProductsHandler;
 import org.svenehrke.triptychdemo.cross.reorder.DemandEstimate;
 import org.svenehrke.triptychdemo.cross.replenishment.ParsedStockRequest;
@@ -26,10 +27,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * The page of a store or the online FC (the DC is managed on {@code /admin}): its stock, and requesting more from
- * the DC.
+ * One page with every store and the online FC (the DC is managed on {@code /admin}): per location its stock, and
+ * requesting more from the DC.
  */
-@Path("/locations/{id}")
+@Path("/locations")
 public class LocationReceiver {
 
     private static final int REQUEST_LIMIT = 20;
@@ -41,31 +42,31 @@ public class LocationReceiver {
     @Inject
     AuditLogHandler auditLog;
 
-    /** The page shell; its {@code #app} element loads {@link #page(String)} and renders it in the browser. */
+    /** The static page shell; its {@code #app} element loads {@link #page()} and renders it in the browser. */
     @GET
     @Produces(MediaType.TEXT_HTML)
-    public String shell(@PathParam("id") String id) {
-        var location = location(id);
-        return PageShell.render("/shells/location.html", "/locations/" + location.id(),
-            Map.of("locationId", location.id(), "locationName", location.name()));
+    public String shell() {
+        return PageShell.render("/shells/locations.html", Map.of());
     }
 
     @GET
     @Path("/page")
     @Produces(MediaType.APPLICATION_JSON)
-    public UiResponse page(@PathParam("id") String id) {
-        return UiResponse.of(UiRoute.LocationPage, new LocationPageVM(inventory(location(id))));
+    public UiResponse page() {
+        var products = productsHandler.listAllLocations();
+        return UiResponse.of(UiRoute.LocationsPage,
+            new LocationsPageVM(Locations.REPLENISHED.stream().map(l -> inventory(l, products)).toList()));
     }
 
     @GET
-    @Path("/inventory-fragment")
+    @Path("/{id}/inventory-fragment")
     @Produces(MediaType.APPLICATION_JSON)
     public UiResponse inventoryFragment(@PathParam("id") String id) {
-        return UiResponse.of(UiRoute.LocationInventory, inventory(location(id)));
+        return UiResponse.of(UiRoute.LocationInventory, inventory(location(id), productsHandler.listAllLocations()));
     }
 
     @POST
-    @Path("/requests")
+    @Path("/{id}/requests")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     public Response request(@PathParam("id") String id,
                             @FormParam("productName") String productName,
@@ -92,13 +93,13 @@ public class LocationReceiver {
     }
 
     /** Every product the DC carries, so one this location has none of can be requested, too. */
-    private LocationInventoryVM inventory(Replenished location) {
-        var products = productsHandler.listAllLocations().stream()
+    private LocationInventoryVM inventory(Replenished location, List<ProductStock> allProducts) {
+        var products = allProducts.stream()
             .map(p -> new LocationProductRowVM(p.name(), p.type().name(), p.availableAt(location), p.availableAt(Locations.DC),
                 p.estimateAt(location).map(DemandEstimate::avg).orElse(null), p.levelsAt(location).map(LevelsVM::of).orElse(null)))
             .sorted(Comparator.comparing(LocationProductRowVM::name, String.CASE_INSENSITIVE_ORDER).thenComparing(LocationProductRowVM::type))
             .toList();
         var requests = replenishmentHandler.listRecent(location, REQUEST_LIMIT).stream().map(RequestVM::of).toList();
-        return new LocationInventoryVM(location.id(), products, requests);
+        return new LocationInventoryVM(location.id(), location.name(), products, requests);
     }
 }

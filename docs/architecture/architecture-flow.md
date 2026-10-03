@@ -24,7 +24,10 @@ This creates bidirectional flows through Kafka topics, connecting request/respon
 
 ### AdminReceiver (/admin) - HTML Forms → REST/SOAP/Kafka → Kafka Delivery Topics
 
-The HTML receivers don't render HTML: `GET /admin` and `GET /shop` return a static page shell, and every
+`/` is a static landing page (`META-INF/resources/index.html` in inbound-http-html) with one link per audience:
+`/admin`, `/locations` and `/shop`. The pages themselves have no nav and don't link to each other.
+
+The HTML receivers don't render HTML: `GET /admin`, `GET /locations` and `GET /shop` return a static page shell, and every
 view endpoint returns a JSON envelope `{route, vm}` (`UiResponse`) that the browser renders with the
 hono/html templates in `hx-hono.js` (see `docs/architecture/browser-templating_wip.md`).
 
@@ -244,10 +247,10 @@ ShopReceiver.inventoryFragment()   → UiResponse(ShopProducts, {products})
 ```
 
 #### GET /inventory/events - Inventory Change Stream (SSE)
-Served by `InventoryEventsReceiver` (`/inventory`) and opened once by the shop, admin and location shells
+Served by `InventoryEventsReceiver` (`/inventory`) and opened once by the shop, admin and locations shells
 (`hx-sse:connect`, outside `#app`, so a re-render of the page keeps it). Replaces the former 3 s polling: each event
 makes `/shop` re-fetch `GET /shop/inventory-fragment`, `/admin` re-fetch `GET /admin/inventory-fragment` and
-`GET /admin/requests-fragment`, and `/locations/{id}` re-fetch `GET /locations/{id}/inventory-fragment`. The event
+`GET /admin/requests-fragment`, and each section of `/locations` re-fetches `GET /locations/{id}/inventory-fragment`. The event
 carries no location: every page refreshes on every change (the core events do carry one, for filtering later).
 ```
 InventoryEventsReceiver.events()   → text/event-stream, never ends
@@ -280,22 +283,22 @@ ShopReceiver.checkout(productNames[], quantities[])
             └─ MongoDB
 ```
 
-### LocationReceiver (/locations/{id}) - Store / Online FC Page → PostgreSQL
+### LocationReceiver (/locations) - Stores / Online FC Page → PostgreSQL
 
-One page per store and the online FC; the DC (managed on `/admin`) and unknown ids are 404. The shells of all
-pages get a location nav built from `Locations` (`PageShell`).
+One page with a section per store and the online FC, in `Locations.REPLENISHED` order (`#location-{id}`, so
+`/locations#bern` jumps to Bern); the DC (managed on `/admin`) and unknown ids are 404 on the `{id}` endpoints.
 
-#### GET /locations/{id} - Location Page
+#### GET /locations - Locations Page
 ```
-LocationReceiver.shell(id)  → shells/location.html with {{nav}}, {{locationId}}, {{locationName}} filled in;
-                              its #app loads GET /locations/{id}/page
-LocationReceiver.page(id)   → UiResponse(LocationPage, {inventory})   (inventory as in the fragment below)
+LocationReceiver.shell()  → static shell (shells/locations.html), whose #app loads GET /locations/page
+LocationReceiver.page()   → UiResponse(LocationsPage, {locations: [inventory per location]})
+                            (ProductsHandler.listAllLocations() once, each inventory as in the fragment below)
 ```
 
 #### GET /locations/{id}/inventory-fragment - Stock and Requests
-Fetched on every `inventoryChanged` event, morphed into `#location-inventory`.
+Fetched per section on every `inventoryChanged` event and morphed into it; the ids inside carry the location id.
 ```
-LocationReceiver.inventoryFragment(id)   → UiResponse(LocationInventory, {locationId, products, requests})
+LocationReceiver.inventoryFragment(id)   → UiResponse(LocationInventory, {locationId, locationName, products, requests})
 ├─ ProductsHandler.listAllLocations()   (every product the DC carries: stock here + at the DC)
 │  └─ InventoryRepositorySPI.findAllLocations()
 │     └─ InventoryService (outbound-postgres) → PostgreSQL

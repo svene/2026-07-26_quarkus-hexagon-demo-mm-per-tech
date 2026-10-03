@@ -37,7 +37,7 @@ public class ShopReceiver {
     @GET
     @Produces(MediaType.TEXT_HTML)
     public String shell() {
-        return PageShell.render("/shells/shop.html", "/shop", Map.of());
+        return PageShell.render("/shells/shop.html", Map.of());
     }
 
     @GET

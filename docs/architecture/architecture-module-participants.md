@@ -36,10 +36,11 @@ Complete inventory of all classes participating in the system flows, organized b
 ### Receivers
 - `AdminReceiver` - Admin dashboard: product × location matrix, supplier orders (to the DC), pending requests (GET /admin shell, GET /admin/page and fragments, POST /admin/order-*, POST /admin/requests/{id}/fulfil|reject)
 - `ShopReceiver` - Customer shopping interface, sells the online FC's stock (GET /shop shell, GET /shop/page and fragment, POST /shop/checkout)
-- `LocationReceiver` - Store / online FC page: stock, requests to the DC (GET /locations/{id} shell, /page, /inventory-fragment, POST /locations/{id}/requests)
-- `InventoryEventsReceiver` - GET /inventory/events SSE stream (`inventoryChanged`), used by the shop, admin and location shells
+- `LocationReceiver` - One page for all stores and the online FC: stock, requests to the DC (GET /locations shell, GET /locations/page, GET /locations/{id}/inventory-fragment, POST /locations/{id}/requests)
+- `InventoryEventsReceiver` - GET /inventory/events SSE stream (`inventoryChanged`), used by the shop, admin and locations shells
 - `InventoryEventBroadcaster` (package-private) - `@ObservesAsync InventoryEvent` (every kind), re-published as a JDK `Flow.Publisher` that the SSE streams subscribe to
-- `PageShell` (package-private) - fills a page shell: the location nav (built from `Locations`) and `{{key}}` placeholders
+- `PageShell` (package-private) - fills the `{{key}}` placeholders of a page shell
+- `META-INF/resources/index.html` - static landing page at `/`, linking /admin, /locations and /shop
 - `UiRoute`, `UiResponse`, `*VM` records - the `{route, vm}` JSON envelope and the view models (TS types generated from them)
 - `*.ts` next to the receivers - hono/html templates + the `hono` htmx extension, bundled into `hx-hono.js`
 - `ShopCart` (package-private) - the checkout form's cart: pairs names with quantities, drops blank/`0` rows, parses to a `ParsedPurchase`, maps violations back to product names

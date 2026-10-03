@@ -9,69 +9,77 @@ async function stockDc(request: APIRequestContext, productName: string, quantity
   expect(res.ok()).toBeTruthy();
 }
 
-function stockRow(page: Page, productName: string) {
-  return page.locator('#location-stock tbody tr').filter({ has: page.getByRole('cell', { name: productName, exact: true }) });
+// /locations shows every store and the online FC; each helper is scoped to one location's section.
+function stockRow(page: Page, locationId: string, productName: string) {
+  return page.locator(`#stock-${locationId} tbody tr`).filter({ has: page.getByRole('cell', { name: productName, exact: true }) });
+}
+
+function requestRow(page: Page, locationId: string, productName: string) {
+  return page.locator(`#requests-${locationId} tbody tr`).filter({ hasText: productName });
 }
 
 // Columns of the stock table: Name, Type, Available, Avg, Min, Max, DC, ...
 const AVAILABLE = 2, AVG = 3, MIN = 4, MAX = 5, DC = 6;
-const cell = (page: Page, productName: string, column: number) => stockRow(page, productName).getByRole('cell').nth(column);
+const cell = (page: Page, locationId: string, productName: string, column: number) =>
+  stockRow(page, locationId, productName).getByRole('cell').nth(column);
 
-test('the nav switches between the locations and marks the current one', async ({ page }) => {
-  await page.goto('/admin');
-  await page.locator('#location-nav').getByRole('link', { name: 'Store Bern' }).click();
-  await expect(page).toHaveURL('/locations/bern');
-  await expect(page.getByRole('heading', { name: 'Supermarket – Store Bern' })).toBeVisible();
-  await expect(page.locator('#location-nav li.is-active')).toHaveText('Store Bern');
+test('the landing page links admin, locations and shop, none of which shows a nav', async ({ page }) => {
+  for (const [link, heading] of [['Admin', 'Supermarket – Admin'], ['Locations', 'Supermarket – Locations'], ['Shop', 'Supermarket – Shop']]) {
+    await page.goto('/');
+    await page.locator('#entry-points').getByRole('link', { name: link, exact: true }).click();
+    await expect(page.getByRole('heading', { name: heading })).toBeVisible();
+    await expect(page.locator('#location-nav')).toHaveCount(0);
+  }
+});
 
-  await page.locator('#location-nav').getByRole('link', { name: 'Online FC' }).click();
-  await expect(page).toHaveURL('/locations/online');
-  await expect(page.locator('#location-nav li.is-active')).toHaveText('Online FC');
+test('the locations page shows every store and the online FC as sections, in order', async ({ page }) => {
+  await page.goto('/locations');
+  await expect(page.locator('#app section h2')).toHaveText(['Store Zurich', 'Store Bern', 'Store Basel', 'Online FC']);
 });
 
 test('a store lists what the DC carries and gets a request served live, without a reload', async ({ page }) => {
   const name = `Quince-${RUN_ID}`;
-  await page.goto('/locations/zurich');
+  await page.goto('/locations');
   await stockDc(page.request, name, 10);
 
   // The DC's delivery appears through the SSE-triggered refresh: 0 here, 10 at the DC.
-  await expect(stockRow(page, name)).toBeVisible({ timeout: 15_000 });
-  await expect(cell(page, name, AVAILABLE)).toHaveText('0');
-  await expect(cell(page, name, DC)).toHaveText('10');
+  await expect(stockRow(page, 'zurich', name)).toBeVisible({ timeout: 15_000 });
+  await expect(cell(page, 'zurich', name, AVAILABLE)).toHaveText('0');
+  await expect(cell(page, 'zurich', name, DC)).toHaveText('10');
   // No stock row here yet, so nothing learned yet either.
-  await expect(cell(page, name, MIN)).toHaveText('–');
+  await expect(cell(page, 'zurich', name, MIN)).toHaveText('–');
 
-  const request = stockRow(page, name).getByRole('button', { name: 'Request' });
+  const request = stockRow(page, 'zurich', name).getByRole('button', { name: 'Request' });
   await expect(request).toBeDisabled();
-  await stockRow(page, name).locator('input[name="quantity"]').fill('4');
+  await stockRow(page, 'zurich', name).locator('input[name="quantity"]').fill('4');
   await request.click();
 
-  await expect(cell(page, name, AVAILABLE)).toHaveText('4');
-  await expect(cell(page, name, DC)).toHaveText('6');
-  const requestRow = page.locator('#location-requests tbody tr').filter({ hasText: name });
-  await expect(requestRow).toContainText('4 / 4');
-  await expect(requestRow).toContainText('FULFILLED');
-  await expect(requestRow).toContainText('manual');
+  await expect(cell(page, 'zurich', name, AVAILABLE)).toHaveText('4');
+  await expect(cell(page, 'zurich', name, DC)).toHaveText('6');
+  const requested = requestRow(page, 'zurich', name);
+  await expect(requested).toContainText('4 / 4');
+  await expect(requested).toContainText('FULFILLED');
+  await expect(requested).toContainText('manual');
 
   // The first transfer created the stock row with a store's cold-start levels (read-only); 4 is below min, so red.
-  await expect(cell(page, name, AVG)).toHaveText('10.0');
-  await expect(cell(page, name, MIN)).toHaveText('17');
-  await expect(cell(page, name, MAX)).toHaveText('47');
-  await expect(cell(page, name, AVAILABLE)).toHaveClass(/has-text-danger/);
+  await expect(cell(page, 'zurich', name, AVG)).toHaveText('10.0');
+  await expect(cell(page, 'zurich', name, MIN)).toHaveText('17');
+  await expect(cell(page, 'zurich', name, MAX)).toHaveText('47');
+  await expect(cell(page, 'zurich', name, AVAILABLE)).toHaveClass(/has-text-danger/);
 });
 
 test('a request the DC cannot fully serve stays pending until head office fulfils or rejects it', async ({ page, context }) => {
   const name = `Guava-${RUN_ID}`;
   await stockDc(page.request, name, 3);
-  await page.goto('/locations/basel');
-  await expect(stockRow(page, name)).toBeVisible({ timeout: 15_000 });
+  await page.goto('/locations');
+  await expect(stockRow(page, 'basel', name)).toBeVisible({ timeout: 15_000 });
 
-  await stockRow(page, name).locator('input[name="quantity"]').fill('5');
-  await stockRow(page, name).getByRole('button', { name: 'Request' }).click();
-  await expect(cell(page, name, AVAILABLE)).toHaveText('3');
-  const requestRow = page.locator('#location-requests tbody tr').filter({ hasText: name });
-  await expect(requestRow).toContainText('3 / 5');
-  await expect(requestRow).toContainText('PENDING');
+  await stockRow(page, 'basel', name).locator('input[name="quantity"]').fill('5');
+  await stockRow(page, 'basel', name).getByRole('button', { name: 'Request' }).click();
+  await expect(cell(page, 'basel', name, AVAILABLE)).toHaveText('3');
+  const requested = requestRow(page, 'basel', name);
+  await expect(requested).toContainText('3 / 5');
+  await expect(requested).toContainText('PENDING');
 
   const admin = await context.newPage();
   await admin.goto('/admin');
@@ -80,7 +88,7 @@ test('a request the DC cannot fully serve stays pending until head office fulfil
   await pending.getByRole('button', { name: 'Reject' }).click();
   await expect(pending).toHaveCount(0);
 
-  // The store's page follows without a reload.
-  await expect(requestRow).toContainText('REJECTED');
-  await expect(cell(page, name, AVAILABLE)).toHaveText('3');
+  // The locations page follows without a reload.
+  await expect(requested).toContainText('REJECTED');
+  await expect(cell(page, 'basel', name, AVAILABLE)).toHaveText('3');
 });
