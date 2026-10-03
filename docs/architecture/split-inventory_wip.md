@@ -5,7 +5,7 @@ distribution centre (DC) that all supplier deliveries go to, 3 physical stores a
 fulfilment centre (dark store). Locations are replenished from the DC by **pull**; reorder levels
 are **learned from sales**, not maintained by hand. Tracked as `PLAN.md` `split-inventory`.
 
-Status: **PHASE 1 DONE, PHASE 2 DONE (staged)** — phase 1 implemented and committed 2026-10-03; phase 2 implemented 2026-10-03 (staged, not committed); phase 3 (DC stage) not started.
+Status: **PHASE 1 DONE, PHASE 2 DONE** — phase 1 committed 2026-10-03 (`f894a93`); phase 2 incl. the fair share committed 2026-10-03 (`b7aac71`); phase 3 (DC stage) not started, needs a detailed plan first.
 
 ## Current state
 
@@ -432,7 +432,7 @@ _(append dated entries as steps land)_
   - Architecture docs updated (`architecture-flow.md`, `architecture-module-participants.md`,
     `architecture-flow-kafka-reference.md`, stale lines in 12 flow diagrams, new `location-request.puml` and
     `admin-decide-request.puml`).
-  - Still open for phase 1: `docs/ai/session-notes.md` commit-hash baseline, to be set in the commit itself.
+  - `docs/ai/session-notes.md` commit-hash baseline: set to `b7aac71` after phase 2 (see below).
 - **2026-10-03, `Location` sealed (staged).** `LocationKind` replaced by types: `sealed interface Location permits
   Warehouse, Replenished`, `sealed interface Replenished extends Location permits Store, OnlineFc`. The runtime kind
   checks are gone: `recordStoreSale` takes a `Store`, `StockRequest` / `ReplenishmentRequest` / the location pages a
@@ -452,7 +452,7 @@ _(append dated entries as steps land)_
   `ReplenishmentChanged(location)` (they share `cross.inventory`, since core is no named module). The SSE stream is
   fed by `InventoryEventBroadcaster` (inbound-http-html, `@ObservesAsync InventoryEvent`); `DeliveryEventReceiver`
   still observes only `DeliveredToDc`. The events carry the location, so per-location SSE filtering is now easy.
-- **2026-10-03, phase 2 code landed (staged, not committed).** Core: `cross.reorder` (`ReorderPolicy` - constants
+- **2026-10-03, phase 2 code landed (committed in `b7aac71`).** Core: `cross.reorder` (`ReorderPolicy` - constants
   per `Replenished` type, `DemandEstimate`, `LearnedLevels`, `ReorderPolicyHandler.closePeriod()`), new event
   `LevelsRecalculated`, `StockDeducted(location, productNames)`, `RequestOrigin` (`MANUAL | AUTOMATIC`) on requests,
   `ReplenishmentHandler.replenishIfLow`. `PurchaseHandler` records the requested quantities after the deduction
@@ -472,10 +472,10 @@ _(append dated entries as steps land)_
     22 e2e tests (`--retries=0`) green.
   - Docs: `architecture-module-participants.md`, `architecture-flow.md` (new section "Event and Timer Inbound
     Flows"), `architecture-flow-kafka-reference.md`, new `flows/auto-replenishment.puml`.
-  - Still open: `docs/ai/session-notes.md` commit-hash baseline, to be set in the commit itself.
-- **2026-10-03, fair share of a DC shortfall (staged).** As planned in the section above: `FairShare` (core, pure),
+  - `docs/ai/session-notes.md` commit-hash baseline: set to `b7aac71` (see the fair-share entry).
+- **2026-10-03, fair share of a DC shortfall (committed in `b7aac71`).** As planned in the section above: `FairShare` (core, pure),
   `Requested`, SPI `fulfilPending` → `allocate`, `requestIfLow` only creates, `ReplenishmentHandler.replenishAllIfLow`
   for the period close (the handler method after a delivery keeps its name `fulfilPending`). Tests: `FairShareTest`,
   `ReplenishmentFlowTest` (short delivery 4/3, new request shares with an older one),
   `AutoReplenishmentFlowTest` (50 Apples for 39/39/39/58 → 11/11/11/17); 157 core + 130 app-server tests green; e2e
-  not re-run (the user's dev server was running). Docs: participants, flow, Kafka reference, 6 `.puml` files.
+  re-run after the commit: all 22 tests (`--retries=0`) green. Docs: participants, flow, Kafka reference, 6 `.puml` files.
