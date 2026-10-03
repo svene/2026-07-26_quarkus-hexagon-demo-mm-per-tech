@@ -37,6 +37,10 @@
     </dependency>
     <dependency>
       <groupId>org.svenehrke</groupId>
+      <artifactId>inbound-event</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.svenehrke</groupId>
       <artifactId>outbound-postgres</artifactId>
     </dependency>
     <dependency>

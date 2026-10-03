@@ -3,28 +3,32 @@ skinparam monochrome true
 skinparam sequenceMessageAlign center
 skinparam backgroundColor #ffffff
 
-actor "Customer / Admin" as user
+actor "Customer / Admin /\nLocation manager" as user
 participant "InventoryEventsReceiver\n(HTTP)" as receiver
-participant "ShopReceiver /\nAdminReceiver\n(HTTP)" as page
-participant "InventoryChangesHandler\n(Core)" as changes
-participant "InventoryHandler /\nPurchaseHandler\n(Core)" as handler
+participant "InventoryEventBroadcaster\n(HTTP module, CDI observer)" as broadcaster
+participant "ShopReceiver / AdminReceiver /\nLocationReceiver (HTTP)" as page
+participant "InventoryHandler / PurchaseHandler /\nReplenishmentHandler (Core)" as handler
 participant "ProductsHandler\n(Core)" as products
-database "PostgreSQL\n(Products)" as db
+database "PostgreSQL\n(stock)" as db
 
 user -> receiver: GET /inventory/events (hx-sse:connect)
-receiver -> changes: subscribe changes()
+receiver -> broadcaster: subscribe events()
 receiver --> user: event: inventoryChanged (on connect)
 
-== an inventory change (Kafka delivery, checkout, cashpoint sale) ==
-handler -> db: addAmount / deductAll (committed)
-handler -> changes: publishChange()
-changes -> receiver: InventoryChanged
+== an inventory change (Kafka delivery, checkout, cashpoint sale, replenishment request) ==
+handler -> db: addAmount / deductAll / transfer (committed)
+handler ->> broadcaster: fireAsync(InventoryEvent)\nDeliveredToDc | StockDeducted | ReplenishmentChanged
+note right of broadcaster
+  @ObservesAsync InventoryEvent: one observer for
+  all kinds (CDI delivers subtypes to it)
+end note
+broadcaster -> receiver: InventoryEvent
 receiver --> user: event: inventoryChanged
 
-user -> page: GET /shop/inventory-fragment or /admin/inventory-fragment\n(hx-trigger="inventoryChanged from:body")
-page -> products: listAll()
-products -> db: SELECT * FROM products
-page --> user: JSON {route: ShopProducts | AdminInventory, vm}
+user -> page: GET /shop/inventory-fragment, /admin/inventory-fragment\nor /locations/{id}/inventory-fragment\n(hx-trigger="inventoryChanged from:body")
+page -> products: listAll(ONLINE) / listAllLocations()
+products -> db: SELECT * FROM stock
+page --> user: JSON {route: ShopProducts | AdminInventory | LocationInventory, vm}
 user -> user: render + innerMorph into #shop-products / #admin-inventory\n(typed quantities survive)
 
 @enduml

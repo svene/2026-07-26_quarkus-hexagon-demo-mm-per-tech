@@ -2,6 +2,7 @@ package org.svenehrke.triptychdemo.server;
 
 import org.svenehrke.triptychdemo.cross.inventory.InventoryRepositorySPI;
 
+import org.svenehrke.triptychdemo.cross.location.Locations;
 import org.svenehrke.triptychdemo.cross.products.ProductType;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
@@ -43,7 +44,7 @@ class ProductApiReceiverTest {
 
     @Test
     void list_returns_product_as_json() {
-        inventory.addAmount("Apple", ProductType.FRUIT, 10);
+        inventory.addAmount(Locations.ONLINE, "Apple", ProductType.FRUIT, 10);
 
         var response = given().get("/api/products");
 
@@ -54,9 +55,9 @@ class ProductApiReceiverTest {
 
     @Test
     void list_returns_all_products() {
-        inventory.addAmount("Apple", ProductType.FRUIT, 10);
-        inventory.addAmount("Banana", ProductType.FRUIT, 7);
-        inventory.addAmount("Cola", ProductType.BEVERAGE, 20);
+        inventory.addAmount(Locations.ONLINE, "Apple", ProductType.FRUIT, 10);
+        inventory.addAmount(Locations.ONLINE, "Banana", ProductType.FRUIT, 7);
+        inventory.addAmount(Locations.ONLINE, "Cola", ProductType.BEVERAGE, 20);
 
         var response = given().get("/api/products");
 

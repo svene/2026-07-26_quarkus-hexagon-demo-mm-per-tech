@@ -2,10 +2,13 @@ import {html} from "hono/html";
 import type {
 	AdminInventoryVM,
 	AdminPageVM,
+	AdminRequestsVM,
 	AuditEntryVM,
 	AuditPanelVM,
+	LocationVM,
 	OrderErrorsVM,
-	ProductRowVM
+	RequestVM,
+	StockRowVM
 } from "./generated/vm-types";
 import type {HtmlResult} from "./route-types";
 
@@ -68,36 +71,51 @@ export const AdminPage = (vm: AdminPageVM): HtmlResult => html`
 		<div class="column is-half">
 			<h2 class="title is-4">Current Inventory</h2>
 			<div id="admin-inventory" hx-get="/admin/inventory-fragment" hx-trigger="inventoryChanged from:body" hx-sync="this:replace" hx-swap="innerMorph">
-				${AdminInventory({products: vm.products})}
+				${AdminInventory({locations: vm.locations, products: vm.products})}
+			</div>
+
+			<h2 class="title is-4 mt-5">Pending Requests</h2>
+			<div id="admin-requests" hx-get="/admin/requests-fragment" hx-trigger="inventoryChanged from:body" hx-sync="this:replace" hx-swap="innerMorph">
+				${AdminRequests({requests: vm.pendingRequests})}
 			</div>
 		</div>
 	</div>
 `;
 
-// Re-fetched on every inventoryChanged event pushed by the shell's SSE stream (/inventory/events) and morphed
-// into #admin-inventory: rows are matched by id, so new products appear and rows that stay keep typed
-// restock quantities and focus. (A restock error in the last column is cleared by the next refresh.)
+// The product × location matrix, DC column first. Re-fetched on every inventoryChanged event pushed by the shell's
+// SSE stream (/inventory/events) and morphed into #admin-inventory: rows are matched by id, so new products appear
+// and rows that stay keep typed restock quantities and focus. (A restock error in the last column is cleared by the
+// next refresh.) Restocking orders from the supplier, so it always goes to the DC.
 export const AdminInventory = (vm: AdminInventoryVM): HtmlResult => html`
 	${vm.products.length === 0
 		? html`<p class="has-text-grey"><em>No products in inventory yet.</em></p>`
 		: html`
-			<table class="table is-fullwidth is-striped">
-				<thead>
-				<tr><th>Name</th><th>Type</th><th>Available</th><th>Restock</th><th></th></tr>
-				</thead>
-				<tbody>
-				${vm.products.map(InventoryRow)}
-				</tbody>
-			</table>`}
+			<div style="overflow-x:auto">
+				<table class="table is-fullwidth is-striped is-narrow" id="stock-matrix">
+					<thead>
+					<tr><th>Name</th><th>Type</th>${vm.locations.map(LocationHeader)}<th>Restock DC</th><th></th></tr>
+					</thead>
+					<tbody>
+					${vm.products.map(InventoryRow)}
+					</tbody>
+				</table>
+			</div>`}
+`;
+
+const LocationHeader = (l: LocationVM): HtmlResult => html`<th class="has-text-right" data-location="${l.id}">${l.name}</th>`;
+
+// An empty cell is the one to act on: red at the DC (order from the supplier), orange elsewhere (request from the DC).
+const AmountCell = (amount: number, i: number): HtmlResult => html`
+	<td class="has-text-right ${amount > 0 ? '' : i === 0 ? 'has-text-danger has-text-weight-bold' : 'has-text-warning-dark'}">${amount}</td>
 `;
 
 // Name+type is the product key. Like the cart rows on /shop, the quantity input has no value attribute, so a
 // morph never resets what was typed; it is kept after a restock, too, so the same amount can be ordered again.
-const InventoryRow = (p: ProductRowVM): HtmlResult => html`
+const InventoryRow = (p: StockRowVM): HtmlResult => html`
 	<tr id="row-${p.name}-${p.type}">
 		<td>${p.name}</td>
 		<td>${p.type}</td>
-		<td>${p.availableAmount}</td>
+		${p.amounts.map(AmountCell)}
 		<td>
 			<form hx-post="${RESTOCK_ACTIONS[p.type]}" hx-target="next .restock-error" hx-swap="innerHTML" class="field has-addons restock-form">
 				<input type="hidden" name="productName" value="${p.name}">
@@ -105,7 +123,41 @@ const InventoryRow = (p: ProductRowVM): HtmlResult => html`
 				<div class="control"><button class="button is-link is-small" type="submit" hx-live="this.disabled = !this.form.matches(':valid')">Restock</button></div>
 			</form>
 		</td>
-		<td class="help is-danger restock-error"></td>
+		<td class="has-text-danger is-size-7 restock-error"></td>
+	</tr>
+`;
+
+// Pending requests of all locations, oldest first (the order deliveries serve them in). Fulfil sends what the DC has
+// right away, ahead of older requests; the rest stays pending. Both answer with an empty 200 and the change event
+// then refreshes this list, or with a 409 shown in the row's error cell.
+export const AdminRequests = (vm: AdminRequestsVM): HtmlResult => html`
+	${vm.requests.length === 0
+		? html`<p class="has-text-grey"><em>No pending requests.</em></p>`
+		: html`
+			<table class="table is-fullwidth is-striped is-narrow" id="pending-requests">
+				<thead>
+				<tr><th>#</th><th>Location</th><th>Product</th><th class="has-text-right">Delivered</th><th>Requested at</th><th></th><th></th></tr>
+				</thead>
+				<tbody>
+				${vm.requests.map(PendingRequestRow)}
+				</tbody>
+			</table>`}
+`;
+
+const PendingRequestRow = (r: RequestVM): HtmlResult => html`
+	<tr id="request-${r.id}">
+		<td>${r.id}</td>
+		<td>${r.locationName}</td>
+		<td>${r.productName}</td>
+		<td class="has-text-right">${r.delivered} / ${r.requested}</td>
+		<td>${r.createdAt}</td>
+		<td>
+			<div class="buttons has-addons">
+				<button class="button is-link is-small" type="button" hx-post="/admin/requests/${r.id}/fulfil" hx-target="next .request-error" hx-swap="innerHTML">Fulfil</button>
+				<button class="button is-danger is-light is-small" type="button" hx-post="/admin/requests/${r.id}/reject" hx-target="next .request-error" hx-swap="innerHTML">Reject</button>
+			</div>
+		</td>
+		<td class="has-text-danger is-size-7 request-error"></td>
 	</tr>
 `;
 

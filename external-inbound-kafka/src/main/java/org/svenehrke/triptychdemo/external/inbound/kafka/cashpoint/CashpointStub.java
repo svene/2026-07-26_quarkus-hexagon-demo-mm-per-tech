@@ -15,6 +15,9 @@ import java.util.concurrent.ThreadLocalRandom;
 @ApplicationScoped
 public class CashpointStub {
 
+    /** The stores of the supermarket chain; each tick, the cashpoint of a random one sells from its stock. */
+    private static final List<String> STORE_IDS = List.of("zurich", "bern", "basel");
+
     @Inject
     @RestClient
     ProductsApiClient productsApiClient;
@@ -25,9 +28,11 @@ public class CashpointStub {
 
     @Scheduled(every = "10s", delayed = "30s")
     void simulatePurchase() {
+        var rnd = ThreadLocalRandom.current();
+        var storeId = STORE_IDS.get(rnd.nextInt(STORE_IDS.size()));
         List<ProductInfo> available;
         try {
-            available = productsApiClient.listProducts().stream()
+            available = productsApiClient.listProducts(storeId).stream()
                 .filter(p -> p.availableAmount() > 0)
                 .toList();
         } catch (Exception e) {
@@ -35,13 +40,12 @@ public class CashpointStub {
         }
         if (available.isEmpty()) return;
 
-        var rnd = ThreadLocalRandom.current();
         var shuffled = new ArrayList<>(available);
         Collections.shuffle(shuffled);
         int count = Math.min(rnd.nextInt(2, 5), shuffled.size());
         var items = shuffled.subList(0, count).stream()
             .map(p -> new PurchaseRequestItem(p.name(), rnd.nextInt(1, Math.min(4, p.availableAmount() + 1))))
             .toList();
-        emitter.send(new PurchaseRequest(items));
+        emitter.send(new PurchaseRequest(storeId, items));
     }
 }

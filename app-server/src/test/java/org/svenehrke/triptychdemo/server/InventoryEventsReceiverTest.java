@@ -2,6 +2,7 @@ package org.svenehrke.triptychdemo.server;
 
 import org.svenehrke.triptychdemo.cross.inventory.InventoryRepositorySPI;
 
+import org.svenehrke.triptychdemo.cross.location.Locations;
 import org.svenehrke.triptychdemo.cross.products.ProductType;
 import io.quarkus.test.common.http.TestHTTPResource;
 import io.quarkus.test.junit.QuarkusTest;
@@ -41,7 +42,7 @@ class InventoryEventsReceiverTest {
     /** Proves the stream is pushed, not buffered: the second event only exists after the checkout. */
     @Test
     void events_stream_sends_inventory_changed_on_connect_and_after_a_purchase() throws Exception {
-        inventory.addAmount("Apple", ProductType.FRUIT, 10);
+        inventory.addAmount(Locations.ONLINE, "Apple", ProductType.FRUIT, 10);
         BlockingQueue<String> lines = new LinkedBlockingQueue<>();
         try (var client = HttpClient.newHttpClient()) {
             var request = HttpRequest.newBuilder(eventsUri).header("Accept", "text/event-stream").build();
@@ -55,6 +56,30 @@ class InventoryEventsReceiverTest {
                 .formParam("productName", "Apple")
                 .formParam("quantity", "1")
                 .post("/shop/checkout")
+                .then().statusCode(200);
+
+            assertThat(nextEvent(lines)).isEqualTo("inventoryChanged");
+            response.cancel(true);
+        }
+    }
+
+    /** Every kind of InventoryEvent reaches the stream - here a request that only goes PENDING, no stock moves. */
+    @Test
+    void events_stream_sends_inventory_changed_after_a_replenishment_request() throws Exception {
+        inventory.addAmount(Locations.DC, "Apple", ProductType.FRUIT, 0);
+        BlockingQueue<String> lines = new LinkedBlockingQueue<>();
+        try (var client = HttpClient.newHttpClient()) {
+            var request = HttpRequest.newBuilder(eventsUri).header("Accept", "text/event-stream").build();
+            var response = client.sendAsync(request, HttpResponse.BodyHandlers.ofLines())
+                .thenApply(r -> { r.body().forEach(lines::add); return r; });
+
+            assertThat(nextEvent(lines)).isEqualTo("inventoryChanged"); // on connect
+
+            given()
+                .contentType("application/x-www-form-urlencoded")
+                .formParam("productName", "Apple")
+                .formParam("quantity", "3")
+                .post("/locations/bern/requests")
                 .then().statusCode(200);
 
             assertThat(nextEvent(lines)).isEqualTo("inventoryChanged");

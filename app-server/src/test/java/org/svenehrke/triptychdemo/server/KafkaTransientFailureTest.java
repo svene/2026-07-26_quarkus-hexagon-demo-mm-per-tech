@@ -31,6 +31,7 @@ import java.util.UUID;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -99,14 +100,14 @@ class KafkaTransientFailureTest {
     void transient_failure_is_retried() throws Exception {
         doThrow(new IllegalStateException("database down"))
             .doCallRealMethod()
-            .when(inventoryService).addAmount(anyString(), eq(ProductType.FRUIT), anyInt());
+            .when(inventoryService).addAmount(any(), anyString(), eq(ProductType.FRUIT), anyInt());
 
         send("transient-fruit-deliveries", """
             {"productName": "Mango", "quantity": 5}""");
 
         await().atMost(15, SECONDS).untilAsserted(() ->
             assertThat(auditHelper.findEventDetails("InventoryHandler: FRUIT_INVENTORY_UPDATED"))
-                .containsExactly("Mango +5"));
+                .containsExactly("dc: Mango +5"));
         // @Retry runs the whole receive() again, so the receipt is logged once per attempt.
         assertThat(auditHelper.findEventDetails("FruitDeliveryReceiver: FRUIT_DELIVERY_RECEIVED"))
             .containsExactly("Mango qty=5", "Mango qty=5");
@@ -116,7 +117,7 @@ class KafkaTransientFailureTest {
     @Test
     void persistent_failure_stops_the_channel_without_dead_lettering() throws Exception {
         doThrow(new IllegalStateException("database down"))
-            .when(inventoryService).addAmount(anyString(), eq(ProductType.VEGETABLE), anyInt());
+            .when(inventoryService).addAmount(any(), anyString(), eq(ProductType.VEGETABLE), anyInt());
 
         send("transient-vegetables-deliveries", """
             {"productName": "Leek", "quantity": 5}""");
@@ -127,7 +128,7 @@ class KafkaTransientFailureTest {
                 .hasSize(4));
 
         // The database "recovers", but the stopped channel doesn't consume the next message.
-        doCallRealMethod().when(inventoryService).addAmount(anyString(), eq(ProductType.VEGETABLE), anyInt());
+        doCallRealMethod().when(inventoryService).addAmount(any(), anyString(), eq(ProductType.VEGETABLE), anyInt());
         send("transient-vegetables-deliveries", """
             {"productName": "Carrot", "quantity": 5}""");
         await().during(5, SECONDS).atMost(6, SECONDS).untilAsserted(() ->

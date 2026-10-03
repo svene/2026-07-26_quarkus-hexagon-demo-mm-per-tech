@@ -48,7 +48,7 @@ class NonFoodOrderDeliveryFlowTest {
             .containsExactly("Detergent qty=3");
 
         await().atMost(10, SECONDS).untilAsserted(() -> {
-            var response = given().get("/api/products");
+            var response = given().get("/api/locations/dc/products");
             assertThat(response.statusCode()).isEqualTo(200);
             assertThat(response.asString()).isEqualTo("""
                 [{"name":"Detergent","type":"NON_FOOD","availableAmount":3}]""");
@@ -56,7 +56,7 @@ class NonFoodOrderDeliveryFlowTest {
             assertThat(auditHelper.findEventDetails("NonFoodDeliveryReceiver: NON_FOOD_DELIVERY_RECEIVED"))
                 .containsExactly("Detergent qty=3");
             assertThat(auditHelper.findEventDetails("InventoryHandler: NON_FOOD_INVENTORY_UPDATED"))
-                .containsExactly("Detergent +3");
+                .containsExactly("dc: Detergent +3");
         });
     }
 }

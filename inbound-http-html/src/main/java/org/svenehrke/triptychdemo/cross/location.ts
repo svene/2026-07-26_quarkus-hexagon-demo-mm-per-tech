@@ -1,0 +1,76 @@
+import {html} from "hono/html";
+import type {LocationInventoryVM, LocationPageVM, LocationProductRowVM, RequestVM} from "./generated/vm-types";
+import type {HtmlResult} from "./route-types";
+
+export const LocationPage = (vm: LocationPageVM): HtmlResult => html`
+	<div id="location-inventory" hx-get="/locations/${vm.inventory.locationId}/inventory-fragment" hx-trigger="inventoryChanged from:body" hx-sync="this:replace" hx-swap="innerMorph">
+		${LocationInventory(vm.inventory)}
+	</div>
+`;
+
+// Stock and requests in one fragment: a request changes both (or only the request list, if it has to wait), and
+// every request publishes an inventoryChanged event. Re-fetched on that event and morphed, so rows that stay keep
+// typed quantities and focus.
+export const LocationInventory = (vm: LocationInventoryVM): HtmlResult => html`
+	<div class="columns">
+		<div class="column is-three-fifths">
+			<h2 class="title is-4">Stock</h2>
+			${vm.products.length === 0
+				? html`<p class="has-text-grey"><em>The DC carries no products yet.</em></p>`
+				: html`
+					<table class="table is-fullwidth is-striped is-narrow" id="location-stock">
+						<thead>
+						<tr><th>Name</th><th>Type</th><th class="has-text-right">Available</th><th class="has-text-right">DC</th><th>Request from DC</th><th></th></tr>
+						</thead>
+						<tbody>
+						${vm.products.map(p => StockRow(vm.locationId, p))}
+						</tbody>
+					</table>`}
+		</div>
+		<div class="column">
+			<h2 class="title is-4">Requests</h2>
+			${vm.requests.length === 0
+				? html`<p class="has-text-grey"><em>No requests yet.</em></p>`
+				: html`
+					<table class="table is-fullwidth is-striped is-narrow" id="location-requests">
+						<thead>
+						<tr><th>#</th><th>Product</th><th class="has-text-right">Delivered</th><th>Status</th><th>Requested at</th></tr>
+						</thead>
+						<tbody>
+						${vm.requests.map(RequestRow)}
+						</tbody>
+					</table>`}
+		</div>
+	</div>
+`;
+
+// Name+type is the product key. As on /admin, the quantity input has no value attribute, so a morph never resets what
+// was typed. min/max mirror StockRequest's @Min(1) @Max(2000) - UX only, the server validates again.
+const StockRow = (locationId: string, p: LocationProductRowVM): HtmlResult => html`
+	<tr id="row-${p.name}-${p.type}">
+		<td>${p.name}</td>
+		<td>${p.type}</td>
+		<td class="has-text-right ${p.availableAmount > 0 ? '' : 'has-text-danger has-text-weight-bold'}">${p.availableAmount}</td>
+		<td class="has-text-right has-text-grey">${p.dcAvailableAmount}</td>
+		<td>
+			<form hx-post="/locations/${locationId}/requests" hx-target="next .request-error" hx-swap="innerHTML" class="field has-addons request-form">
+				<input type="hidden" name="productName" value="${p.name}">
+				<div class="control"><input class="input is-small" name="quantity" type="number" placeholder="Qty" min="1" max="2000" required style="width:80px"></div>
+				<div class="control"><button class="button is-link is-small" type="submit" hx-live="this.disabled = !this.form.matches(':valid')">Request</button></div>
+			</form>
+		</td>
+		<td class="has-text-danger is-size-7 request-error"></td>
+	</tr>
+`;
+
+const STATUS_TAGS: Record<string, string> = {PENDING: "is-warning", FULFILLED: "is-success", REJECTED: "is-danger"};
+
+const RequestRow = (r: RequestVM): HtmlResult => html`
+	<tr id="request-${r.id}">
+		<td>${r.id}</td>
+		<td>${r.productName}</td>
+		<td class="has-text-right">${r.delivered} / ${r.requested}</td>
+		<td><span class="tag ${STATUS_TAGS[r.status] ?? ''}">${r.status}</span></td>
+		<td>${r.createdAt}</td>
+	</tr>
+`;

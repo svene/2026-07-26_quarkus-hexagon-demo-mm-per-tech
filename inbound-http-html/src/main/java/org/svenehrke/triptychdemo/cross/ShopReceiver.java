@@ -1,6 +1,7 @@
 package org.svenehrke.triptychdemo.cross;
 
 import org.svenehrke.triptychdemo.cross.auditlog.AuditLogHandler;
+import org.svenehrke.triptychdemo.cross.location.Locations;
 import org.svenehrke.triptychdemo.cross.products.ProductsHandler;
 import org.svenehrke.triptychdemo.cross.purchase.PurchaseHandler;
 
@@ -16,11 +17,12 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import java.io.InputStream;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
+/** The online shop: sells from the online FC's stock. */
 @Path("/shop")
 public class ShopReceiver {
 
@@ -34,8 +36,8 @@ public class ShopReceiver {
     /** The static page shell; its {@code #app} element loads {@link #page()} and renders it in the browser. */
     @GET
     @Produces(MediaType.TEXT_HTML)
-    public InputStream shell() {
-        return ShopReceiver.class.getResourceAsStream("/shells/shop.html");
+    public String shell() {
+        return PageShell.render("/shells/shop.html", "/shop", Map.of());
     }
 
     @GET
@@ -87,7 +89,7 @@ public class ShopReceiver {
     }
 
     private List<ProductRowVM> inStockProducts() {
-        return productsHandler.listAll().stream()
+        return productsHandler.listAll(Locations.ONLINE).stream()
             .filter(p -> p.availableAmount() > 0)
             .map(ProductRowVM::of)
             .sorted(Comparator.comparing(ProductRowVM::name, String.CASE_INSENSITIVE_ORDER).thenComparing(ProductRowVM::type))

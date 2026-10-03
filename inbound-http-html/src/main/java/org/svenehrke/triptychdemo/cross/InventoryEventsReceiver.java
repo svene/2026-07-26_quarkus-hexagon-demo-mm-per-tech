@@ -1,7 +1,5 @@
 package org.svenehrke.triptychdemo.cross;
 
-import org.svenehrke.triptychdemo.cross.inventory.InventoryChangesHandler;
-
 import io.smallrye.mutiny.Multi;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.GET;
@@ -13,7 +11,10 @@ import jakarta.ws.rs.sse.OutboundSseEvent;
 import jakarta.ws.rs.sse.Sse;
 import java.time.Duration;
 
-/** Inventory change notifications for every page that shows the inventory ({@code /shop}, {@code /admin}). */
+/**
+ * Inventory change notifications for every page that shows the inventory ({@code /shop}, {@code /admin},
+ * {@code /locations/{id}}): each {@code InventoryEvent} core fires becomes an {@code inventoryChanged} event.
+ */
 @Path("/inventory")
 public class InventoryEventsReceiver {
 
@@ -21,7 +22,7 @@ public class InventoryEventsReceiver {
     static final Duration HEARTBEAT = Duration.ofSeconds(15);
 
     @Inject
-    InventoryChangesHandler inventoryChanges;
+    InventoryEventBroadcaster inventoryEvents;
 
     /**
      * SSE stream for the page shells: an {@code inventoryChanged} event per inventory change, on which a page
@@ -35,7 +36,7 @@ public class InventoryEventsReceiver {
         var changed = sse.newEventBuilder().name("inventoryChanged").data("").build();
         return Multi.createBy().merging().streams(
             Multi.createFrom().item(changed),
-            Multi.createFrom().publisher(inventoryChanges.changes()).map(change -> changed),
+            Multi.createFrom().publisher(inventoryEvents.events()).map(event -> changed),
             Multi.createFrom().ticks().every(HEARTBEAT).map(tick -> sse.newEventBuilder().comment("heartbeat").build())
         );
     }

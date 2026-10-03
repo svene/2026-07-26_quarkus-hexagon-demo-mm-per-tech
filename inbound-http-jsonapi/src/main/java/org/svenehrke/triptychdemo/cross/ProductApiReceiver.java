@@ -1,6 +1,7 @@
 package org.svenehrke.triptychdemo.cross;
 
 import org.svenehrke.triptychdemo.cross.auditlog.AuditLogHandler;
+import org.svenehrke.triptychdemo.cross.location.Locations;
 import org.svenehrke.triptychdemo.cross.products.Product;
 import org.svenehrke.triptychdemo.cross.products.ProductsHandler;
 import org.svenehrke.triptychdemo.cross.purchase.ParsedPurchase;
@@ -50,6 +51,7 @@ import org.jboss.resteasy.reactive.server.ServerExceptionMapper;
 import static org.svenehrke.triptychdemo.cross.JsonResponses.badRequest;
 import static org.svenehrke.triptychdemo.cross.JsonResponses.conflict;
 
+/** The online shop's API: products and purchases are those of the online FC; supplier orders go to the DC. */
 @Path("/api/products")
 @CustomDeserialization(StrictJsonReader.class)
 public class ProductApiReceiver {
@@ -78,7 +80,7 @@ public class ProductApiReceiver {
     @GET
     @Produces(MediaType.APPLICATION_JSON)
     public List<Product> list() {
-        return productsHandler.listAll();
+        return productsHandler.listAll(Locations.ONLINE);
     }
 
     @POST

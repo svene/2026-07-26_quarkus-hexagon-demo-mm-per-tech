@@ -8,8 +8,11 @@ package org.svenehrke.triptychdemo.cross;
 public enum UiRoute {
     AdminPage,
     AdminInventory,
+    AdminRequests,
     AuditPanel,
     OrderErrors,
+    LocationPage,
+    LocationInventory,
     ShopPage,
     ShopProducts,
 }

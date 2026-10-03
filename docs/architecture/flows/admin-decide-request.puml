@@ -1,0 +1,45 @@
+@startuml admin_decide_request
+skinparam monochrome true
+skinparam sequenceMessageAlign center
+skinparam backgroundColor #ffffff
+
+actor "Head Office" as user
+participant "AdminReceiver\n(HTTP)" as receiver
+participant "ReplenishmentHandler\n(Core)" as handler
+participant "ReplenishmentService\n(PostgreSQL)" as service
+participant "InventoryEvent\n(CDI, async)" as changes
+participant "AuditLogService\n(MongoDB)" as audit
+database "PostgreSQL\n(stock, replenishment_request)" as db
+database "MongoDB\n(Audit)" as db_audit
+
+user -> receiver: POST /admin/requests/{id}/fulfil\nor /admin/requests/{id}/reject
+receiver -> audit: log("FULFIL_RECEIVED" / "REJECT_RECEIVED")
+audit -> db_audit: Insert audit entry
+receiver -> handler: fulfil(id) / reject(id)
+handler -> service: fulfil(id) / reject(id)
+note right of service
+  One transaction. The request's product is read
+  without a lock first, to keep the lock order:
+  DC stock row, then the request.
+end note
+service -> db: SELECT productName of request
+service -> db: SELECT DC stock row FOR UPDATE
+service -> db: SELECT request FOR UPDATE (only if PENDING)
+alt no such pending request
+  service --> handler: empty
+  receiver --> user: 409 {route: OrderErrors, vm}\n["request N is no longer pending"]
+else fulfil
+  service -> db: move min(DC stock, outstanding) to the location\n(ahead of older requests); rest stays PENDING
+  service -> db: COMMIT
+  handler -> audit: log("STOCK_TRANSFERRED" / "REQUEST_PENDING")
+  handler ->> changes: fireAsync(ReplenishmentChanged)
+  receiver --> user: 200 (empty body)
+else reject
+  service -> db: status = REJECTED (delivered stock stays)
+  service -> db: COMMIT
+  handler -> audit: log("REQUEST_CANCELLED")
+  handler ->> changes: fireAsync(ReplenishmentChanged)
+  receiver --> user: 200 (empty body)
+end
+
+@enduml

@@ -1,12 +1,17 @@
 package org.svenehrke.triptychdemo.cross.purchase;
 
 import org.svenehrke.triptychdemo.cross.auditlog.AuditLogSPI;
-import org.svenehrke.triptychdemo.cross.inventory.InventoryChangesHandler;
+import org.svenehrke.triptychdemo.cross.inventory.InventoryEvent;
 import org.svenehrke.triptychdemo.cross.inventory.InventoryRepositorySPI;
 import org.svenehrke.triptychdemo.cross.inventory.OnShortage;
 import org.svenehrke.triptychdemo.cross.inventory.Shortage;
+import org.svenehrke.triptychdemo.cross.inventory.StockDeducted;
 import org.svenehrke.triptychdemo.cross.inventory.StockDeduction;
+import org.svenehrke.triptychdemo.cross.location.Location;
+import org.svenehrke.triptychdemo.cross.location.Locations;
+import org.svenehrke.triptychdemo.cross.location.Store;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.event.Event;
 import jakarta.inject.Inject;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -21,16 +26,16 @@ public class PurchaseHandler {
     @Inject
     AuditLogSPI auditLog;
     @Inject
-    InventoryChangesHandler inventoryChanges;
+    Event<InventoryEvent> inventoryEvents;
 
     /**
-     * Online purchase (shop, JSON API): all-or-nothing, rejected if any item is not in stock - also when
-     * several customers buy concurrently.
+     * Online purchase (shop, JSON API), from the online FC's stock: all-or-nothing, rejected if any item is not
+     * in stock - also when several customers buy concurrently.
      */
     public PurchaseOutcome checkout(Purchase purchase) {
-        var deduction = deduct(purchase, OnShortage.REJECT);
+        var deduction = deduct(Locations.ONLINE, purchase, OnShortage.REJECT);
         if (!deduction.shortages().isEmpty()) {
-            auditLog.log("PurchaseHandler: PURCHASE_REJECTED",
+            auditLog.log("PurchaseHandler: PURCHASE_REJECTED", Locations.ONLINE.id() + ": " +
                 deduction.shortages().stream().map(Shortage::message).collect(Collectors.joining(", ")));
             return new PurchaseOutcome.Rejected(deduction.shortages());
         }
@@ -41,20 +46,20 @@ public class PurchaseHandler {
      * Physical-store sale (cashpoint): the goods are already gone, so it is recorded, never rejected. Selling
      * more than is on record means the inventory was wrong; that is audit-logged as a stock discrepancy.
      */
-    public void recordStoreSale(Purchase purchase) {
-        var deduction = deduct(purchase, OnShortage.CAP_AT_ZERO);
+    public void recordStoreSale(Store store, Purchase purchase) {
+        var deduction = deduct(store, purchase, OnShortage.CAP_AT_ZERO);
         deduction.shortages().forEach(shortage ->
-            auditLog.log("PurchaseHandler: STOCK_DISCREPANCY", shortage.discrepancyMessage()));
+            auditLog.log("PurchaseHandler: STOCK_DISCREPANCY", store.id() + ": " + shortage.discrepancyMessage()));
     }
 
-    private StockDeduction deduct(Purchase purchase, OnShortage onShortage) {
-        auditLog.log("PurchaseHandler: PURCHASE_PROCESSING",
+    private StockDeduction deduct(Location location, Purchase purchase, OnShortage onShortage) {
+        auditLog.log("PurchaseHandler: PURCHASE_PROCESSING", location.id() + ": " +
             purchase.items().stream().map(i -> i.productName() + " qty=" + i.quantity()).collect(Collectors.joining(", ")));
         var quantitiesByName = quantitiesByName(purchase);
-        var deduction = inventoryRepository.deductAll(quantitiesByName, onShortage);
+        var deduction = inventoryRepository.deductAll(location, quantitiesByName, onShortage);
         if (!deduction.updated().isEmpty()) {
-            inventoryChanges.publishChange();
-            auditLog.log("PurchaseHandler: INVENTORY_DEDUCTED", deduction.updated().stream()
+            inventoryEvents.fireAsync(new StockDeducted(location));
+            auditLog.log("PurchaseHandler: INVENTORY_DEDUCTED", location.id() + ": " + deduction.updated().stream()
                 .map(p -> p.name() + " -" + quantitiesByName.get(p.name()) + " total=" + p.availableAmount())
                 .collect(Collectors.joining(", ")));
         }

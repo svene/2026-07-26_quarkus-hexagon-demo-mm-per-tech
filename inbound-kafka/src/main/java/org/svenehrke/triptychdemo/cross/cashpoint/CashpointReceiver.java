@@ -1,6 +1,8 @@
 package org.svenehrke.triptychdemo.cross.cashpoint;
 
 import org.svenehrke.triptychdemo.cross.auditlog.AuditLogHandler;
+import org.svenehrke.triptychdemo.cross.location.Locations;
+import org.svenehrke.triptychdemo.cross.location.Store;
 import org.svenehrke.triptychdemo.cross.purchase.ParsedPurchase;
 import org.svenehrke.triptychdemo.cross.purchase.Purchase;
 import org.svenehrke.triptychdemo.cross.purchase.PurchaseHandler;
@@ -30,17 +32,31 @@ public class CashpointReceiver {
     @Retry(maxRetries = 3, delay = 1, delayUnit = ChronoUnit.SECONDS, abortOn = UnprocessableMessageException.class)
     public void receive(PurchaseMessage message) {
         logReceived(message);
-        validated(message).ifPresent(purchaseHandler::recordStoreSale);
+        rejectUnprocessable(message);
+        var store = store(message);
+        var purchase = validated(message);
+        if (store.isPresent() && purchase.isPresent()) {
+            purchaseHandler.recordStoreSale(store.get(), purchase.get());
+        }
     }
 
     private void logReceived(PurchaseMessage message) {
         auditLog.log("CashpointReceiver: PURCHASE_RECEIVED",
-            message == null ? "null payload (tombstone)" : itemsOf(message));
+            message == null ? "null payload (tombstone)" : message.storeId() + ": " + itemsOf(message));
+    }
+
+    // Empty if storeId names no store (audit-logged, then skipped), like any other invalid content.
+    private Optional<Store> store(PurchaseMessage message) {
+        var store = Locations.storeById(message.storeId());
+        if (store.isEmpty()) {
+            auditLog.log("CashpointReceiver: INVALID",
+                "%s: storeId '%s' is not a store".formatted(itemsOf(message), message.storeId()));
+        }
+        return store;
     }
 
     // Empty if the message is invalid (audit-logged, then skipped).
     private Optional<Purchase> validated(PurchaseMessage message) {
-        rejectUnprocessable(message);
         var parsedItems = message.items().stream()
             .map(i -> PurchaseItem.parse(i.productName(), i.quantity()))
             .toList();
@@ -75,6 +91,9 @@ public class CashpointReceiver {
         }
         if (message.items().contains(null)) {
             throw new UnprocessableMessageException("items must not contain null entries");
+        }
+        if (message.storeId() == null) {
+            throw new UnprocessableMessageException("storeId is required");
         }
     }
 }

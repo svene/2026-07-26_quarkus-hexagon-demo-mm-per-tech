@@ -48,7 +48,7 @@ class MeatOrderDeliveryFlowTest {
             .containsExactly("Chicken qty=4");
 
         await().atMost(10, SECONDS).untilAsserted(() -> {
-            var response = given().get("/api/products");
+            var response = given().get("/api/locations/dc/products");
             assertThat(response.statusCode()).isEqualTo(200);
             assertThat(response.asString()).isEqualTo("""
                 [{"name":"Chicken","type":"MEAT","availableAmount":4}]""");
@@ -56,7 +56,7 @@ class MeatOrderDeliveryFlowTest {
             assertThat(auditHelper.findEventDetails("MeatDeliveryReceiver: MEAT_DELIVERY_RECEIVED"))
                 .containsExactly("Chicken qty=4");
             assertThat(auditHelper.findEventDetails("InventoryHandler: MEAT_INVENTORY_UPDATED"))
-                .containsExactly("Chicken +4");
+                .containsExactly("dc: Chicken +4");
         });
     }
 }

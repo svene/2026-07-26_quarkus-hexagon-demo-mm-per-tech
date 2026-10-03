@@ -2,6 +2,7 @@ package org.svenehrke.triptychdemo.server;
 
 import org.svenehrke.triptychdemo.cross.inventory.InventoryRepositorySPI;
 
+import org.svenehrke.triptychdemo.cross.location.Locations;
 import org.svenehrke.triptychdemo.cross.products.ProductType;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
@@ -58,9 +59,9 @@ class ShopReceiverTest {
 
     @Test
     void page_view_lists_only_products_in_stock() {
-        inventory.addAmount("Apple", ProductType.FRUIT, 10);
-        inventory.addAmount("Milk", ProductType.DAIRY, 6);
-        inventory.addAmount("Bread", ProductType.BAKERY, 0);
+        inventory.addAmount(Locations.ONLINE, "Apple", ProductType.FRUIT, 10);
+        inventory.addAmount(Locations.ONLINE, "Milk", ProductType.DAIRY, 6);
+        inventory.addAmount(Locations.ONLINE, "Bread", ProductType.BAKERY, 0);
 
         var json = given().get("/shop/page").jsonPath();
 
@@ -70,8 +71,8 @@ class ShopReceiverTest {
 
     @Test
     void checkout_deducts_inventory_for_submitted_items() {
-        inventory.addAmount("Apple", ProductType.FRUIT, 10);
-        inventory.addAmount("Milk", ProductType.DAIRY, 6);
+        inventory.addAmount(Locations.ONLINE, "Apple", ProductType.FRUIT, 10);
+        inventory.addAmount(Locations.ONLINE, "Milk", ProductType.DAIRY, 6);
 
         var response = given()
             .contentType("application/x-www-form-urlencoded")
@@ -95,9 +96,9 @@ class ShopReceiverTest {
 
     @Test
     void checkout_with_invalid_rows_shows_errors_and_deducts_nothing() {
-        inventory.addAmount("Apple", ProductType.FRUIT, 10);
-        inventory.addAmount("Milk", ProductType.DAIRY, 6);
-        inventory.addAmount("Bread", ProductType.BAKERY, 4);
+        inventory.addAmount(Locations.ONLINE, "Apple", ProductType.FRUIT, 10);
+        inventory.addAmount(Locations.ONLINE, "Milk", ProductType.DAIRY, 6);
+        inventory.addAmount(Locations.ONLINE, "Bread", ProductType.BAKERY, 4);
 
         var response = given()
             .contentType("application/x-www-form-urlencoded")
@@ -121,8 +122,8 @@ class ShopReceiverTest {
 
     @Test
     void checkout_ignores_blank_and_zero_quantity_rows() {
-        inventory.addAmount("Apple", ProductType.FRUIT, 10);
-        inventory.addAmount("Milk", ProductType.DAIRY, 6);
+        inventory.addAmount(Locations.ONLINE, "Apple", ProductType.FRUIT, 10);
+        inventory.addAmount(Locations.ONLINE, "Milk", ProductType.DAIRY, 6);
 
         var response = given()
             .contentType("application/x-www-form-urlencoded")
@@ -144,8 +145,8 @@ class ShopReceiverTest {
 
     @Test
     void inventory_fragment_returns_only_products_in_stock() {
-        inventory.addAmount("Apple", ProductType.FRUIT, 10);
-        inventory.addAmount("Bread", ProductType.BAKERY, 0);
+        inventory.addAmount(Locations.ONLINE, "Apple", ProductType.FRUIT, 10);
+        inventory.addAmount(Locations.ONLINE, "Bread", ProductType.BAKERY, 0);
 
         var response = given().get("/shop/inventory-fragment");
 
@@ -157,9 +158,9 @@ class ShopReceiverTest {
 
     @Test
     void page_and_inventory_fragment_list_products_ordered_by_name() {
-        inventory.addAmount("milk", ProductType.DAIRY, 6);
-        inventory.addAmount("Banana", ProductType.FRUIT, 3);
-        inventory.addAmount("Apple", ProductType.FRUIT, 10);
+        inventory.addAmount(Locations.ONLINE, "milk", ProductType.DAIRY, 6);
+        inventory.addAmount(Locations.ONLINE, "Banana", ProductType.FRUIT, 3);
+        inventory.addAmount(Locations.ONLINE, "Apple", ProductType.FRUIT, 10);
 
         assertThat(given().get("/shop/page").jsonPath().getList("vm.products.name"))
             .containsExactly("Apple", "Banana", "milk");
@@ -169,8 +170,8 @@ class ShopReceiverTest {
 
     @Test
     void checkout_exceeding_stock_returns_409_and_deducts_nothing() {
-        inventory.addAmount("Apple", ProductType.FRUIT, 10);
-        inventory.addAmount("Milk", ProductType.DAIRY, 2);
+        inventory.addAmount(Locations.ONLINE, "Apple", ProductType.FRUIT, 10);
+        inventory.addAmount(Locations.ONLINE, "Milk", ProductType.DAIRY, 2);
 
         var response = given()
             .contentType("application/x-www-form-urlencoded")

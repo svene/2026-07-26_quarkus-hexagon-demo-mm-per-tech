@@ -11,11 +11,15 @@ Technical reference for understanding the Kafka-based integration patterns and t
 ## Data Persistence
 
 ### PostgreSQL (outbound-postgres)
-- **InventoryService**: Manages product inventory
-  - `addAmount()`: Called by delivery receivers to add stock
-  - `deductAll(quantities, OnShortage)`: Called by PurchaseHandler - one transaction, rows locked; `REJECT` for online checkouts (shop, JSON API: nothing deducted on a shortage), `CAP_AT_ZERO` for cashpoint sales (never rejects, stock floors at 0)
-  - `findAll()`: Called by product list endpoints
-  - Storage: ProductEntity table
+- **InventoryService**: Manages stock per location (DC, 3 stores, online FC)
+  - `addAmount(location, …)`: Called by InventoryHandler for every delivery - always to the DC
+  - `deductAll(location, quantities, OnShortage)`: Called by PurchaseHandler - one transaction, rows locked; `REJECT` for online checkouts (shop, JSON API, online FC: nothing deducted on a shortage), `CAP_AT_ZERO` for cashpoint sales (the message's store; never rejects, stock floors at 0)
+  - `findAll(location)`, `findAllLocations()`: Called by product list endpoints and the admin matrix
+  - Storage: `stock` table (StockEntity)
+- **ReplenishmentService**: Requests of the stores / online FC to the DC, and the transfers serving them
+  - `fulfilPending(productName)`: Called by ReplenishmentHandler after each delivery (via the async `DeliveredToDc` event and inbound-event's `DeliveryEventReceiver`) - serves pending requests oldest first
+  - `request`, `fulfil`, `reject`: Called from the location page and head office; each is one transaction with the stock transfer
+  - Storage: `replenishment_request` table (ReplenishmentRequestEntity)
 
 ### MongoDB (outbound-mongodb)
 - **AuditLogService**: Logs all system events
@@ -120,9 +124,10 @@ These cycles show how external supplier integrations (REST/SOAP stubs) are decou
 ### Cashpoint Purchase Cycle
 
 **Topic: cashpoint-purchases**
-- **Producer**: External checkout systems (simulated by CashpointStub)
+- **Producer**: External checkout systems (simulated by CashpointStub: a random store, reading its stock from `GET /api/locations/{id}/products`)
 - **Consumer**: CashpointReceiver (in inbound-kafka)
-- **Flow**: Cashpoint event → PurchaseHandler.recordStoreSale → Inventory deduction (capped at 0; overselling is logged as `STOCK_DISCREPANCY`, never rejected)
+- **Message**: `{storeId, items: [{productName, quantity}]}`; a missing `storeId` goes to the DLQ, an id that is no store is audit-logged `INVALID` and skipped
+- **Flow**: Cashpoint event → PurchaseHandler.recordStoreSale(store, …) → that store's stock deducted (capped at 0; overselling is logged as `STOCK_DISCREPANCY`, never rejected)
 - **Config**: 
   - Incoming: `mp.messaging.incoming.cashpoint-purchases.topic=cashpoint-purchases`
   - Outgoing (for testing): `mp.messaging.outgoing.cashpoint-purchases-out.topic=cashpoint-purchases`
@@ -135,6 +140,8 @@ These cycles show how external supplier integrations (REST/SOAP stubs) are decou
 | AdminReceiver | /admin/page | GET | Query | - | PostgreSQL + MongoDB (read) |
 | AdminReceiver | /admin/inventory-fragment | GET | Query | - | PostgreSQL (read) |
 | AdminReceiver | /admin/audit-fragment | GET | Query | - | MongoDB (read) |
+| AdminReceiver | /admin/requests-fragment | GET | Query | - | PostgreSQL (read) |
+| AdminReceiver | /admin/requests/{id}/fulfil, /reject | POST | Command | - | PostgreSQL + MongoDB |
 | AdminReceiver | /admin/order-fruits | POST | Command | **→ fruit-deliveries** (stub publishes) | PostgreSQL + MongoDB |
 | AdminReceiver | /admin/order-vegetables | POST | Command | **→ vegetables-deliveries** (stub publishes) | PostgreSQL + MongoDB |
 | AdminReceiver | /admin/order-dairy | POST | Command | **→ dairy-deliveries** (stub publishes) | PostgreSQL + MongoDB |
@@ -145,8 +152,11 @@ These cycles show how external supplier integrations (REST/SOAP stubs) are decou
 | ShopReceiver | /shop | GET | Static page shell | - | - |
 | ShopReceiver | /shop/page | GET | Query | - | PostgreSQL (read) |
 | ShopReceiver | /shop/inventory-fragment | GET | Query | - | PostgreSQL (read) |
-| InventoryEventsReceiver | /inventory/events | GET | SSE stream (inventory changes, for /shop and /admin) | - | - |
+| InventoryEventsReceiver | /inventory/events | GET | SSE stream (inventory changes, for /shop, /admin and /locations/{id}) | - | - |
 | ShopReceiver | /shop/checkout | POST | Command | - | PostgreSQL + MongoDB |
+| LocationReceiver | /locations/{id} | GET | Static page shell | - | - |
+| LocationReceiver | /locations/{id}/page, /inventory-fragment | GET | Query | - | PostgreSQL (read) |
+| LocationReceiver | /locations/{id}/requests | POST | Command | - | PostgreSQL + MongoDB |
 | ProductApiReceiver | /api/products | GET | Query | - | PostgreSQL (read) |
 | ProductApiReceiver | /api/products/order-fruits | POST | Command | **→ fruit-deliveries** (stub publishes) | PostgreSQL + MongoDB |
 | ProductApiReceiver | /api/products/order-vegetables | POST | Command | **→ vegetables-deliveries** (stub publishes) | PostgreSQL + MongoDB |
@@ -156,6 +166,7 @@ These cycles show how external supplier integrations (REST/SOAP stubs) are decou
 | ProductApiReceiver | /api/products/order-bakery | POST | Command | **→ bakery-deliveries** (stub publishes) | PostgreSQL + MongoDB |
 | ProductApiReceiver | /api/products/order-nonfood | POST | Command | **→ nonfood-orders** → **← nonfood-deliveries** | PostgreSQL + MongoDB |
 | ProductApiReceiver | /api/products/purchase | POST | Command | - | PostgreSQL + MongoDB |
+| LocationApiReceiver | /api/locations/{id}/products | GET | Query | - | PostgreSQL (read) |
 | FruitDeliveryReceiver | **← fruit-deliveries** | Event | Delivery | Consumes: **fruit-deliveries** | PostgreSQL + MongoDB |
 | VegetablesDeliveryReceiver | **← vegetables-deliveries** | Event | Delivery | Consumes: **vegetables-deliveries** | PostgreSQL + MongoDB |
 | DairyDeliveryReceiver | **← dairy-deliveries** | Event | Delivery | Consumes: **dairy-deliveries** | PostgreSQL + MongoDB |

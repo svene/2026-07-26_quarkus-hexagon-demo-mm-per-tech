@@ -2,6 +2,7 @@ package org.svenehrke.triptychdemo.server;
 
 import org.svenehrke.triptychdemo.cross.inventory.InventoryRepositorySPI;
 
+import org.svenehrke.triptychdemo.cross.location.Locations;
 import org.svenehrke.triptychdemo.cross.products.ProductType;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
@@ -53,14 +54,14 @@ class AdminReceiverTest {
 
     @Test
     void page_view_lists_products() {
-        inventory.addAmount("Apple", ProductType.FRUIT, 10);
-        inventory.addAmount("Cola", ProductType.BEVERAGE, 5);
+        inventory.addAmount(Locations.DC, "Apple", ProductType.FRUIT, 10);
+        inventory.addAmount(Locations.DC, "Cola", ProductType.BEVERAGE, 5);
 
         var json = given().get("/admin/page").jsonPath();
 
         assertThat(json.getList("vm.products.name")).containsExactlyInAnyOrder("Apple", "Cola");
         assertThat(json.getString("vm.products.find { it.name == 'Apple' }.type")).isEqualTo("FRUIT");
-        assertThat(json.getInt("vm.products.find { it.name == 'Apple' }.availableAmount")).isEqualTo(10);
+        assertThat(json.getList("vm.products.find { it.name == 'Apple' }.amounts")).containsExactly(10, 0, 0, 0, 0);
     }
 
     @Test
@@ -156,22 +157,25 @@ class AdminReceiverTest {
     }
 
     @Test
-    void inventory_fragment_reflects_current_stock() {
-        inventory.addAmount("Apple", ProductType.FRUIT, 10);
+    void inventory_fragment_is_a_product_by_location_matrix_with_the_dc_first() {
+        inventory.addAmount(Locations.DC, "Apple", ProductType.FRUIT, 10);
+        inventory.addAmount(Locations.BERN, "Apple", ProductType.FRUIT, 3);
+        inventory.addAmount(Locations.ONLINE, "Apple", ProductType.FRUIT, 2);
 
         var response = given().get("/admin/inventory-fragment");
 
         assertThat(response.statusCode()).isEqualTo(200);
         assertThat(response.jsonPath().getString("route")).isEqualTo("AdminInventory");
+        assertThat(response.jsonPath().getList("vm.locations.id")).containsExactly("dc", "zurich", "bern", "basel", "online");
         assertThat(response.jsonPath().getList("vm.products.name")).containsExactly("Apple");
-        assertThat(response.jsonPath().getInt("vm.products[0].availableAmount")).isEqualTo(10);
+        assertThat(response.jsonPath().getList("vm.products[0].amounts")).containsExactly(10, 0, 3, 0, 2);
     }
 
     @Test
     void inventory_fragment_lists_products_sorted_by_name_ignoring_case() {
-        inventory.addAmount("milk", ProductType.DAIRY, 3);
-        inventory.addAmount("Banana", ProductType.FRUIT, 5);
-        inventory.addAmount("Apple", ProductType.FRUIT, 10);
+        inventory.addAmount(Locations.DC, "milk", ProductType.DAIRY, 3);
+        inventory.addAmount(Locations.DC, "Banana", ProductType.FRUIT, 5);
+        inventory.addAmount(Locations.DC, "Apple", ProductType.FRUIT, 10);
 
         assertThat(given().get("/admin/inventory-fragment").jsonPath().getList("vm.products.name"))
             .containsExactly("Apple", "Banana", "milk");

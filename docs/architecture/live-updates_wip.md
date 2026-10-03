@@ -34,6 +34,8 @@ shop.ts            <div id="shop-products" hx-get="/shop/inventory-fragment"
 
 ## Change notifications (core)
 
+**Superseded 2026-10-03 (split-inventory):** `InventoryChangesHandler` was replaced by the CDI event type `InventoryEvent` (fired with `fireAsync`), observed by `InventoryEventBroadcaster` in inbound-http-html; see `architecture-flow.md`, GET /inventory/events. As originally built:
+
 `core` `cross.inventory.InventoryChangesHandler`:
 - `publishChange()` — called by `InventoryHandler.update*Amount()` (every delivery) and by
   `PurchaseHandler.deduct()` when something was deducted (shop/JSON API checkout, cashpoint). The

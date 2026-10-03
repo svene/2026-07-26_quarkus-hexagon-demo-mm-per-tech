@@ -6,10 +6,16 @@ const purchase = `Apple-${RUN_ID}`;
 
 // Inventory updates arrive asynchronously via Kafka, so we reload the page until the
 // expected row appears.
-// The admin order forms only offer a fixed choice of products, so unique test products are stocked via the JSON API.
+// The admin order forms only offer a fixed choice of products, so unique test products are ordered via the JSON API.
+// The delivery goes to the DC; the shop sells the online FC's stock, so it is then requested from the DC - which
+// answers 409 until the delivery has arrived via Kafka.
 async function stockFruit(request: APIRequestContext, productName: string, quantity: number) {
   const res = await request.post('/api/products/order-fruits', { data: { productName, quantity } });
   expect(res.ok()).toBeTruthy();
+  await expect.poll(
+    async () => (await request.post('/locations/online/requests', { form: { productName, quantity: String(quantity) } })).status(),
+    { message: `"${productName}" did not reach the DC`, timeout: 15_000, intervals: [500, 1_000] },
+  ).toBe(200);
 }
 
 async function waitForProductRow(page: Page, productName: string) {

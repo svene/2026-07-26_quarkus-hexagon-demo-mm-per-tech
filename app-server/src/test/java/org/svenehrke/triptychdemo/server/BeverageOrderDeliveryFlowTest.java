@@ -56,7 +56,7 @@ class BeverageOrderDeliveryFlowTest {
         // they are written to MongoDB around the Postgres update in InventoryHandler — the inventory
         // may be visible slightly before the audit entries appear.
         await().atMost(10, SECONDS).untilAsserted(() -> {
-            var response = given().get("/api/products");
+            var response = given().get("/api/locations/dc/products");
             assertThat(response.statusCode()).isEqualTo(200);
             assertThat(response.asString()).isEqualTo("""
                 [{"name":"Cola","type":"BEVERAGE","availableAmount":12}]""");
@@ -66,7 +66,7 @@ class BeverageOrderDeliveryFlowTest {
                 .containsExactly("Cola qty=12");
             // BEVERAGE_INVENTORY_UPDATED proves InventoryHandler's call to InventoryRepositorySPI returned.
             assertThat(auditHelper.findEventDetails("InventoryHandler: BEVERAGE_INVENTORY_UPDATED"))
-                .containsExactly("Cola +12");
+                .containsExactly("dc: Cola +12");
         });
     }
 }

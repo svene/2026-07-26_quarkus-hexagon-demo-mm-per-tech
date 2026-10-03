@@ -122,9 +122,10 @@ serves automatically at the web root (`/css/bulma.min.css`,
 
 ```
 core/                       Domain model, use cases (Handlers), SPI
-inbound-http-html/          JAX-RS + hono/html (rendered in the browser) — HTML UI (/admin, /shop)
-inbound-http-jsonapi/       JAX-RS — JSON API (/api/products)
+inbound-http-html/          JAX-RS + hono/html (rendered in the browser) — HTML UI (/admin, /shop, /locations)
+inbound-http-jsonapi/       JAX-RS — JSON API (/api/products, /api/locations)
 inbound-kafka/              Kafka @Incoming — delivery events + purchase events
+inbound-event/              CDI @ObservesAsync — domain events fired by core (delivery reached the DC)
 outbound-postgres/          Hibernate ORM / Panache — inventory persistence
 outbound-mongodb/           MongoDB / Panache — audit log
 outbound-httpclient/        MicroProfile REST Client — REST supplier orders
@@ -150,6 +151,7 @@ stubs.
 | `inbound-http-html` | Inbound adapter | JAX-RS + hono/html templates rendered in the browser (esbuild via frontend-maven-plugin) |
 | `inbound-http-jsonapi` | Inbound adapter | JAX-RS (JSON) |
 | `inbound-kafka` | Inbound adapter | SmallRye Reactive Messaging |
+| `inbound-event` | Inbound adapter | CDI async events (`@ObservesAsync`) |
 | `outbound-postgres` | Outbound adapter | Hibernate ORM / Panache |
 | `outbound-mongodb` | Outbound adapter | MongoDB / Panache |
 | `outbound-httpclient` | Outbound adapter | MicroProfile REST Client |

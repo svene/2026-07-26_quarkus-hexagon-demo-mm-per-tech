@@ -1,7 +1,9 @@
 package org.svenehrke.triptychdemo.cross;
 
 import org.svenehrke.triptychdemo.cross.auditlog.AuditLogHandler;
+import org.svenehrke.triptychdemo.cross.location.Locations;
 import org.svenehrke.triptychdemo.cross.products.ProductsHandler;
+import org.svenehrke.triptychdemo.cross.replenishment.ReplenishmentHandler;
 import org.svenehrke.triptychdemo.feature.bakery.BakeryHandler;
 import org.svenehrke.triptychdemo.feature.bakery.BakeryOrder;
 import org.svenehrke.triptychdemo.feature.bakery.ParsedBakeryOrder;
@@ -31,14 +33,16 @@ import jakarta.ws.rs.FormParam;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
+import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import java.io.InputStream;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
+/** Head office: the stock of every location, supplier orders (for the DC) and the stores' pending requests. */
 @Path("/admin")
 public class AdminReceiver {
 
@@ -61,27 +65,51 @@ public class AdminReceiver {
     @Inject
     NonFoodHandler nonFoodHandler;
     @Inject
+    ReplenishmentHandler replenishmentHandler;
+    @Inject
     AuditLogHandler auditLogHandler;
 
     /** The static page shell; its {@code #app} element loads {@link #page()} and renders it in the browser. */
     @GET
     @Produces(MediaType.TEXT_HTML)
-    public InputStream shell() {
-        return AdminReceiver.class.getResourceAsStream("/shells/admin.html");
+    public String shell() {
+        return PageShell.render("/shells/admin.html", "/admin", Map.of());
     }
 
     @GET
     @Path("/page")
     @Produces(MediaType.APPLICATION_JSON)
     public UiResponse page() {
-        return UiResponse.of(UiRoute.AdminPage, new AdminPageVM(products(), auditEntries()));
+        return UiResponse.of(UiRoute.AdminPage, new AdminPageVM(locations(), products(), pendingRequests(), auditEntries()));
     }
 
     @GET
     @Path("/inventory-fragment")
     @Produces(MediaType.APPLICATION_JSON)
     public UiResponse inventoryFragment() {
-        return UiResponse.of(UiRoute.AdminInventory, new AdminInventoryVM(products()));
+        return UiResponse.of(UiRoute.AdminInventory, new AdminInventoryVM(locations(), products()));
+    }
+
+    @GET
+    @Path("/requests-fragment")
+    @Produces(MediaType.APPLICATION_JSON)
+    public UiResponse requestsFragment() {
+        return UiResponse.of(UiRoute.AdminRequests, new AdminRequestsVM(pendingRequests()));
+    }
+
+    /** Serves the request with whatever the DC has, ahead of older ones; the rest stays pending. */
+    @POST
+    @Path("/requests/{requestId}/fulfil")
+    public Response fulfilRequest(@PathParam("requestId") long requestId) {
+        auditLogHandler.log("AdminReceiver: FULFIL_RECEIVED", "request " + requestId);
+        return replenishmentHandler.fulfil(requestId).isPresent() ? orderAccepted() : notPending(requestId);
+    }
+
+    @POST
+    @Path("/requests/{requestId}/reject")
+    public Response rejectRequest(@PathParam("requestId") long requestId) {
+        auditLogHandler.log("AdminReceiver: REJECT_RECEIVED", "request " + requestId);
+        return replenishmentHandler.reject(requestId).isPresent() ? orderAccepted() : notPending(requestId);
     }
 
     @GET
@@ -205,15 +233,28 @@ public class AdminReceiver {
             new OrderErrorsVM(violations.stream().map(ConstraintViolation::getMessage).toList()));
     }
 
+    private static Response notPending(long requestId) {
+        return UiResponse.response(Response.Status.CONFLICT, UiRoute.OrderErrors,
+            new OrderErrorsVM(List.of("request " + requestId + " is no longer pending")));
+    }
+
     private static Response orderAccepted() {
         // 200 with an empty body (not 204, which htmx never swaps) clears a previous error below the form
         return Response.ok("", MediaType.TEXT_HTML).build();
     }
 
-    private List<ProductRowVM> products() {
-        return productsHandler.listAll().stream().map(ProductRowVM::of)
-            .sorted(Comparator.comparing(ProductRowVM::name, String.CASE_INSENSITIVE_ORDER).thenComparing(ProductRowVM::type))
+    private static List<LocationVM> locations() {
+        return Locations.ALL.stream().map(LocationVM::of).toList();
+    }
+
+    private List<StockRowVM> products() {
+        return productsHandler.listAllLocations().stream().map(p -> StockRowVM.of(p, Locations.ALL))
+            .sorted(Comparator.comparing(StockRowVM::name, String.CASE_INSENSITIVE_ORDER).thenComparing(StockRowVM::type))
             .toList();
+    }
+
+    private List<RequestVM> pendingRequests() {
+        return replenishmentHandler.listPending().stream().map(RequestVM::of).toList();
     }
 
     private List<AuditEntryVM> auditEntries() {

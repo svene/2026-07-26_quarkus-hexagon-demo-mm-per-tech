@@ -10,8 +10,8 @@ participant "InventoryService\n(PostgreSQL)" as inventory
 database "PostgreSQL\n(Products)" as db
 
 user -> receiver: GET /api/products
-receiver -> handler: listAll()
-handler -> inventory: findAll()
+receiver -> handler: listAll(ONLINE)
+handler -> inventory: findAll(ONLINE)
 inventory -> db: SELECT * FROM products
 db --> inventory: Product[]
 inventory --> handler: Product[]

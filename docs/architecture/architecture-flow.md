@@ -31,26 +31,49 @@ hono/html templates in `hx-hono.js` (see `docs/architecture/browser-templating_w
 #### GET /admin - Admin Dashboard
 ```
 AdminReceiver.shell()  → static shell (shells/admin.html), whose #app loads GET /admin/page
-AdminReceiver.page()   → UiResponse(AdminPage, {products, auditEntries})
-├─ ProductsHandler.listAll()
-   └─ InventoryRepositorySPI.findAll()
-      └─ InventoryService (outbound-postgres)
-         └─ PostgreSQL (ProductEntity.listAll())
+AdminReceiver.page()   → UiResponse(AdminPage, {locations, products, pendingRequests, auditEntries})
+├─ ProductsHandler.listAllLocations()  (as in GET /admin/inventory-fragment)
+├─ ReplenishmentHandler.listPending()  (as in GET /admin/requests-fragment)
 └─ AuditLogHandler.recent(limit)  (as in GET /admin/audit-fragment)
 ```
 
 #### GET /admin/inventory-fragment - Inventory Update
 Fetched by `/admin` on every `inventoryChanged` event from `GET /inventory/events`; the browser morphs the rendered
-inventory table (`hx-swap="innerMorph"`) into `#admin-inventory`, so new products appear and quantities typed
-into a row's *Restock* form survive. Each row's *Restock* form posts to the `POST /admin/order-*` endpoint of its
-product type's supplier.
+product × location matrix (`hx-swap="innerMorph"`) into `#admin-inventory`, so new products appear and quantities
+typed into a row's *Restock* form survive. Columns are the locations, DC first (`Locations.ALL`). Each row's
+*Restock* form posts to the `POST /admin/order-*` endpoint of its product type's supplier, so it restocks the DC.
 ```
-AdminReceiver.inventoryFragment()   → UiResponse(AdminInventory, {products})
-└─ ProductsHandler.listAll()
-   └─ InventoryRepositorySPI.findAll()
+AdminReceiver.inventoryFragment()   → UiResponse(AdminInventory, {locations, products})
+└─ ProductsHandler.listAllLocations()   (one ProductStock per product, with its stock per location)
+   └─ InventoryRepositorySPI.findAllLocations()
       └─ InventoryService (outbound-postgres)
-         └─ PostgreSQL
+         └─ PostgreSQL (StockEntity.listAll(), table stock)
    └─ Sorted by name (case-insensitive), then type; sold-out products stay listed
+```
+
+#### GET /admin/requests-fragment - Pending Requests
+Fetched by `/admin` on every `inventoryChanged` event, morphed into `#admin-requests`.
+```
+AdminReceiver.requestsFragment()   → UiResponse(AdminRequests, {requests})
+└─ ReplenishmentHandler.listPending()
+   └─ ReplenishmentRepositorySPI.findPending()   (oldest first)
+      └─ ReplenishmentService (outbound-postgres)
+         └─ PostgreSQL (table replenishment_request)
+```
+
+#### POST /admin/requests/{id}/fulfil, /reject - Head Office Decides on a Pending Request
+```
+AdminReceiver.fulfilRequest(id) / rejectRequest(id)
+├─ AuditLogHandler.log("FULFIL_RECEIVED" / "REJECT_RECEIVED")
+└─ ReplenishmentHandler.fulfil(id) / reject(id)
+   ├─ ReplenishmentRepositorySPI.fulfil(id) / reject(id)   (one transaction)
+   │  └─ ReplenishmentService (outbound-postgres)
+   │     └─ PostgreSQL: lock DC stock row, then the request (FOR UPDATE);
+   │        fulfil moves what the DC has (ahead of older requests), the rest stays PENDING;
+   │        reject cancels what is outstanding
+   ├─ AuditLogSPI.log("STOCK_TRANSFERRED" / "REQUEST_PENDING" / "REQUEST_CANCELLED")
+   └─ Event<InventoryEvent>.fireAsync(ReplenishmentChanged(location))
+   → 200 empty body, or 409 UiResponse(OrderErrors) if the request is no longer pending
 ```
 
 #### GET /admin/audit-fragment - Audit Log Update
@@ -79,10 +102,17 @@ AdminReceiver.orderFruits()
    │                 └─ FruitDeliveryReceiver (@Incoming("fruit-deliveries"))
    │                    ├─ AuditLogHandler.log("FRUIT_DELIVERY_RECEIVED")
    │                    └─ InventoryHandler.updateFruitAmount()
-   │                       ├─ InventoryRepositorySPI.addAmount()
+   │                       ├─ InventoryRepositorySPI.addAmount(DC, …)   (every delivery goes to the DC)
    │                       │  └─ InventoryService (outbound-postgres)
    │                       │     └─ PostgreSQL
-   │                       └─ AuditLogSPI.log("FRUIT_INVENTORY_UPDATED")
+   │                       ├─ AuditLogSPI.log("FRUIT_INVENTORY_UPDATED")
+   │                       └─ Event<InventoryEvent>.fireAsync(DeliveredToDc)   (after the commit; decoupled from the delivery;
+   │                          │                                                also refreshes the pages, see GET /inventory/events)
+   │                          └─ DeliveryEventReceiver (inbound-event, @ObservesAsync)
+   │                             ├─ AuditLogHandler.log("DELIVERED_TO_DC_RECEIVED")
+   │                             └─ ReplenishmentHandler.fulfilPending(productName)
+   │                                └─ ReplenishmentRepositorySPI.fulfilPending()   (oldest first, partial allowed)
+   │                                   └─ ReplenishmentService (outbound-postgres) → PostgreSQL
    └─ AuditLogSPI.log("FRUITS_ORDER_PLACED")
       └─ AuditLogService (outbound-mongodb)
          └─ MongoDB
@@ -193,8 +223,8 @@ AdminReceiver.orderNonFood()
 ```
 ShopReceiver.shell()  → static shell (shells/shop.html), whose #app loads GET /shop/page
 ShopReceiver.page()   → UiResponse(ShopPage, {products, errors})
-└─ ProductsHandler.listAll()
-   └─ InventoryRepositorySPI.findAll()
+└─ ProductsHandler.listAll(ONLINE)   (the shop sells the online FC's stock)
+   └─ InventoryRepositorySPI.findAll(ONLINE)
       └─ InventoryService (outbound-postgres)
          └─ PostgreSQL
    └─ Filter in-stock products (availableAmount > 0), sorted by name
@@ -206,24 +236,27 @@ products section (`hx-swap="innerMorph"`) into `#shop-products`, so new products
 disappear, and typed quantities survive.
 ```
 ShopReceiver.inventoryFragment()   → UiResponse(ShopProducts, {products})
-└─ ProductsHandler.listAll()
-   └─ InventoryRepositorySPI.findAll()
+└─ ProductsHandler.listAll(ONLINE)
+   └─ InventoryRepositorySPI.findAll(ONLINE)
       └─ InventoryService (outbound-postgres)
          └─ PostgreSQL
    └─ Filter in-stock products (availableAmount > 0), sorted by name
 ```
 
 #### GET /inventory/events - Inventory Change Stream (SSE)
-Served by `InventoryEventsReceiver` (`/inventory`) and opened once by both the shop and the admin shell
+Served by `InventoryEventsReceiver` (`/inventory`) and opened once by the shop, admin and location shells
 (`hx-sse:connect`, outside `#app`, so a re-render of the page keeps it). Replaces the former 3 s polling: each event
-makes `/shop` re-fetch `GET /shop/inventory-fragment` and `/admin` re-fetch `GET /admin/inventory-fragment`.
+makes `/shop` re-fetch `GET /shop/inventory-fragment`, `/admin` re-fetch `GET /admin/inventory-fragment` and
+`GET /admin/requests-fragment`, and `/locations/{id}` re-fetch `GET /locations/{id}/inventory-fragment`. The event
+carries no location: every page refreshes on every change (the core events do carry one, for filtering later).
 ```
 InventoryEventsReceiver.events()   → text/event-stream, never ends
 ├─ event: inventoryChanged   (once on (re)connect, so nothing missed while disconnected)
-├─ InventoryChangesHandler.changes()   (core, JDK Flow.Publisher)
-│  └─ event: inventoryChanged per publishChange(), called after a committed change by
-│     ├─ InventoryHandler.update*Amount()   (every Kafka delivery)
-│     └─ PurchaseHandler.deduct()           (shop/JSON API checkout, cashpoint sale; only if something was deducted)
+├─ InventoryEventBroadcaster.events()   (inbound-http-html, JDK Flow.Publisher fed by @ObservesAsync InventoryEvent)
+│  └─ event: inventoryChanged per InventoryEvent, fired by core with fireAsync after a committed change:
+│     ├─ DeliveredToDc          ← InventoryHandler.update*Amount()   (every Kafka delivery)
+│     ├─ StockDeducted          ← PurchaseHandler.deduct()           (shop/JSON API checkout, cashpoint sale; only if something was deducted)
+│     └─ ReplenishmentChanged   ← ReplenishmentHandler               (every request, fulfil, reject; fulfilPending per location served)
 └─ ": heartbeat" comment every 15 s
 ```
 
@@ -235,7 +268,7 @@ ShopReceiver.checkout(productNames[], quantities[])
    ├─ AuditLogSPI.log("PURCHASE_PROCESSING")
    │  └─ AuditLogService (outbound-mongodb)
    │     └─ MongoDB
-   ├─ InventoryRepositorySPI.deductAll(quantities, REJECT)  (one transaction, all-or-nothing)
+   ├─ InventoryRepositorySPI.deductAll(ONLINE, quantities, REJECT)  (one transaction, all-or-nothing)
    │  └─ InventoryService (outbound-postgres)
    │     └─ PostgreSQL (SELECT ... FOR UPDATE per product, sorted by name)
    └─ Completed: AuditLogSPI.log("INVENTORY_DEDUCTED") → 200 UiResponse(ShopPage), fresh page
@@ -244,13 +277,53 @@ ShopReceiver.checkout(productNames[], quantities[])
             └─ MongoDB
 ```
 
+### LocationReceiver (/locations/{id}) - Store / Online FC Page → PostgreSQL
+
+One page per store and the online FC; the DC (managed on `/admin`) and unknown ids are 404. The shells of all
+pages get a location nav built from `Locations` (`PageShell`).
+
+#### GET /locations/{id} - Location Page
+```
+LocationReceiver.shell(id)  → shells/location.html with {{nav}}, {{locationId}}, {{locationName}} filled in;
+                              its #app loads GET /locations/{id}/page
+LocationReceiver.page(id)   → UiResponse(LocationPage, {inventory})   (inventory as in the fragment below)
+```
+
+#### GET /locations/{id}/inventory-fragment - Stock and Requests
+Fetched on every `inventoryChanged` event, morphed into `#location-inventory`.
+```
+LocationReceiver.inventoryFragment(id)   → UiResponse(LocationInventory, {locationId, products, requests})
+├─ ProductsHandler.listAllLocations()   (every product the DC carries: stock here + at the DC)
+│  └─ InventoryRepositorySPI.findAllLocations()
+│     └─ InventoryService (outbound-postgres) → PostgreSQL
+└─ ReplenishmentHandler.listRecent(location, 20)   (newest first)
+   └─ ReplenishmentRepositorySPI.findRecent()
+      └─ ReplenishmentService (outbound-postgres) → PostgreSQL
+```
+
+#### POST /locations/{id}/requests - Request Stock from the DC
+```
+LocationReceiver.request(id, productName, quantity)
+├─ AuditLogHandler.log("REQUEST_RECEIVED")
+├─ StockRequest.parse(location, productName, quantity)   → 400 UiResponse(OrderErrors) if invalid
+└─ ReplenishmentHandler.request(stockRequest)
+   ├─ AuditLogSPI.log("REQUEST_PROCESSING")
+   ├─ ReplenishmentRepositorySPI.request()   (one transaction)
+   │  └─ ReplenishmentService (outbound-postgres)
+   │     └─ PostgreSQL: lock DC stock row; store the request; unless older ones of the product are pending,
+   │        move what the DC has (at most the quantity) to the location - the rest stays PENDING
+   ├─ AuditLogSPI.log("STOCK_TRANSFERRED" / "REQUEST_PENDING")
+   └─ Event<InventoryEvent>.fireAsync(ReplenishmentChanged(location))
+   → 200 empty body; 409 UiResponse(OrderErrors) if the DC never carried the product ("REQUEST_REJECTED")
+```
+
 ### ProductApiReceiver (/api/products) - JSON API → REST/SOAP/Kafka → Kafka Delivery Topics
 
 #### GET /api/products - Product List (JSON)
 ```
 ProductApiReceiver.list()
-└─ ProductsHandler.listAll()
-   └─ InventoryRepositorySPI.findAll()
+└─ ProductsHandler.listAll(ONLINE)   (the JSON API is the online shop's)
+   └─ InventoryRepositorySPI.findAll(ONLINE)
       └─ InventoryService (outbound-postgres)
          └─ PostgreSQL
 ```
@@ -286,13 +359,25 @@ ProductApiReceiver.purchase(request)
    ├─ AuditLogSPI.log("PURCHASE_PROCESSING")
    │  └─ AuditLogService (outbound-mongodb)
    │     └─ MongoDB
-   ├─ InventoryRepositorySPI.deductAll(quantities, REJECT)  (one transaction, all-or-nothing)
+   ├─ InventoryRepositorySPI.deductAll(ONLINE, quantities, REJECT)  (one transaction, all-or-nothing)
    │  └─ InventoryService (outbound-postgres)
    │     └─ PostgreSQL (SELECT ... FOR UPDATE per product, sorted by name)
    └─ Completed: AuditLogSPI.log("INVENTORY_DEDUCTED") → 204
       Rejected:  AuditLogSPI.log("PURCHASE_REJECTED") → 409 with shortage messages, nothing deducted
          └─ AuditLogService (outbound-mongodb)
             └─ MongoDB
+```
+
+### LocationApiReceiver (/api/locations) - JSON API → PostgreSQL
+
+#### GET /api/locations/{id}/products - Stock of One Location (JSON)
+Read by the cashpoint stub to pick what a store sells. Any location incl. the DC; unknown id → 404.
+```
+LocationApiReceiver.list(id)
+└─ ProductsHandler.listAll(location)
+   └─ InventoryRepositorySPI.findAll(location)
+      └─ InventoryService (outbound-postgres)
+         └─ PostgreSQL
 ```
 
 ## Note: Kafka Delivery Receivers

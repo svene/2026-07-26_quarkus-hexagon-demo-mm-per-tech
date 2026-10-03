@@ -130,14 +130,16 @@ class KafkaMalformedMessageTest {
             {"items": [null]}""");
         send("probe-cashpoint-purchases", """
             {"items": [{"productName": "Orange", "quantity": 1}]}""");
+        send("probe-cashpoint-purchases", """
+            {"storeId": "bern", "items": [{"productName": "Orange", "quantity": 1}]}""");
 
-        assertProcessed("PurchaseHandler: PURCHASE_PROCESSING", "Orange qty=1");
+        assertProcessed("PurchaseHandler: PURCHASE_PROCESSING", "bern: Orange qty=1");
         // The receipt is logged before the structural checks reject a message.
         assertThat(auditHelper.findEventDetails("CashpointReceiver: PURCHASE_RECEIVED"))
-            .containsExactly("items: null", "null", "Orange qty=1");
-        var dead = readDlq("probe-cashpoint-purchases-dlq", 2);
+            .containsExactly("null: items: null", "null: null", "null: Orange qty=1", "bern: Orange qty=1");
+        var dead = readDlq("probe-cashpoint-purchases-dlq", 3);
         assertThat(dead).extracting(r -> header(r, "dead-letter-reason"))
-            .containsExactly("items is required", "items must not contain null entries");
+            .containsExactly("items is required", "items must not contain null entries", "storeId is required");
         assertThat(dead).allSatisfy(r ->
             assertThat(header(r, "dead-letter-topic")).isEqualTo("probe-cashpoint-purchases"));
     }

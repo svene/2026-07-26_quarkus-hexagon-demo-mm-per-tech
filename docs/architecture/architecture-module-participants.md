@@ -11,11 +11,12 @@ Complete inventory of all classes participating in the system flows, organized b
 
 | Module | Participants |
 |--------|--------------|
-| **inbound-http-html** | `AdminReceiver`<br>`ShopReceiver`<br>`InventoryEventsReceiver`<br>`ShopCart` |
-| **inbound-http-jsonapi** | `ProductApiReceiver`<br>`XxxOrderRequest` (+ `OrderRequest`)/`PurchaseRequest`/`PurchaseRequestItem`/`RequestStructureErrorMessages`<br>`JsonInputErrors`/`StrictJsonReader`/`JsonResponses` |
+| **inbound-http-html** | `AdminReceiver`<br>`ShopReceiver`<br>`LocationReceiver`<br>`InventoryEventsReceiver`<br>`InventoryEventBroadcaster`<br>`ShopCart`<br>`PageShell` |
+| **inbound-http-jsonapi** | `ProductApiReceiver`<br>`LocationApiReceiver`<br>`XxxOrderRequest` (+ `OrderRequest`)/`PurchaseRequest`/`PurchaseRequestItem`/`RequestStructureErrorMessages`<br>`JsonInputErrors`/`StrictJsonReader`/`JsonResponses` |
 | **inbound-kafka** | `FruitDeliveryReceiver`<br>`VegetablesDeliveryReceiver`<br>`DairyDeliveryReceiver`<br>`BeveragesDeliveryReceiver`<br>`MeatDeliveryReceiver`<br>`BakeryDeliveryReceiver`<br>`NonFoodDeliveryReceiver`<br>`CashpointReceiver` |
-| **core** | `FruitSupplierSPI`/`FruitDelivery`/`FruitsHandler`<br>`VegetablesSupplierSPI`/`VegetableDelivery`/`VegetablesHandler`<br>`DairySupplierSPI`/`DairyDelivery`/`DairyHandler`<br>`BeverageSupplierSPI`/`BeverageDelivery`/`BeveragesHandler`<br>`MeatSupplierSPI`/`MeatDelivery`/`MeatHandler`<br>`BakerySupplierSPI`/`BakeryDelivery`/`BakeryHandler`<br>`NonFoodSupplierSPI`/`NonFoodDelivery`/`NonFoodHandler`<br>`InventoryRepositorySPI`/`InventoryHandler`/`InventoryChangesHandler`<br>`AuditLogSPI`/`AuditLogHandler`/`AuditLogEntry`<br>`ProductsHandler`/`Product`/`ProductType`<br>`PurchaseHandler`/`PurchaseItem` |
-| **outbound-postgres** | `InventoryService`<br>`ProductEntity` |
+| **inbound-event** | `DeliveryEventReceiver` |
+| **core** | `FruitSupplierSPI`/`FruitDelivery`/`FruitsHandler`<br>`VegetablesSupplierSPI`/`VegetableDelivery`/`VegetablesHandler`<br>`DairySupplierSPI`/`DairyDelivery`/`DairyHandler`<br>`BeverageSupplierSPI`/`BeverageDelivery`/`BeveragesHandler`<br>`MeatSupplierSPI`/`MeatDelivery`/`MeatHandler`<br>`BakerySupplierSPI`/`BakeryDelivery`/`BakeryHandler`<br>`NonFoodSupplierSPI`/`NonFoodDelivery`/`NonFoodHandler`<br>`InventoryRepositorySPI`/`InventoryHandler`/`InventoryEvent` (`DeliveredToDc`/`StockDeducted`/`ReplenishmentChanged`)<br>`Location`/`Replenished`/`Warehouse`/`Store`/`OnlineFc`/`Locations`<br>`ReplenishmentRepositorySPI`/`ReplenishmentHandler`/`StockRequest`/`ReplenishmentRequest`<br>`AuditLogSPI`/`AuditLogHandler`/`AuditLogEntry`<br>`ProductsHandler`/`Product`/`ProductStock`/`ProductType`<br>`PurchaseHandler`/`PurchaseItem` |
+| **outbound-postgres** | `InventoryService`<br>`StockEntity`<br>`ReplenishmentService`<br>`ReplenishmentRequestEntity` |
 | **outbound-mongodb** | `AuditLogService`<br>`AuditLogEntryEntity` |
 | **outbound-httpclient** | `FruitSupplierService`<br>`VegetablesSupplierService`<br>`DairySupplierService`<br>`FruitSupplierClient`<br>`VegetablesSupplierClient`<br>`DairySupplierClient` |
 | **outbound-webservice** | `BeverageSupplierService`<br>`MeatSupplierService`<br>`BakerySupplierService`<br>`BeverageOrderService`<br>`MeatOrderService`<br>`BakeryOrderService` |
@@ -33,9 +34,12 @@ Complete inventory of all classes participating in the system flows, organized b
 **Package**: `org.svenehrke.triptychdemo.cross` (both receivers are cross-cutting aggregators — Admin touches every commodity's ordering Handler, Shop touches Products+Purchase — so neither lives in a `feature.<name>` package)
 
 ### Receivers
-- `AdminReceiver` - Admin dashboard and ordering endpoints (GET /admin shell, GET /admin/page and fragments, POST /admin/order-*)
-- `ShopReceiver` - Customer shopping interface (GET /shop shell, GET /shop/page and fragment, POST /shop/checkout)
-- `InventoryEventsReceiver` - GET /inventory/events SSE stream (`inventoryChanged`), used by both the shop and the admin shell
+- `AdminReceiver` - Admin dashboard: product × location matrix, supplier orders (to the DC), pending requests (GET /admin shell, GET /admin/page and fragments, POST /admin/order-*, POST /admin/requests/{id}/fulfil|reject)
+- `ShopReceiver` - Customer shopping interface, sells the online FC's stock (GET /shop shell, GET /shop/page and fragment, POST /shop/checkout)
+- `LocationReceiver` - Store / online FC page: stock, requests to the DC (GET /locations/{id} shell, /page, /inventory-fragment, POST /locations/{id}/requests)
+- `InventoryEventsReceiver` - GET /inventory/events SSE stream (`inventoryChanged`), used by the shop, admin and location shells
+- `InventoryEventBroadcaster` (package-private) - `@ObservesAsync InventoryEvent` (every kind), re-published as a JDK `Flow.Publisher` that the SSE streams subscribe to
+- `PageShell` (package-private) - fills a page shell: the location nav (built from `Locations`) and `{{key}}` placeholders
 - `UiRoute`, `UiResponse`, `*VM` records - the `{route, vm}` JSON envelope and the view models (TS types generated from them)
 - `*.ts` next to the receivers - hono/html templates + the `hono` htmx extension, bundled into `hx-hono.js`
 - `ShopCart` (package-private) - the checkout form's cart: pairs names with quantities, drops blank/`0` rows, parses to a `ParsedPurchase`, maps violations back to product names
@@ -56,7 +60,8 @@ Complete inventory of all classes participating in the system flows, organized b
 **Package**: `org.svenehrke.triptychdemo.cross` (spans every commodity's ordering Handler plus Products/Purchase, so it's cross-cutting like inbound-http-html)
 
 ### Receivers
-- `ProductApiReceiver` - REST API endpoints (GET /api/products, POST /api/products/order-*, POST /api/products/purchase)
+- `ProductApiReceiver` - REST API endpoints (GET /api/products, POST /api/products/order-*, POST /api/products/purchase); products and purchases are the online FC's
+- `LocationApiReceiver` - GET /api/locations/{id}/products (stock of one location; 404 for an unknown id)
 
 ### Request Models (one record per file)
 - `FruitOrderRequest` - Fruit order (productName, quantity)
@@ -88,6 +93,22 @@ Complete inventory of all classes participating in the system flows, organized b
 
 ---
 
+## inbound-event
+
+**Purpose**: Inbound adapter for domain events that core fires as CDI async events (`Event.fireAsync`) - in-process, like `inbound-kafka` is for messages
+**Package**: `org.svenehrke.triptychdemo.cross.inventory`
+
+### Receivers
+- `DeliveryEventReceiver` - `@ObservesAsync DeliveredToDc` → `ReplenishmentHandler.fulfilPending(productName)`; audit-logs a failure (`FULFIL_PENDING_FAILED`) instead of letting it vanish, the requests then stay pending
+
+**Responsibilities**:
+- React to core's domain events, decoupled from the code that fires them (a failing reaction cannot fail, or make the Kafka receiver repeat, the delivery)
+- Route to Handlers only, like every Receiver (ArchUnit's inbound rules cover this module by its `inbound-` name)
+
+**Technology**: CDI (Quarkus ArC) async events, no further dependency besides `core`
+
+---
+
 ## inbound-kafka
 
 **Purpose**: Kafka inbound adapters that consume events from Kafka topics
@@ -103,7 +124,7 @@ Complete inventory of all classes participating in the system flows, organized b
 - `NonFoodDeliveryReceiver` (`feature.nonfood`) - Consumes from `nonfood-deliveries` topic
 
 ### Other Event Receivers
-- `CashpointReceiver` (`cross.cashpoint`) - Consumes from `cashpoint-purchases` topic (customer purchases from external checkout); also in this package: `PurchaseMessage`, `PurchaseMessageItem`, `PurchaseMessageDeserializer`
+- `CashpointReceiver` (`cross.cashpoint`) - Consumes from `cashpoint-purchases` topic (customer purchases from a store's checkout; `storeId` missing → DLQ, not a store → audit-logged INVALID); also in this package: `PurchaseMessage`, `PurchaseMessageItem`, `PurchaseMessageDeserializer`
 
 **Responsibilities**:
 - Listen to incoming Kafka messages via @Incoming annotation
@@ -142,12 +163,13 @@ Complete inventory of all classes participating in the system flows, organized b
 - `NonFoodSupplierSPI`, `NonFoodDelivery`, `NonFoodHandler` - same shape as feature.fruit
 
 ### cross.inventory
-- `InventoryRepositorySPI` - Interface for inventory data access (methods: findAll, addAmount, deductAll)
+- `InventoryRepositorySPI` - Interface for stock per location (methods: findAll(location), findAllLocations, addAmount(location, …), deductAll(location, …))
+- `LocationStock` - Domain record (location, product), returned by findAllLocations
+- `InventoryEvent` - Sealed interface of the CDI events core fires with `fireAsync`, one per committed change: `DeliveredToDc(productName)` (InventoryHandler), `StockDeducted(location)` (PurchaseHandler), `ReplenishmentChanged(location)` (ReplenishmentHandler). Observed by inbound adapters only - a specific one (DeliveryEventReceiver) or all (InventoryEventBroadcaster, for the SSE live updates). All three live in this package: core is no named module, so a sealed type's subclasses must share its package
 - `OnShortage` - Enum passed to deductAll: `REJECT` (online, deduct nothing) | `CAP_AT_ZERO` (physical store)
 - `StockDeduction` - Result of deductAll (updated products, shortages)
 - `Shortage` - Domain record (productName, requested, available) with rejection and discrepancy messages
-- `InventoryHandler` - Updates inventory from delivery events, for all commodities (methods: updateFruitAmount, updateVegetableAmount, updateDairyAmount, updateBeverageAmount, updateMeatAmount, updateBakeryAmount, updateNonFoodAmount) - imports each commodity's `*Delivery` record from its `feature.<commodity>` package
-- `InventoryChangesHandler` - Tells inbound adapters the inventory changed (methods: publishChange - called by InventoryHandler and PurchaseHandler after a committed change; changes - a JDK `Flow.Publisher` that InventoryEventsReceiver's SSE stream subscribes to). Not an SPI: notifications flow core → inbound adapter, which reaches core only through Handlers. In-process only.
+- `InventoryHandler` - Adds deliveries to the DC, then fires `DeliveredToDc` asynchronously (see inbound-event), for all commodities (methods: updateFruitAmount, updateVegetableAmount, updateDairyAmount, updateBeverageAmount, updateMeatAmount, updateBakeryAmount, updateNonFoodAmount) - imports each commodity's `*Delivery` record from its `feature.<commodity>` package
 
 ### cross.auditlog
 - `AuditLogSPI` - Interface for audit log persistence (methods: log, findRecent)
@@ -155,14 +177,29 @@ Complete inventory of all classes participating in the system flows, organized b
 - `AuditLogEntry` - Domain record (event, details, timestamp) - not to be confused with `outbound-mongodb`'s `AuditLogEntryEntity` (the Panache persistence entity); the two used to share the name `AuditLogEntry` until 2026-09-13, when the entity was renamed to avoid a fully-qualified-name collision once both landed in `cross.auditlog`
 
 ### cross.products
-- `ProductsHandler` - Lists all products (method: listAll; injects InventoryRepositorySPI)
+- `ProductsHandler` - Lists products (methods: listAll(location); listAllLocations - one `ProductStock` per product with its stock at every location; injects InventoryRepositorySPI)
+- `ProductStock` - Domain record (name, type, availableByLocation)
 - `Product` - Domain record (name, type, availableAmount)
 - `ProductType` - Enum (FRUIT, VEGETABLE, DAIRY, BEVERAGE, MEAT, BAKERY, NON_FOOD)
 
 ### cross.purchase
 - `PurchaseOutcome` - Sealed result of checkout (`Completed` | `Rejected`)
-- `PurchaseHandler` - Handles customer purchases (methods: checkout - online, rejects on insufficient stock; recordStoreSale - physical store, never rejects; injects InventoryRepositorySPI + AuditLogSPI)
+- `PurchaseHandler` - Handles customer purchases (methods: checkout - online, rejects on insufficient stock; recordStoreSale(store, …) - physical store, never rejects; injects InventoryRepositorySPI + AuditLogSPI)
 - `PurchaseItem` - Domain record (productName, quantity)
+
+### cross.location
+- `Location` - Sealed interface (id, name): `Warehouse` | `Replenished`, so an operation only one kind supports takes that type
+- `Replenished` - Sealed sub-interface for the locations replenished from the DC: `Store` | `OnlineFc` (e.g. `StockRequest`, the location pages)
+- `Warehouse`, `Store`, `OnlineFc` - Records (id, name); `PurchaseHandler.recordStoreSale` takes a `Store`
+- `Locations` - The fixed set as a domain constant: DC, Zurich, Bern, Basel, Online FC (`ALL`, `REPLENISHED`, `byId`, `replenishedById`, `storeById`, `of`, `replenishedOf`)
+
+### cross.replenishment
+- `ReplenishmentRepositorySPI` - Requests to the DC and the transfers serving them, each use case one transaction (methods: request, fulfilPending, fulfil, reject, findPending, findRecent); serves requests of a product oldest first, partially if needed
+- `ReplenishmentHandler` - Pull replenishment (methods: request, fulfilPending - after a delivery, via DeliveryEventReceiver, fulfil/reject - head office, listPending, listRecent)
+- `StockRequest` / `ParsedStockRequest` - What a location asks for (location, productName, quantity 1-2000), via `parse()` like the supplier orders
+- `ReplenishmentRequest` - Stored request (id, location, productName, requested, delivered, status, createdAt)
+- `RequestStatus` - Enum (PENDING, FULFILLED, REJECTED)
+- `Transfer` - Result of a transfer (request afterwards, quantity moved)
 
 **Responsibilities**:
 - Implement business logic for each use case
@@ -177,18 +214,19 @@ Complete inventory of all classes participating in the system flows, organized b
 
 ## outbound-postgres
 
-**Purpose**: PostgreSQL persistence adapter - implements InventoryRepositorySPI
-**Package**: `org.svenehrke.triptychdemo.cross.inventory`
+**Purpose**: PostgreSQL persistence adapter - implements InventoryRepositorySPI and ReplenishmentRepositorySPI
+**Package**: `org.svenehrke.triptychdemo.cross.inventory`, `org.svenehrke.triptychdemo.cross.replenishment`
 
 ### Services
 - `InventoryService` - Implements InventoryRepositorySPI using Hibernate/Panache ORM
-  - Manages ProductEntity persistence
-  - Handles inventory additions and deductions
-  - Queries all products with type filtering
-- `ProductEntity` - Panache entity backing the `products` table
+  - Manages StockEntity persistence (one row per location and product)
+  - Handles stock additions and deductions per location
+- `StockEntity` - Panache entity backing the `stock` table (unique on locationId + name + type)
+- `ReplenishmentService` - Implements ReplenishmentRepositorySPI: stock transfer and request update in one transaction; locks the DC stock row first, then requests, then the target row
+- `ReplenishmentRequestEntity` - Panache entity backing the `replenishment_request` table
 
 **Technology**: Quarkus Panache (ORM), Hibernate, PostgreSQL
-**Database**: `products` table in PostgreSQL
+**Database**: `stock` and `replenishment_request` tables in PostgreSQL
 **Transactional**: Yes (@Transactional on write operations)
 
 ---
@@ -346,8 +384,8 @@ Complete inventory of all classes participating in the system flows, organized b
 **Package**: `org.svenehrke.triptychdemo.external.inbound.kafka` (unchanged, see note above)
 
 ### Mock Clients
-- `CashpointStub` - Mock checkout system that generates purchase events
-- `ProductsApiClient` - Mock external system that queries products
+- `CashpointStub` - Mock checkout system: each tick a random store sells from its stock (`PurchaseRequest` with `storeId`)
+- `ProductsApiClient` - REST client for `GET /api/locations/{id}/products`
 
 **Responsibilities**:
 - Simulate external systems publishing events
@@ -361,8 +399,9 @@ Complete inventory of all classes participating in the system flows, organized b
 ## Summary by Layer
 
 ### Presentation Layer (HTTP Inbound)
-- `inbound-http-html` module - HTML user interfaces (AdminReceiver, ShopReceiver, InventoryEventsReceiver)
-- `inbound-http-jsonapi` module - JSON REST API (ProductApiReceiver)
+- `inbound-http-html` module - HTML user interfaces (AdminReceiver, ShopReceiver, LocationReceiver, InventoryEventsReceiver)
+- `inbound-http-jsonapi` module - JSON REST API (ProductApiReceiver, LocationApiReceiver)
+- `inbound-event` module - CDI async domain events from core (DeliveryEventReceiver)
 - Responsibility: Handle HTTP requests, return HTTP responses (HTML or JSON)
 - Package: `cross` in both modules (both aggregate across every commodity)
 
@@ -377,7 +416,7 @@ Complete inventory of all classes participating in the system flows, organized b
 - Responsibility: Implement business logic, coordinate flow between inbound and outbound
 
 ### Data Persistence Layer
-- `outbound-postgres` module - InventoryService (ProductEntity), package `cross.inventory`
+- `outbound-postgres` module - InventoryService (StockEntity), ReplenishmentService (ReplenishmentRequestEntity), packages `cross.inventory`, `cross.replenishment`
 - `outbound-mongodb` module - AuditLogService (AuditLogEntryEntity), package `cross.auditlog`
 - Responsibility: Persist and query data
 
@@ -401,11 +440,12 @@ Complete inventory of all classes participating in the system flows, organized b
 
 | Module | Participants | Type |
 |--------|--------------|------|
-| inbound-http-html | 2 | HTTP HTML Receivers |
-| inbound-http-jsonapi | 2 | HTTP JSON API Receiver + request records |
+| inbound-http-html | 4 | HTTP HTML Receivers |
+| inbound-http-jsonapi | 3 | HTTP JSON API Receivers + request records |
 | inbound-kafka | 8 + 3 | Kafka Receivers + cashpoint message types |
-| core | 12 Handlers, 9 SPI interfaces, 10 domain records/enum | Feature (7 packages) + Cross (4 packages) |
-| outbound-postgres | 2 | Service (InventoryService) + Entity (ProductEntity) |
+| inbound-event | 1 | CDI event Receiver |
+| core | 13 Handlers, 10 SPI interfaces, 22 domain records/enum/sealed interfaces/events | Feature (7 packages) + Cross (6 packages) |
+| outbound-postgres | 4 | Services (InventoryService, ReplenishmentService) + Entities (StockEntity, ReplenishmentRequestEntity) |
 | outbound-mongodb | 2 | Service (AuditLogService) + Entity (AuditLogEntryEntity) |
 | outbound-httpclient | 3 | Services + 3 REST Clients |
 | outbound-webservice | 3 | Services + 3 SOAP Clients |
@@ -414,7 +454,7 @@ Complete inventory of all classes participating in the system flows, organized b
 | external-outbound-soap | 3 | Supplier Stubs |
 | external-outbound-kafka | 1 | Supplier Stub |
 | external-inbound-kafka | 2 | Mock Event Sources |
-| **Total** | **~65 classes** | **across 15 modules** |
+| **Total** | **~95 classes** | **across 15 Maven modules (child modules of the root POM, app-server included)** |
 
 ---
 

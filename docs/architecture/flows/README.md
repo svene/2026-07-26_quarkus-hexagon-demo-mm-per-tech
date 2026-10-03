@@ -29,8 +29,8 @@ PlantUML sequence diagrams for all primary flows in the supermarket inventory sy
 
 ### Inventory Change Stream
 **File**: `inventory-events.puml`
-- **Trigger**: shop and admin shells open GET /inventory/events (SSE) on load
-- **Flow**: inventory change (Kafka delivery or purchase) → InventoryChangesHandler → InventoryEventsReceiver → `inventoryChanged` event → browser re-fetches GET /shop/inventory-fragment (into `#shop-products`) or GET /admin/inventory-fragment (into `#admin-inventory`) and morphs it in
+- **Trigger**: shop, admin and location shells open GET /inventory/events (SSE) on load
+- **Flow**: inventory change (Kafka delivery, purchase or replenishment) → core fires an `InventoryEvent` (CDI, async) → InventoryEventBroadcaster → InventoryEventsReceiver → `inventoryChanged` event → browser re-fetches GET /shop/inventory-fragment (into `#shop-products`) or GET /admin/inventory-fragment (into `#admin-inventory`) and morphs it in
 - **Returns**: never-ending `text/event-stream`
 - **Participants**: 2 (Customer, Admin)
 
@@ -123,6 +123,26 @@ PlantUML sequence diagrams for all primary flows in the supermarket inventory sy
 - Fruits, Vegetables, Dairy (REST suppliers)
 - Meat, Bakery (SOAP suppliers)
 - NonFood (Kafka two-hop)
+
+## Replenishment Flows (Locations ← DC)
+
+### Location Request
+**File**: `location-request.puml`
+- **Trigger**: POST /locations/{id}/requests (store / online FC page)
+- **Flow**: LocationReceiver → `StockRequest.parse()` → ReplenishmentHandler → ReplenishmentService → PostgreSQL (DC row locked first; transfer + request in one transaction) + AuditLogService → MongoDB
+- **Actions**: moves what the DC has right away (unless older requests of the product wait); the rest stays PENDING until the next delivery to the DC serves it, oldest first
+- **Returns**: 200 empty body; 400 / 409 `{route: OrderErrors, vm}`
+- **Participants**: 1 (Store / Online manager)
+- **Databases**: PostgreSQL (`stock`, `replenishment_request`), MongoDB (audit log)
+
+### Admin Decides on a Pending Request
+**File**: `admin-decide-request.puml`
+- **Trigger**: POST /admin/requests/{id}/fulfil or /reject
+- **Flow**: AdminReceiver → ReplenishmentHandler → ReplenishmentService → PostgreSQL + AuditLogService → MongoDB
+- **Actions**: fulfil moves what the DC has, ahead of older requests; reject cancels what is outstanding
+- **Returns**: 200 empty body; 409 if the request is no longer pending
+- **Participants**: 1 (Head office)
+- **Databases**: PostgreSQL (`stock`, `replenishment_request`), MongoDB (audit log)
 
 ## Event-Driven Flow (Kafka Inbound)
 

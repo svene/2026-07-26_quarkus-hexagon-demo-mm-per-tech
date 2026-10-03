@@ -1,6 +1,7 @@
 package org.svenehrke.triptychdemo.server;
 
 import org.svenehrke.triptychdemo.cross.inventory.InventoryRepositorySPI;
+import org.svenehrke.triptychdemo.cross.location.Locations;
 import org.svenehrke.triptychdemo.cross.products.ProductType;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
@@ -37,19 +38,8 @@ class CashpointFlowTest {
 
     @Test
     void customer_purchase_deducts_inventory() {
-        given()
-            .contentType(ContentType.JSON)
-            .body("""
-                {"productName": "Apple", "quantity": 10}
-                """)
-            .post("/api/products/order-fruits")
-            .then().statusCode(204);
+        inventory.addAmount(Locations.ONLINE, "Apple", ProductType.FRUIT, 10);
 
-        await().atMost(10, SECONDS).untilAsserted(() ->
-            assertThat(given().get("/api/products").asString())
-                .isEqualTo("""
-                    [{"name":"Apple","type":"FRUIT","availableAmount":10}]""")
-        );
 
         auditHelper.clearAuditLog();
 
@@ -64,9 +54,9 @@ class CashpointFlowTest {
         assertThat(auditHelper.findEventDetails("ProductApiReceiver: PURCHASE_RECEIVED"))
             .containsExactly("Apple qty=3");
         assertThat(auditHelper.findEventDetails("PurchaseHandler: PURCHASE_PROCESSING"))
-            .containsExactly("Apple qty=3");
+            .containsExactly("online: Apple qty=3");
         assertThat(auditHelper.findEventDetails("PurchaseHandler: INVENTORY_DEDUCTED"))
-            .containsExactly("Apple -3 total=7");
+            .containsExactly("online: Apple -3 total=7");
 
         assertThat(given().get("/api/products").asString())
             .isEqualTo("""
@@ -75,21 +65,9 @@ class CashpointFlowTest {
 
     @Test
     void multi_item_purchase_deducts_each_product() {
-        given().contentType(ContentType.JSON)
-            .body("""
-                {"productName": "Apple", "quantity": 10}
-                """)
-            .post("/api/products/order-fruits").then().statusCode(204);
-        given().contentType(ContentType.JSON)
-            .body("""
-                {"productName": "Milk", "quantity": 6}
-                """)
-            .post("/api/products/order-dairy").then().statusCode(204);
+        inventory.addAmount(Locations.ONLINE, "Apple", ProductType.FRUIT, 10);
+        inventory.addAmount(Locations.ONLINE, "Milk", ProductType.DAIRY, 6);
 
-        await().atMost(10, SECONDS).untilAsserted(() -> {
-            var body = given().get("/api/products").asString();
-            assertThat(body).contains("Apple").contains("Milk");
-        });
 
         auditHelper.clearAuditLog();
 
@@ -102,9 +80,9 @@ class CashpointFlowTest {
         assertThat(purchaseResponse.statusCode()).isEqualTo(204);
 
         assertThat(auditHelper.findEventDetails("PurchaseHandler: PURCHASE_PROCESSING"))
-            .containsExactly("Apple qty=3, Milk qty=2");
+            .containsExactly("online: Apple qty=3, Milk qty=2");
         assertThat(auditHelper.findEventDetails("PurchaseHandler: INVENTORY_DEDUCTED"))
-            .containsExactly("Apple -3 total=7, Milk -2 total=4");
+            .containsExactly("online: Apple -3 total=7, Milk -2 total=4");
     }
 
     @Test
@@ -119,7 +97,7 @@ class CashpointFlowTest {
         assertThat(response.statusCode()).isEqualTo(409);
         assertThat(response.jsonPath().<String>getList("$")).containsExactly("Ghost: not in stock");
         assertThat(auditHelper.findEventDetails("PurchaseHandler: PURCHASE_REJECTED"))
-            .containsExactly("Ghost: not in stock");
+            .containsExactly("online: Ghost: not in stock");
         assertThat(auditHelper.findEventDetails("PurchaseHandler: INVENTORY_DEDUCTED")).isEmpty();
 
         assertThat(given().get("/api/products").asString()).isEqualTo("[]");
@@ -127,21 +105,9 @@ class CashpointFlowTest {
 
     @Test
     void purchase_exceeding_stock_returns_409_and_deducts_nothing() {
-        given().contentType(ContentType.JSON)
-            .body("""
-                {"productName": "Apple", "quantity": 10}
-                """)
-            .post("/api/products/order-fruits").then().statusCode(204);
-        given().contentType(ContentType.JSON)
-            .body("""
-                {"productName": "Milk", "quantity": 6}
-                """)
-            .post("/api/products/order-dairy").then().statusCode(204);
+        inventory.addAmount(Locations.ONLINE, "Apple", ProductType.FRUIT, 10);
+        inventory.addAmount(Locations.ONLINE, "Milk", ProductType.DAIRY, 6);
 
-        await().atMost(10, SECONDS).untilAsserted(() -> {
-            var body = given().get("/api/products").asString();
-            assertThat(body).contains("Apple").contains("Milk");
-        });
 
         auditHelper.clearAuditLog();
 
@@ -164,7 +130,7 @@ class CashpointFlowTest {
 
     @Test
     void repeated_product_is_checked_against_its_total_quantity() {
-        inventory.addAmount("Apple", ProductType.FRUIT, 5);
+        inventory.addAmount(Locations.ONLINE, "Apple", ProductType.FRUIT, 5);
 
         var response = given()
             .contentType(ContentType.JSON)
@@ -182,7 +148,7 @@ class CashpointFlowTest {
     void concurrent_purchases_never_sell_more_than_is_in_stock() throws Exception {
         int stock = 5;
         int customers = 20;
-        inventory.addAmount("Apple", ProductType.FRUIT, stock);
+        inventory.addAmount(Locations.ONLINE, "Apple", ProductType.FRUIT, stock);
 
         // all customers are released at once, so their checkouts really overlap
         var start = new CountDownLatch(1);
@@ -228,17 +194,8 @@ class CashpointFlowTest {
 
     @Test
     void purchase_with_invalid_item_returns_400_and_deducts_nothing() {
-        given().contentType(ContentType.JSON)
-            .body("""
-                {"productName": "Apple", "quantity": 10}
-                """)
-            .post("/api/products/order-fruits").then().statusCode(204);
+        inventory.addAmount(Locations.ONLINE, "Apple", ProductType.FRUIT, 10);
 
-        await().atMost(10, SECONDS).untilAsserted(() ->
-            assertThat(given().get("/api/products").asString())
-                .isEqualTo("""
-                    [{"name":"Apple","type":"FRUIT","availableAmount":10}]""")
-        );
 
         auditHelper.clearAuditLog();
 

@@ -48,7 +48,7 @@ class BakeryOrderDeliveryFlowTest {
             .containsExactly("Bread qty=10");
 
         await().atMost(10, SECONDS).untilAsserted(() -> {
-            var response = given().get("/api/products");
+            var response = given().get("/api/locations/dc/products");
             assertThat(response.statusCode()).isEqualTo(200);
             assertThat(response.asString()).isEqualTo("""
                 [{"name":"Bread","type":"BAKERY","availableAmount":10}]""");
@@ -56,7 +56,7 @@ class BakeryOrderDeliveryFlowTest {
             assertThat(auditHelper.findEventDetails("BakeryDeliveryReceiver: BAKERY_DELIVERY_RECEIVED"))
                 .containsExactly("Bread qty=10");
             assertThat(auditHelper.findEventDetails("InventoryHandler: BAKERY_INVENTORY_UPDATED"))
-                .containsExactly("Bread +10");
+                .containsExactly("dc: Bread +10");
         });
     }
 }

@@ -35,6 +35,7 @@
     <module>inbound-http-html</module>
     <module>inbound-http-jsonapi</module>
     <module>inbound-kafka</module>
+    <module>inbound-event</module>
     <module>outbound-postgres</module>
     <module>outbound-mongodb</module>
     <module>outbound-webservice</module>
@@ -91,6 +92,11 @@
       <dependency>
         <groupId>org.svenehrke</groupId>
         <artifactId>inbound-kafka</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.svenehrke</groupId>
+        <artifactId>inbound-event</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>

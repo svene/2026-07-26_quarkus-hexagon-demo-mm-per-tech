@@ -20,7 +20,7 @@ handler -> audit: log("PURCHASE_PROCESSING")
 audit -> db_audit: Insert audit entry
 audit --> handler
 
-handler -> inventory: deductAll(quantities by product name, REJECT)
+handler -> inventory: deductAll(ONLINE, quantities by product name, REJECT)
 note right of inventory
   One transaction, all-or-nothing.
   Rows locked (SELECT ... FOR UPDATE) in
@@ -29,7 +29,7 @@ note right of inventory
 end note
 loop for each product (sorted by name)
   inventory -> db_inv: SELECT ... FOR UPDATE
-  db_inv --> inventory: ProductEntity
+  db_inv --> inventory: StockEntity
   inventory -> inventory: enough stock? deduct : record Shortage
 end
 alt all in stock

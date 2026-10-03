@@ -1,0 +1,56 @@
+@startuml location_request
+skinparam monochrome true
+skinparam sequenceMessageAlign center
+skinparam backgroundColor #ffffff
+
+actor "Store / Online\nManager" as user
+participant "LocationReceiver\n(HTTP)" as receiver
+participant "ReplenishmentHandler\n(Core)" as handler
+participant "ReplenishmentService\n(PostgreSQL)" as service
+participant "InventoryEvent\n(CDI, async)" as changes
+participant "AuditLogService\n(MongoDB)" as audit
+database "PostgreSQL\n(stock, replenishment_request)" as db
+database "MongoDB\n(Audit)" as db_audit
+
+user -> receiver: POST /locations/{id}/requests\n(productName, quantity)
+receiver -> audit: log("REQUEST_RECEIVED")
+audit -> db_audit: Insert audit entry
+receiver -> receiver: StockRequest.parse(location, productName, quantity)
+alt invalid
+  receiver --> user: 400 {route: OrderErrors, vm}
+end
+
+receiver -> handler: request(stockRequest)
+handler -> audit: log("REQUEST_PROCESSING")
+handler -> service: request(stockRequest)
+note right of service
+  One transaction. Lock order: DC stock row,
+  then requests, then the location's row.
+end note
+service -> db: SELECT DC stock row FOR UPDATE
+alt DC never carried the product
+  service --> handler: empty
+  handler -> audit: log("REQUEST_REJECTED")
+  receiver --> user: 409 {route: OrderErrors, vm}\n["X: not carried by the DC"]
+else
+  service -> db: older PENDING requests of the product?
+  service -> db: INSERT request (PENDING)
+  opt no older pending request
+    service -> db: move min(DC stock, quantity):\nDC row -, location row + (created if missing)
+    service -> db: delivered += moved; all delivered? FULFILLED
+  end
+  service -> db: COMMIT
+  service --> handler: Transfer(request, moved)
+  handler -> audit: log("STOCK_TRANSFERRED") if moved > 0;\nlog("REQUEST_PENDING") if still pending
+  handler ->> changes: fireAsync(ReplenishmentChanged)
+  receiver --> user: 200 (empty body)
+  note right of user
+    The inventoryChanged SSE event then makes the page
+    re-fetch GET /locations/{id}/inventory-fragment.
+    A PENDING rest is served by the next delivery to the DC
+    (InventoryHandler → DeliveredToDc event → DeliveryEventReceiver
+    → fulfilPending, oldest first).
+  end note
+end
+
+@enduml

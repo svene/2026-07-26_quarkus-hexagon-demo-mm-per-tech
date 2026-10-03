@@ -10,8 +10,10 @@ public class TestInventoryHelper {
 
     @Inject EntityManager em;
 
+    /** The stock of every location, and every replenishment request. */
     @Transactional
     public void resetInventory() {
-        em.createNativeQuery("DELETE FROM products").executeUpdate();
+        em.createNativeQuery("DELETE FROM stock").executeUpdate();
+        em.createNativeQuery("DELETE FROM replenishment_request").executeUpdate();
     }
 }

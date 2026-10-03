@@ -12,8 +12,8 @@ database "PostgreSQL\n(Products)" as db
 user -> receiver: GET /admin
 receiver --> user: static page shell
 user -> receiver: GET /admin/page (hx-trigger=load)
-receiver -> handler: listAll()
-handler -> inventory: findAll()
+receiver -> handler: listAllLocations()
+handler -> inventory: findAllLocations()
 inventory -> db: SELECT * FROM products
 db --> inventory: Product[]
 inventory --> handler: Product[]

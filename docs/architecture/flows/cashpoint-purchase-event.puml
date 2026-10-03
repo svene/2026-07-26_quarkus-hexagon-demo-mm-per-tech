@@ -12,13 +12,13 @@ participant "InventoryService\n(PostgreSQL)" as inventory
 database "PostgreSQL\n(Inventory)" as db_inv
 database "MongoDB\n(Audit)" as db_audit
 
-external -> kafka: publish purchase message\n{items: [{product, qty}, ...]}
+external -> kafka: publish purchase message\n{storeId, items: [{product, qty}, ...]}
 
 kafka -> receiver: consume (@Incoming)
 receiver -> audit: log("PURCHASE_RECEIVED")
 audit -> db_audit: Insert audit entry
 audit --> receiver
-receiver -> handler: recordStoreSale(purchase)
+receiver -> handler: recordStoreSale(store, purchase)
 handler -> audit: log("PURCHASE_PROCESSING")
 audit -> db_audit: Insert audit entry
 audit --> handler
@@ -27,14 +27,14 @@ note right of handler
   Physical store: the goods are already gone,
   so the sale is recorded, never rejected.
 end note
-handler -> inventory: deductAll(quantities by product name, CAP_AT_ZERO)
+handler -> inventory: deductAll(store, quantities by product name, CAP_AT_ZERO)
 note right of inventory
   One transaction; rows locked
   (SELECT ... FOR UPDATE) in product-name order.
 end note
 loop for each product (sorted by name)
   inventory -> db_inv: SELECT ... FOR UPDATE
-  db_inv --> inventory: ProductEntity
+  db_inv --> inventory: StockEntity
   inventory -> inventory: availableAmount = max(0, availableAmount - quantity)\nless than sold (or unknown product)? record Shortage
 end
 inventory -> db_inv: COMMIT

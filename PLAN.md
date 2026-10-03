@@ -149,12 +149,14 @@ Replaced the 3 s polling on `/shop` with a server push. Design and the decisions
   SPI: the `inbound_adapters_do_not_use_spis` ArchUnit rule forbids that, and notifications flow
   core → inbound adapter anyway. In-process only (single instance).
 
-## split-inventory: Split the inventory: physical store vs. online shop (NOT STARTED)
+## split-inventory: Locations: central DC, 3 stores, online dark store (PLAN)
 
-Replace the single inventory with two stock pools: one for the physical store (deducted by cashpoint
-sales) and one for the online shop (deducted by `/shop` and JSON API checkouts). Open: where
-deliveries go, whether stock can be transferred between the two, and what `/api/products` shows.
-Plan, decisions and progress are tracked in
+Replace the single inventory with one stock per location: a central DC that receives all supplier
+deliveries, 3 physical stores (deducted by cashpoint sales) and an online fulfilment centre (deducted
+by `/shop` and JSON API checkouts). Locations pull replenishment from the DC; reorder levels are
+learned from sales (no hand-maintained min/max); falling below them fires a CDI `StockBelowMinimum`
+event handled by a new `inbound-event` module, which requests from the DC or orders from the
+supplier. Three phases. Plan, decisions and progress are tracked in
 [`docs/architecture/split-inventory_wip.md`](docs/architecture/split-inventory_wip.md).
 
 ## randomize-fill-only: Randomize (dev) buttons only fill the inputs, the user submits (DONE)

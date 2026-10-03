@@ -48,7 +48,7 @@ class DairyOrderDeliveryFlowTest {
             .containsExactly("Milk qty=6");
 
         await().atMost(10, SECONDS).untilAsserted(() -> {
-            var response = given().get("/api/products");
+            var response = given().get("/api/locations/dc/products");
             assertThat(response.statusCode()).isEqualTo(200);
             assertThat(response.asString()).isEqualTo("""
                 [{"name":"Milk","type":"DAIRY","availableAmount":6}]""");
@@ -56,7 +56,7 @@ class DairyOrderDeliveryFlowTest {
             assertThat(auditHelper.findEventDetails("DairyDeliveryReceiver: DAIRY_DELIVERY_RECEIVED"))
                 .containsExactly("Milk qty=6");
             assertThat(auditHelper.findEventDetails("InventoryHandler: DAIRY_INVENTORY_UPDATED"))
-                .containsExactly("Milk +6");
+                .containsExactly("dc: Milk +6");
         });
     }
 }
