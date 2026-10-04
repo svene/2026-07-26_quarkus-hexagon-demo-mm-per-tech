@@ -18,8 +18,8 @@ function requestRow(page: Page, locationId: string, productName: string) {
   return page.locator(`#requests-${locationId} tbody tr`).filter({ hasText: productName });
 }
 
-// Columns of the stock table: Name, Type, Available, Avg, Min, Max, DC, ...
-const AVAILABLE = 2, AVG = 3, MIN = 4, MAX = 5, DC = 6;
+// Columns of the stock table: Name, Type, Available, In transit, Avg, Min, Max, DC, ...
+const AVAILABLE = 2, IN_TRANSIT = 3, AVG = 4, MIN = 5, MAX = 6, DC = 7;
 const cell = (page: Page, locationId: string, productName: string, column: number) =>
   stockRow(page, locationId, productName).getByRole('cell').nth(column);
 
@@ -51,14 +51,16 @@ test('a store lists what the DC carries and gets a request served live, without 
 
   await stockRow(page, 'zurich', name).getByRole('button', { name: '10', exact: true }).click();
 
+  // Shipped by the DC; with the e2e server's 0 s transit time it arrives right after (via Kafka), so nothing stays in transit.
   await expect(cell(page, 'zurich', name, AVAILABLE)).toHaveText('10');
+  await expect(cell(page, 'zurich', name, IN_TRANSIT)).toHaveText('0');
   await expect(cell(page, 'zurich', name, DC)).toHaveText('10');
   const requested = requestRow(page, 'zurich', name);
   await expect(requested).toContainText('10 / 10');
   await expect(requested).toContainText('FULFILLED');
   await expect(requested).toContainText('manual');
 
-  // The first transfer created the stock row with a store's cold-start levels (read-only); 10 is below min, so red.
+  // The first shipment created the stock row with a store's cold-start levels (read-only); 10 is below min, so red.
   await expect(cell(page, 'zurich', name, AVG)).toHaveText('10.0');
   await expect(cell(page, 'zurich', name, MIN)).toHaveText('17');
   await expect(cell(page, 'zurich', name, MAX)).toHaveText('47');

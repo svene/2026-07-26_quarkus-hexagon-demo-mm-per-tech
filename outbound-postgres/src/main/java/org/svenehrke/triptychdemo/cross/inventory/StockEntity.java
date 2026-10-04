@@ -91,7 +91,7 @@ public class StockEntity extends PanacheEntity {
         return new Product(name, type, availableAmount);
     }
 
-    public LocationStock toLocationStock() {
-        return new LocationStock(location(), toDomain(), estimate(), levels());
+    public LocationStock toLocationStock(int inTransit) {
+        return new LocationStock(location(), toDomain(), estimate(), levels(), inTransit);
     }
 }

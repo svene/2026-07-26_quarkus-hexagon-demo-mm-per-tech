@@ -27,7 +27,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 import static org.mockito.Mockito.doThrow;
 
-/** Stores and the online FC pull stock from the DC: {@code /locations/{id}/requests}, {@code /admin} decisions. */
+/**
+ * Stores and the online FC pull stock from the DC: {@code /locations/{id}/requests}, {@code /admin} decisions. What the
+ * DC ships reaches the location through the carrier stub (Kafka, 0 s transit time in tests), so a location's stock is
+ * awaited.
+ */
 @QuarkusTest
 class ReplenishmentFlowTest {
 
@@ -67,13 +71,17 @@ class ReplenishmentFlowTest {
         request(Locations.BERN, "Apple", "4").then().statusCode(200);
 
         assertThat(available(Locations.DC, "Apple")).isEqualTo(6);
-        assertThat(available(Locations.BERN, "Apple")).isEqualTo(4);
+        awaitAvailable(Locations.BERN, "Apple", 4);
         var requests = locationInventory(Locations.BERN);
         assertThat(requests.getList("requests.status")).containsExactly("FULFILLED");
-        assertThat(requests.getInt("requests[0].delivered")).isEqualTo(4);
+        assertThat(requests.getInt("requests[0].shipped")).isEqualTo(4);
         assertThat(auditHelper.findEventDetails("LocationReceiver: REQUEST_RECEIVED")).containsExactly("bern: Apple qty=4");
-        assertThat(auditHelper.findEventDetails("ReplenishmentHandler: STOCK_TRANSFERRED")).hasSize(1)
-            .allSatisfy(d -> assertThat(d).startsWith("dc → bern: Apple 4"));
+        assertThat(auditHelper.findEventDetails("ReplenishmentHandler: STOCK_SHIPPED")).singleElement().asString()
+            .matches("shipment \\d+ dc → bern: Apple 4 \\(request .*\\)");
+        // logged right after the arrival committed
+        await().atMost(5, SECONDS).untilAsserted(() ->
+            assertThat(auditHelper.findEventDetails("ReplenishmentHandler: SHIPMENT_ARRIVED")).singleElement().asString()
+                .matches("shipment \\d+ dc → bern: Apple 4"));
     }
 
     @Test
@@ -83,8 +91,8 @@ class ReplenishmentFlowTest {
         request(Locations.ONLINE, "Apple", "5").then().statusCode(200);
 
         assertThat(available(Locations.DC, "Apple")).isZero();
-        assertThat(available(Locations.ONLINE, "Apple")).isEqualTo(3);
-        assertThat(given().get("/admin/requests-fragment").jsonPath().getList("vm.requests.delivered")).containsExactly(3);
+        awaitAvailable(Locations.ONLINE, "Apple", 3);
+        assertThat(given().get("/admin/requests-fragment").jsonPath().getList("vm.requests.shipped")).containsExactly(3);
 
         inventoryHandler.updateFruitAmount(new FruitDelivery("Apple", 10));
 
@@ -104,11 +112,11 @@ class ReplenishmentFlowTest {
 
         // 3.5 each: the unit left over goes to the older request
         await().atMost(5, SECONDS).untilAsserted(() -> assertThat(available(Locations.ZURICH, "Apple")).isEqualTo(3));
-        assertThat(available(Locations.BERN, "Apple")).isEqualTo(4);
+        awaitAvailable(Locations.BERN, "Apple", 4);
         assertThat(available(Locations.DC, "Apple")).isZero();
         var pending = given().get("/admin/requests-fragment").jsonPath();
         assertThat(pending.getList("vm.requests.locationName")).containsExactly("Store Bern", "Store Zurich");
-        assertThat(pending.getList("vm.requests.delivered")).containsExactly(4, 3);
+        assertThat(pending.getList("vm.requests.shipped")).containsExactly(4, 3);
     }
 
     @Test
@@ -143,8 +151,8 @@ class ReplenishmentFlowTest {
         request(Locations.ZURICH, "Apple", "2").then().statusCode(200);
 
         // 5·5/7 = 3.57, 5·2/7 = 1.43 → 3 and 1, the unit left over to the larger remainder
-        assertThat(available(Locations.BERN, "Apple")).isEqualTo(4);
-        assertThat(available(Locations.ZURICH, "Apple")).isEqualTo(1);
+        awaitAvailable(Locations.BERN, "Apple", 4);
+        awaitAvailable(Locations.ZURICH, "Apple", 1);
         assertThat(given().get("/admin/requests-fragment").jsonPath().getList("vm.requests.locationName"))
             .containsExactly("Store Bern", "Store Zurich");
     }
@@ -160,7 +168,7 @@ class ReplenishmentFlowTest {
         var fulfil = given().post("/admin/requests/" + basel + "/fulfil");
         assertThat(fulfil.statusCode()).isEqualTo(200);
         assertThat(fulfil.asString()).isEmpty();
-        assertThat(available(Locations.BASEL, "Apple")).isEqualTo(4);
+        awaitAvailable(Locations.BASEL, "Apple", 4);
 
         given().post("/admin/requests/" + basel + "/reject").then().statusCode(200);
 
@@ -168,8 +176,8 @@ class ReplenishmentFlowTest {
             .containsExactly("Store Bern");
         var baselRequests = locationInventory(Locations.BASEL);
         assertThat(baselRequests.getList("requests.status")).containsExactly("REJECTED");
-        assertThat(baselRequests.getInt("requests[0].delivered")).isEqualTo(4);
-        // stock already delivered stays delivered
+        assertThat(baselRequests.getInt("requests[0].shipped")).isEqualTo(4);
+        // stock already shipped stays shipped
         assertThat(available(Locations.BASEL, "Apple")).isEqualTo(4);
     }
 
@@ -243,11 +251,13 @@ class ReplenishmentFlowTest {
 
         for (var statusCode : statusCodes) assertThat(statusCode.get()).isEqualTo(200);
         assertThat(available(Locations.DC, "Apple")).isZero();
-        int delivered = 0;
-        for (var location : List.of(Locations.ZURICH, Locations.BERN, Locations.BASEL, Locations.ONLINE)) {
-            delivered += available(location, "Apple");
-        }
-        assertThat(delivered).isEqualTo(stock);
+        await().atMost(5, SECONDS).untilAsserted(() -> {
+            int arrived = 0;
+            for (var location : List.of(Locations.ZURICH, Locations.BERN, Locations.BASEL, Locations.ONLINE)) {
+                arrived += available(location, "Apple");
+            }
+            assertThat(arrived).isEqualTo(stock);
+        });
         assertThat(given().get("/admin/requests-fragment").jsonPath().getList("vm.requests")).hasSize(requests - stock);
     }
 
@@ -256,6 +266,7 @@ class ReplenishmentFlowTest {
         inventory.addAmount(Locations.DC, "Apple", ProductType.FRUIT, 10);
         inventory.addAmount(Locations.DC, "Milk", ProductType.DAIRY, 6);
         request(Locations.BERN, "Apple", "4").then().statusCode(200);
+        awaitAvailable(Locations.BERN, "Apple", 4);
 
         var json = given().get("/locations/page").jsonPath();
 
@@ -265,6 +276,7 @@ class ReplenishmentFlowTest {
         json.setRootPath("vm.locations.find { it.locationId == 'bern' }");
         assertThat(json.getList("products.name")).containsExactly("Apple", "Milk");
         assertThat(json.getList("products.availableAmount")).containsExactly(4, 0);
+        assertThat(json.getList("products.inTransit")).containsExactly(0, 0);
         assertThat(json.getList("products.dcAvailableAmount")).containsExactly(6, 6);
     }
 
@@ -299,6 +311,10 @@ class ReplenishmentFlowTest {
 
     private static JsonPath locationInventory(Location location) {
         return given().get("/locations/" + location.id() + "/inventory-fragment").jsonPath().setRootPath("vm");
+    }
+
+    private static void awaitAvailable(Location location, String productName, int expected) {
+        await().atMost(5, SECONDS).untilAsserted(() -> assertThat(available(location, productName)).isEqualTo(expected));
     }
 
     private static int available(Location location, String productName) {

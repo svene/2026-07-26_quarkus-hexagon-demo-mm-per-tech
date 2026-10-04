@@ -29,13 +29,13 @@ alt no such pending request
   service --> handler: empty
   receiver --> user: 409 {route: OrderErrors, vm}\n["request N is no longer pending"]
 else fulfil
-  service -> db: move min(DC stock, outstanding) to the location\n(ahead of older requests); rest stays PENDING
+  service -> db: ship min(DC stock, outstanding) to the location\n(ahead of older requests; IN_TRANSIT shipment); rest stays PENDING
   service -> db: COMMIT
-  handler -> audit: log("STOCK_TRANSFERRED" / "REQUEST_PENDING")
+  handler -> audit: log("STOCK_SHIPPED" / "REQUEST_PENDING")\n(then dispatch(shipment) to the carrier, see in-transit.puml)
   handler ->> changes: fireAsync(ReplenishmentChanged)
   receiver --> user: 200 (empty body)
 else reject
-  service -> db: status = REJECTED (delivered stock stays)
+  service -> db: status = REJECTED (shipped stock stays)
   service -> db: COMMIT
   handler -> audit: log("REQUEST_CANCELLED")
   handler ->> changes: fireAsync(ReplenishmentChanged)

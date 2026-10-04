@@ -22,7 +22,7 @@ public class ReplenishmentRequestEntity extends PanacheEntity {
 
     public int requested;
 
-    public int delivered;
+    public int shipped;
 
     @Enumerated(EnumType.STRING)
     public RequestStatus status;
@@ -44,10 +44,10 @@ public class ReplenishmentRequestEntity extends PanacheEntity {
         return entity;
     }
 
-    /** What is still to be delivered to {@code locationId} by its pending requests of {@code productName}. */
+    /** What is still to be shipped to {@code locationId} by its pending requests of {@code productName}. */
     public static int outstanding(String locationId, String productName) {
         return getEntityManager()
-            .createQuery("select coalesce(sum(r.requested - r.delivered), 0) from ReplenishmentRequestEntity r"
+            .createQuery("select coalesce(sum(r.requested - r.shipped), 0) from ReplenishmentRequestEntity r"
                 + " where r.locationId = :locationId and r.productName = :productName and r.status = :status", Long.class)
             .setParameter("locationId", locationId)
             .setParameter("productName", productName)
@@ -55,10 +55,10 @@ public class ReplenishmentRequestEntity extends PanacheEntity {
             .getSingleResult().intValue();
     }
 
-    /** What is still to be delivered by all pending requests of {@code productName}: the DC's backorders. */
+    /** What is still to be shipped by all pending requests of {@code productName}: the DC's backorders. */
     public static int outstanding(String productName) {
         return getEntityManager()
-            .createQuery("select coalesce(sum(r.requested - r.delivered), 0) from ReplenishmentRequestEntity r"
+            .createQuery("select coalesce(sum(r.requested - r.shipped), 0) from ReplenishmentRequestEntity r"
                 + " where r.productName = :productName and r.status = :status", Long.class)
             .setParameter("productName", productName)
             .setParameter("status", RequestStatus.PENDING)
@@ -85,10 +85,10 @@ public class ReplenishmentRequestEntity extends PanacheEntity {
     }
 
     public int outstanding() {
-        return requested - delivered;
+        return requested - shipped;
     }
 
     public ReplenishmentRequest toDomain() {
-        return new ReplenishmentRequest(id, Locations.replenishedOf(locationId), productName, requested, delivered, status, origin, createdAt);
+        return new ReplenishmentRequest(id, Locations.replenishedOf(locationId), productName, requested, shipped, status, origin, createdAt);
     }
 }

@@ -157,7 +157,7 @@ by `/shop` and JSON API checkouts). Locations pull replenishment from the DC; re
 learned from sales (no hand-maintained min/max); falling below them fires a CDI `StockBelowMinimum`
 event handled by a new `inbound-event` module, which requests from the DC or orders from the
 supplier. Three phases plus phase 4 items (supplier lead time done; direct store delivery dropped as not
-needed for the demo; in-transit transfers open). Plan, decisions and progress are tracked in
+needed for the demo; in-transit transfers done). Plan, decisions and progress are tracked in
 [`docs/architecture/split-inventory_wip.md`](docs/architecture/split-inventory_wip.md).
 
 ## randomize-fill-only: Randomize (dev) buttons only fill the inputs, the user submits (DONE)

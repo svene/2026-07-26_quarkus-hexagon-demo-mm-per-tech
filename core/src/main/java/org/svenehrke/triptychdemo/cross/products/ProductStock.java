@@ -20,6 +20,11 @@ public record ProductStock(String name, ProductType type, Map<Location, Location
 		return stock == null ? 0 : stock.product().availableAmount();
 	}
 
+	public int inTransitTo(Location location) {
+		var stock = byLocation.get(location);
+		return stock == null ? 0 : stock.inTransit();
+	}
+
 	public Optional<DemandEstimate> estimateAt(Location location) {
 		return Optional.ofNullable(byLocation.get(location)).map(LocationStock::estimate);
 	}

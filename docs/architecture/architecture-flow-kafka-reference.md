@@ -21,7 +21,9 @@ Technical reference for understanding the Kafka-based integration patterns and t
 - **ReplenishmentService**: Requests of the stores / online FC to the DC, and the transfers serving them
   - `allocate(productName)`: Called by ReplenishmentHandler after each delivery (via the async `DeliveredToDc` event and inbound-event's `DeliveryEventReceiver`) and after automatic requests - shares the DC stock among all pending requests in proportion to what each still needs (`FairShare`)
   - `request`, `fulfil`, `reject`: Called from the location page and head office; each is one transaction with the stock transfer
-  - `requestIfLow(location, productName)`: Called by ReplenishmentHandler for automatic replenishment (after a sale, after a period close); creates the request only, `allocate` serves it
+  - A transfer takes the stock off the DC and records an IN_TRANSIT shipment; `receiveShipment(id)` (called via ShipmentArrivalReceiver) adds it to the location once - a repeated arrival changes nothing; `findInTransit(before)` serves the redispatch catch-up
+  - Storage: `shipment` table (ShipmentEntity)
+  - `requestIfLow(location, productName)`: Called by ReplenishmentHandler for automatic replenishment (after a sale, after a period close) - position = available + in transit + outstanding requests; creates the request only, `allocate` serves it
   - Storage: `replenishment_request` table (ReplenishmentRequestEntity)
 - **SupplierOrderService**: The DC's orders from suppliers, and the deliveries that close them
   - `receiveDelivery(productName, type, quantity)`: Called by InventoryHandler for every Kafka delivery - adds it to the DC and closes the open orders of the product oldest first (deliveries carry no order id), one transaction
@@ -54,6 +56,8 @@ All endpoint: `placeOrder(productName, quantity)`
 ### Kafka Producer (outbound-kafka)
 - **NonFoodSupplierService** → Emitter (nonfood-orders-out channel)
   - Publishes: NonFoodOrderMessage to `nonfood-orders` topic
+- **CarrierService** → Emitter (shipments-out channel)
+  - Publishes: ShipmentMessage (shipmentId, locationId, productName, quantity) to `shipments` topic
 
 ## Kafka Topic Cycles: Request-Response Through Events
 
@@ -131,6 +135,25 @@ Every stub publishes its delivery after the supplier lead time (`supplier-stub.l
   - Outgoing (stub): `mp.messaging.outgoing.nonfood-deliveries-out.topic=nonfood-deliveries`
   - Incoming: `mp.messaging.incoming.nonfood-deliveries.topic=nonfood-deliveries`
 
+### Two-Topic Carrier Cycle (DC → stores / online FC)
+
+**Topic 1: shipments (Dispatch)**
+- **Producer**: CarrierService (in outbound-kafka)
+- **Consumer**: CarrierStub (in external-outbound-kafka)
+- **Trigger**: ReplenishmentHandler, after every transfer committed (request, automatic request, fulfilPending, head-office fulfil) and for overdue shipments at the period close (`redispatchOverdue`)
+- **Message**: `{shipmentId, locationId, productName, quantity}` - one topic for all commodities
+- **Config**:
+  - Outgoing: `mp.messaging.outgoing.shipments-out.topic=shipments`
+  - Incoming (stub): `mp.messaging.incoming.shipments.topic=shipments`
+
+**Topic 2: shipment-arrivals (Arrival)**
+- **Producer**: CarrierStub (in external-outbound-kafka), after `carrier-stub.transit-time` (20s ± 20% in dev, 0 in `%test` and e2e)
+- **Consumer**: ShipmentArrivalReceiver (in inbound-kafka) → ReplenishmentHandler.receiveShipment(shipmentId)
+- **Message**: `{shipmentId}`; null payload or missing `shipmentId` goes to the DLQ (`shipment-arrivals-dlq`); an unknown or already arrived shipment is audit-logged `SHIPMENT_ARRIVAL_IGNORED` (idempotent)
+- **Config**:
+  - Outgoing (stub): `mp.messaging.outgoing.shipment-arrivals-out.topic=shipment-arrivals`
+  - Incoming: `mp.messaging.incoming.shipment-arrivals.topic=shipment-arrivals`
+
 ### Cashpoint Purchase Cycle
 
 **Topic: cashpoint-purchases**
@@ -186,3 +209,4 @@ Every stub publishes its delivery after the supplier lead time (`supplier-stub.l
 | BakeryDeliveryReceiver | **← bakery-deliveries** | Event | Delivery | Consumes: **bakery-deliveries** | PostgreSQL + MongoDB |
 | NonFoodDeliveryReceiver | **← nonfood-deliveries** | Event | Delivery | Consumes: **nonfood-deliveries** | PostgreSQL + MongoDB |
 | CashpointReceiver | **← cashpoint-purchases** | Event | Purchase | Consumes: **cashpoint-purchases** | PostgreSQL + MongoDB |
+| ShipmentArrivalReceiver | **← shipment-arrivals** | Event | Arrival | Consumes: **shipment-arrivals** | PostgreSQL + MongoDB |

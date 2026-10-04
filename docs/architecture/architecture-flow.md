@@ -83,9 +83,10 @@ AdminReceiver.fulfilRequest(id) / rejectRequest(id)
    ├─ ReplenishmentRepositorySPI.fulfil(id) / reject(id)   (one transaction)
    │  └─ ReplenishmentService (outbound-postgres)
    │     └─ PostgreSQL: lock DC stock row, then the request (FOR UPDATE);
-   │        fulfil moves what the DC has (ahead of older requests), the rest stays PENDING;
+   │        fulfil ships what the DC has (ahead of older requests; IN_TRANSIT shipment), the rest stays PENDING;
    │        reject cancels what is outstanding
-   ├─ AuditLogSPI.log("STOCK_TRANSFERRED" / "REQUEST_PENDING" / "REQUEST_CANCELLED")
+   ├─ AuditLogSPI.log("STOCK_SHIPPED" / "REQUEST_PENDING" / "REQUEST_CANCELLED")
+   ├─ CarrierSPI.dispatch(shipment)   fulfil only, if anything was shipped
    └─ Event<InventoryEvent>.fireAsync(ReplenishmentChanged(location))
    → 200 empty body, or 409 UiResponse(OrderErrors) if the request is no longer pending
 ```
@@ -130,8 +131,9 @@ AdminReceiver.orderFruits()
    │                          └─ DeliveryEventReceiver (inbound-event, @ObservesAsync)
    │                             ├─ AuditLogHandler.log("DELIVERED_TO_DC_RECEIVED")
    │                             └─ ReplenishmentHandler.fulfilPending(productName)
-   │                                └─ ReplenishmentRepositorySPI.allocate()   (shared among all pending requests, FairShare)
-   │                                   └─ ReplenishmentService (outbound-postgres) → PostgreSQL
+   │                                ├─ ReplenishmentRepositorySPI.allocate()   (shared among all pending requests, FairShare)
+   │                                │  └─ ReplenishmentService (outbound-postgres) → PostgreSQL
+   │                                └─ CarrierSPI.dispatch(shipment)   per share (see "Kafka: shipment-arrivals")
    ├─ AuditLogSPI.log("FRUITS_ORDER_PLACED")
    │  └─ AuditLogService (outbound-mongodb)
    │     └─ MongoDB
@@ -276,7 +278,7 @@ InventoryEventsReceiver.events()   → text/event-stream, never ends
 │  └─ event: inventoryChanged per InventoryEvent, fired by core with fireAsync after a committed change:
 │     ├─ DeliveredToDc          ← InventoryHandler.update*Amount()   (every Kafka delivery)
 │     ├─ StockDeducted          ← PurchaseHandler.deduct()           (shop/JSON API checkout, cashpoint sale; only if something was deducted)
-│     ├─ ReplenishmentChanged   ← ReplenishmentHandler               (every request, fulfil, reject, automatic request; fulfilPending per location served)
+│     ├─ ReplenishmentChanged   ← ReplenishmentHandler               (every request, fulfil, reject, automatic request; fulfilPending per location served; shipment arrival)
 │     └─ LevelsRecalculated     ← ReorderPolicyHandler.closePeriod() (end of every demand period)
 └─ ": heartbeat" comment every 15 s
 ```
@@ -334,8 +336,10 @@ LocationReceiver.request(id, productName, quantity)
    ├─ ReplenishmentRepositorySPI.request()   (one transaction)
    │  └─ ReplenishmentService (outbound-postgres)
    │     └─ PostgreSQL: lock DC stock row; store the request; share what the DC has among all pending requests
-   │        of the product in proportion to what each still needs (FairShare) - the rest stays PENDING
-   ├─ AuditLogSPI.log("STOCK_TRANSFERRED" / "REQUEST_PENDING")
+   │        of the product in proportion to what each still needs (FairShare) - the rest stays PENDING;
+   │        each share leaves the DC as an IN_TRANSIT shipment (location stock grows on arrival)
+   ├─ AuditLogSPI.log("STOCK_SHIPPED" / "REQUEST_PENDING")
+   ├─ CarrierSPI.dispatch(shipment)   per transfer, after the commit (see "Kafka: shipment-arrivals" below)
    ├─ Event<InventoryEvent>.fireAsync(ReplenishmentChanged(location))
    └─ Event<InventoryEvent>.fireAsync(DcDemandChanged(productName))   (see AutoPurchasingReceiver below)
    → 200 empty body; 409 UiResponse(OrderErrors) if the DC never carried the product ("REQUEST_REJECTED")
@@ -427,8 +431,12 @@ DemandPeriodReceiver.closePeriod()   (@Scheduled)
       │  └─ ReplenishmentHandler.replenishAllIfLow(DC products)
       │     └─ per product: requestIfLow for every store and the online FC, then one allocate (as below),
       │        so a DC shortfall is shared among all of them
-      └─ AutoPurchasingReceiver.onLevelsRecalculated (@ObservesAsync)
-         └─ PurchasingHandler.orderIfLow(productName)   per DC product (as below)
+      ├─ AutoPurchasingReceiver.onLevelsRecalculated (@ObservesAsync)
+      │  └─ PurchasingHandler.orderIfLow(productName)   per DC product (as below)
+      └─ ShipmentCatchUpReceiver.onLevelsRecalculated (@ObservesAsync)
+         └─ ReplenishmentHandler.redispatchOverdue(inventory.shipment-redispatch-after = 2m)
+            ├─ ReplenishmentRepositorySPI.findInTransit(now − 2m)
+            └─ per shipment: AuditLogSPI.log("SHIPMENT_REDISPATCHED"), CarrierSPI.dispatch(shipment)
 ```
 
 #### Event: StockDeducted (after a checkout or a cashpoint sale)
@@ -437,11 +445,12 @@ AutoReplenishmentReceiver.onStockDeducted (@ObservesAsync)
 └─ ReplenishmentHandler.replenishIfLow(location, productNames)
    ├─ ReplenishmentRepositorySPI.requestIfLow(location, productName)   per product, one transaction
    │  └─ ReplenishmentService (outbound-postgres) → PostgreSQL
-   │     (DC row, then location row FOR UPDATE; available + outstanding < min → AUTOMATIC request up to max,
-   │      not served yet)
+   │     (DC row, then location row FOR UPDATE; available + in transit + outstanding < min → AUTOMATIC request
+   │      up to max, not served yet)
    ├─ ReplenishmentRepositorySPI.allocate(productName)   if a request was created: DC stock shared among all
    │                                                      pending requests (FairShare), one transaction
-   ├─ AuditLogSPI.log("AUTO_REQUEST_CREATED"), ("STOCK_TRANSFERRED"), ("REQUEST_PENDING")
+   ├─ AuditLogSPI.log("AUTO_REQUEST_CREATED"), ("STOCK_SHIPPED"), ("REQUEST_PENDING")
+   ├─ CarrierSPI.dispatch(shipment)   per transfer
    ├─ Event<InventoryEvent>.fireAsync(ReplenishmentChanged)   (if a request was created)
    └─ Event<InventoryEvent>.fireAsync(DcDemandChanged)   (if a request was created)
 ```
@@ -458,6 +467,22 @@ AutoPurchasingReceiver.onDcDemandChanged (@ObservesAsync)
    └─ FruitsHandler.place(supplierOrder) / VegetablesHandler.place(…) / …   by ProductType
       └─ as in POST /admin/order-fruits from FruitSupplierSPI.placeOrder() on: supplier → Kafka delivery →
          receiveDelivery closes the order → DeliveredToDc → fulfilPending
+```
+
+#### Kafka: shipment-arrivals (the carrier reports a DC shipment as arrived)
+```
+CarrierService (outbound-kafka) → shipments → CarrierStub (external-outbound-kafka, waits carrier-stub.transit-time)
+→ shipment-arrivals →
+ShipmentArrivalReceiver.receive(message)   (inbound-kafka)
+├─ AuditLogHandler.log("SHIPMENT_ARRIVAL_RECEIVED")
+├─ null payload / missing shipmentId → DLQ (shipment-arrivals-dlq)
+└─ ReplenishmentHandler.receiveShipment(shipmentId)
+   ├─ AuditLogSPI.log("SHIPMENT_ARRIVAL_PROCESSING")
+   ├─ ReplenishmentRepositorySPI.receiveShipment(id)   one transaction
+   │  └─ ReplenishmentService (outbound-postgres) → PostgreSQL
+   │     (shipment FOR UPDATE if IN_TRANSIT, then location row; available += quantity, shipment ARRIVED)
+   ├─ AuditLogSPI.log("SHIPMENT_ARRIVED") / ("SHIPMENT_ARRIVAL_IGNORED")   unknown or arrived already
+   └─ Event<InventoryEvent>.fireAsync(ReplenishmentChanged(location))   if booked
 ```
 
 ## Note: Kafka Delivery Receivers

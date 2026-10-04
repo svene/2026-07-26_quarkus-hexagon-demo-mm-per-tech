@@ -116,13 +116,15 @@ export const AdminInventory = (vm: AdminInventoryVM): HtmlResult => html`
 // Narrow enough that two-word names like "Store Basel" wrap.
 const LocationHeader = (l: LocationVM): HtmlResult => html`<th class="has-text-right" data-location="${l.id}" style="max-width:5em">${l.name}</th>`;
 
-// The cells to act on, each below its learned reorder point - its title shows the levels: the DC is red (it orders from
-// the supplier automatically), a store / the online FC orange (it requests from the DC automatically).
-// (A location without a row for the product has no levels yet: there, only 0 counts as low.)
-const AmountCell = (amount: number, levels: LevelsVM | null, i: number): HtmlResult => {
+// The cells to act on, each below its learned reorder point - its title shows the levels and what is in transit to
+// it: the DC is red (it orders from the supplier automatically), a store / the online FC orange (it requests from the
+// DC automatically). (A location without a row for the product has no levels yet: there, only 0 counts as low.)
+const AmountCell = (amount: number, inTransit: number, levels: LevelsVM | null, i: number): HtmlResult => {
 	const low = levels ? amount < levels.min : amount === 0;
 	const lowClass = i === 0 ? 'has-text-danger has-text-weight-bold' : 'has-text-warning-dark has-text-weight-bold';
-	return html`<td class="has-text-right ${low ? lowClass : ''}" title="${levels ? `min ${levels.min} / max ${levels.max}` : ''}">${amount}</td>`;
+	const title = [levels ? `min ${levels.min} / max ${levels.max}` : '', inTransit > 0 ? `in transit ${inTransit}` : '']
+		.filter(t => t).join(', ');
+	return html`<td class="has-text-right ${low ? lowClass : ''}" title="${title}">${amount}</td>`;
 };
 
 // Name+type is the product key. Each quantity button orders that amount right away.
@@ -130,7 +132,7 @@ const InventoryRow = (p: StockRowVM): HtmlResult => html`
 	<tr id="row-${p.name}-${p.type}">
 		<td>${p.name}</td>
 		<td>${p.type}</td>
-		${p.amounts.map((amount, i) => AmountCell(amount, p.levels[i], i))}
+		${p.amounts.map((amount, i) => AmountCell(amount, p.inTransit[i], p.levels[i], i))}
 		<td>
 			<form hx-post="${RESTOCK_ACTIONS[p.type]}" hx-target="next .restock-error" hx-swap="innerHTML" class="restock-form">
 				<input type="hidden" name="productName" value="${p.name}">
@@ -163,7 +165,7 @@ const PendingRequestRow = (r: RequestVM): HtmlResult => html`
 		<td>${r.id}</td>
 		<td>${r.locationName}<br><span class="is-size-7 has-text-grey" title="Requested at">${r.createdAt}</span></td>
 		<td>${r.productName}</td>
-		<td class="has-text-right">${r.delivered} / ${r.requested}</td>
+		<td class="has-text-right">${r.shipped} / ${r.requested}</td>
 		<td>${OriginTag(r)}</td>
 		<td>
 			<div class="buttons has-addons">

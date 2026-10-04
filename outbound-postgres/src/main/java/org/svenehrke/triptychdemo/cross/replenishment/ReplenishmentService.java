@@ -6,6 +6,7 @@ import org.svenehrke.triptychdemo.cross.location.Locations;
 import io.quarkus.panache.common.Sort;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.transaction.Transactional;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -14,6 +15,10 @@ import java.util.Optional;
  * Every method that touches a product's requests locks that product's DC stock row first, so all of them are
  * serialized per product; then the requests, then the target location's row (see the SPI for why). Every request
  * created adds its quantity to the DC row's period demand: what the DC learns its levels from.
+ * <p>
+ * A transfer takes the stock off the DC and records a {@link ShipmentEntity} in transit; {@link #receiveShipment}
+ * adds it to the location's stock. That one locks the shipment, then the location's row - never the DC row, so it
+ * cannot deadlock with the others.
  */
 @ApplicationScoped
 public class ReplenishmentService implements ReplenishmentRepositorySPI {
@@ -32,7 +37,8 @@ public class ReplenishmentService implements ReplenishmentRepositorySPI {
     /**
      * The location's row is locked after the DC row (the lock order of {@link #transfer}); with the DC row locked, no
      * other request of the product can be stored concurrently, so the outstanding sum stays valid until the new
-     * request is stored.
+     * request is stored. With the location's row locked, no shipment can arrive concurrently either
+     * ({@link #receiveShipment} locks it, too), so {@code available} and the in-transit sum are consistent.
      */
     @Override
     @Transactional
@@ -42,7 +48,7 @@ public class ReplenishmentService implements ReplenishmentRepositorySPI {
         var stock = StockEntity.findForUpdate(location, productName, dcStock.type)
             .orElseGet(() -> StockEntity.create(location, productName, dcStock.type));
         int quantity = stock.levels().reorderQuantity(stock.availableAmount,
-            ReplenishmentRequestEntity.outstanding(location.id(), productName));
+            ShipmentEntity.inTransit(location.id(), productName) + ReplenishmentRequestEntity.outstanding(location.id(), productName));
         if (quantity <= 0) return Optional.empty();
         var request = new StockRequest(location, productName, Math.min(quantity, StockRequest.MAX_QUANTITY));
         dcStock.periodDemand += request.quantity();
@@ -59,11 +65,13 @@ public class ReplenishmentService implements ReplenishmentRepositorySPI {
 
     @Override
     @Transactional
-    public Optional<Transfer> fulfil(long requestId) {
+    public Optional<Requested> fulfil(long requestId) {
         return lockDcStockAndPendingRequest(requestId).map(locked -> {
             int quantity = Math.min(locked.dcStock().availableAmount, locked.request().outstanding());
-            transfer(locked.dcStock(), locked.request(), quantity);
-            return new Transfer(locked.request().toDomain(), quantity);
+            var transfers = quantity == 0
+                ? List.<Transfer>of()
+                : List.of(transfer(locked.dcStock(), locked.request(), quantity));
+            return new Requested(locked.request().toDomain(), transfers);
         });
     }
 
@@ -74,6 +82,24 @@ public class ReplenishmentService implements ReplenishmentRepositorySPI {
             locked.request().status = RequestStatus.REJECTED;
             return locked.request().toDomain();
         });
+    }
+
+    @Override
+    @Transactional
+    public Optional<Shipment> receiveShipment(long shipmentId) {
+        return ShipmentEntity.findInTransitForUpdate(shipmentId).map(shipment -> {
+            var target = StockEntity.findForUpdate(shipment.location(), shipment.productName, shipment.type)
+                .orElseGet(() -> StockEntity.create(shipment.location(), shipment.productName, shipment.type));
+            target.availableAmount += shipment.quantity;
+            shipment.status = ShipmentStatus.ARRIVED;
+            shipment.arrivedAt = Instant.now();
+            return shipment.toDomain();
+        });
+    }
+
+    @Override
+    public List<Shipment> findInTransit(Instant dispatchedBefore) {
+        return ShipmentEntity.findInTransit(dispatchedBefore).stream().map(ShipmentEntity::toDomain).toList();
     }
 
     @Override
@@ -100,8 +126,7 @@ public class ReplenishmentService implements ReplenishmentRepositorySPI {
         var transfers = new ArrayList<Transfer>();
         for (int i = 0; i < pending.size(); i++) {
             if (shares.get(i) == 0) continue;
-            transfer(dcStock, pending.get(i), shares.get(i));
-            transfers.add(new Transfer(pending.get(i).toDomain(), shares.get(i)));
+            transfers.add(transfer(dcStock, pending.get(i), shares.get(i)));
         }
         return transfers;
     }
@@ -116,15 +141,20 @@ public class ReplenishmentService implements ReplenishmentRepositorySPI {
                 .map(request -> new Locked(dcStock, request)));
     }
 
-    /** Moves {@code quantity} (at most what the DC has and the request still needs) to the request's location. */
-    private static void transfer(StockEntity dcStock, ReplenishmentRequestEntity request, int quantity) {
-        if (quantity == 0) return;
+    /**
+     * Ships {@code quantity} (more than 0, at most what the DC has and the request still needs) to the request's
+     * location. Its stock row is created already (locked, in the lock order), so the location shows what is in transit
+     * to it even before the first arrival.
+     */
+    private static Transfer transfer(StockEntity dcStock, ReplenishmentRequestEntity request, int quantity) {
         dcStock.availableAmount -= quantity;
         var location = Locations.replenishedOf(request.locationId);
-        var target = StockEntity.findForUpdate(location, dcStock.name, dcStock.type)
-            .orElseGet(() -> StockEntity.create(location, dcStock.name, dcStock.type));
-        target.availableAmount += quantity;
-        request.delivered += quantity;
+        if (StockEntity.findForUpdate(location, dcStock.name, dcStock.type).isEmpty()) {
+            StockEntity.create(location, dcStock.name, dcStock.type);
+        }
+        request.shipped += quantity;
         if (request.outstanding() == 0) request.status = RequestStatus.FULFILLED;
+        var shipment = ShipmentEntity.create(request, dcStock.type, quantity);
+        return new Transfer(request.toDomain(), shipment.toDomain());
     }
 }

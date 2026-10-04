@@ -95,7 +95,7 @@ public class LocationReceiver {
     /** Every product the DC carries, so one this location has none of can be requested, too. */
     private LocationInventoryVM inventory(Replenished location, List<ProductStock> allProducts) {
         var products = allProducts.stream()
-            .map(p -> new LocationProductRowVM(p.name(), p.type().name(), p.availableAt(location), p.availableAt(Locations.DC),
+            .map(p -> new LocationProductRowVM(p.name(), p.type().name(), p.availableAt(location), p.inTransitTo(location), p.availableAt(Locations.DC),
                 p.estimateAt(location).map(DemandEstimate::avg).orElse(null), p.levelsAt(location).map(LevelsVM::of).orElse(null)))
             .sorted(Comparator.comparing(LocationProductRowVM::name, String.CASE_INSENSITIVE_ORDER).thenComparing(LocationProductRowVM::type))
             .toList();

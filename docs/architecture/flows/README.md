@@ -129,8 +129,8 @@ PlantUML sequence diagrams for all primary flows in the supermarket inventory sy
 ### Location Request
 **File**: `location-request.puml`
 - **Trigger**: POST /locations/{id}/requests (store / online FC page)
-- **Flow**: LocationReceiver → `StockRequest.parse()` → ReplenishmentHandler → ReplenishmentService → PostgreSQL (DC row locked first; transfer + request in one transaction) + AuditLogService → MongoDB
-- **Actions**: stores the request, then shares what the DC has among all pending requests of the product in proportion to what each still needs (`FairShare`); the rest stays PENDING until the next delivery to the DC is shared the same way
+- **Flow**: LocationReceiver → `StockRequest.parse()` → ReplenishmentHandler → ReplenishmentService → PostgreSQL (DC row locked first; transfer + request in one transaction) + AuditLogService → MongoDB; each transfer then goes to the carrier (`in-transit.puml`)
+- **Actions**: stores the request, then shares what the DC has among all pending requests of the product in proportion to what each still needs (`FairShare`), each share shipped (in transit until it arrives); the rest stays PENDING until the next delivery to the DC is shared the same way
 - **Returns**: 200 empty body; 400 / 409 `{route: OrderErrors, vm}`
 - **Participants**: 1 (Store / Online manager)
 - **Databases**: PostgreSQL (`stock`, `replenishment_request`), MongoDB (audit log)
@@ -139,7 +139,7 @@ PlantUML sequence diagrams for all primary flows in the supermarket inventory sy
 **File**: `admin-decide-request.puml`
 - **Trigger**: POST /admin/requests/{id}/fulfil or /reject
 - **Flow**: AdminReceiver → ReplenishmentHandler → ReplenishmentService → PostgreSQL + AuditLogService → MongoDB
-- **Actions**: fulfil moves what the DC has to this request, ahead of the others; reject cancels what is outstanding
+- **Actions**: fulfil ships what the DC has to this request, ahead of the others; reject cancels what is outstanding
 - **Returns**: 200 empty body; 409 if the request is no longer pending
 - **Participants**: 1 (Head office)
 - **Databases**: PostgreSQL (`stock`, `replenishment_request`), MongoDB (audit log)
@@ -152,6 +152,15 @@ PlantUML sequence diagrams for all primary flows in the supermarket inventory sy
 - **Returns**: nothing (async)
 - **Participants**: none (timer, CDI events)
 - **Databases**: PostgreSQL (`stock`, `replenishment_request`), MongoDB (audit log)
+
+### In-Transit Transfers (Carrier)
+**File**: `in-transit.puml`
+- **Trigger**: every transfer from the DC (location request, automatic request, `fulfilPending`, head-office fulfil); catch-up at the period close (`ShipmentCatchUpReceiver`)
+- **Flow**: ReplenishmentHandler → CarrierService → `shipments` → CarrierStub (waits `carrier-stub.transit-time`) → `shipment-arrivals` → ShipmentArrivalReceiver → ReplenishmentHandler.receiveShipment → ReplenishmentService → PostgreSQL + AuditLogService → MongoDB
+- **Actions**: the DC stock leaves at the transfer as an IN_TRANSIT shipment; the location books it when the arrival is reported - once, a repeated arrival is ignored; shipments in transit for more than 2 min are sent again at the period close
+- **Returns**: nothing (async)
+- **Participants**: none (Kafka, CDI events)
+- **Databases**: PostgreSQL (`stock`, `shipment`), MongoDB (audit log)
 
 ### Automatic Supplier Orders
 **File**: `auto-purchasing.puml`

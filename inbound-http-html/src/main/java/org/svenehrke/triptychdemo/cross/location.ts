@@ -28,7 +28,7 @@ export const LocationInventory = (vm: LocationInventoryVM): HtmlResult => html`
 				: html`
 					<table class="table is-fullwidth is-striped is-narrow" id="stock-${vm.locationId}">
 						<thead>
-						<tr><th>Name</th><th>Type</th><th class="has-text-right">Available</th><th class="has-text-right" title="Learned demand per period">Avg</th><th class="has-text-right" title="Reorder point: below it, stock is requested from the DC automatically">Min</th><th class="has-text-right" title="Order-up-to level: how far an automatic request fills up">Max</th><th class="has-text-right">DC</th><th>Request from DC</th><th></th></tr>
+						<tr><th>Name</th><th>Type</th><th class="has-text-right">Available</th><th class="has-text-right" title="Shipped by the DC, not arrived yet">In transit</th><th class="has-text-right" title="Learned demand per period">Avg</th><th class="has-text-right" title="Reorder point: below it, stock is requested from the DC automatically">Min</th><th class="has-text-right" title="Order-up-to level: how far an automatic request fills up">Max</th><th class="has-text-right">DC</th><th>Request from DC</th><th></th></tr>
 						</thead>
 						<tbody>
 						${vm.products.map(p => StockRow(vm.locationId, p))}
@@ -42,7 +42,7 @@ export const LocationInventory = (vm: LocationInventoryVM): HtmlResult => html`
 				: html`
 					<table class="table is-fullwidth is-striped is-narrow" id="requests-${vm.locationId}">
 						<thead>
-						<tr><th>#</th><th>Product</th><th class="has-text-right">Delivered</th><th>Status</th><th>Origin</th></tr>
+						<tr><th>#</th><th>Product</th><th class="has-text-right" title="Shipped by the DC (it may still be in transit) / requested">Shipped</th><th>Status</th><th>Origin</th></tr>
 						</thead>
 						<tbody>
 						${vm.requests.map(RequestRow)}
@@ -60,13 +60,14 @@ const availableClass = (p: LocationProductRowVM): string => {
 	return p.levels && p.availableAmount > p.levels.max ? 'has-text-grey' : '';
 };
 
-// Name+type is the product key. Each quantity button requests that amount from the DC right away. Avg/Min/Max
-// are learned (ReorderPolicyHandler) and read-only.
+// Name+type is the product key. Each quantity button requests that amount from the DC right away; what the DC ships
+// is in transit until the carrier reports its arrival. Avg/Min/Max are learned (ReorderPolicyHandler) and read-only.
 const StockRow = (locationId: string, p: LocationProductRowVM): HtmlResult => html`
 	<tr id="row-${locationId}-${p.name}-${p.type}">
 		<td>${p.name}</td>
 		<td>${p.type}</td>
 		<td class="has-text-right ${availableClass(p)}">${p.availableAmount}</td>
+		<td class="has-text-right has-text-grey">${p.inTransit}</td>
 		<td class="has-text-right has-text-grey">${p.avgDemand == null ? '–' : p.avgDemand.toFixed(1)}</td>
 		<td class="has-text-right has-text-grey">${p.levels ? p.levels.min : '–'}</td>
 		<td class="has-text-right has-text-grey">${p.levels ? p.levels.max : '–'}</td>
@@ -101,7 +102,7 @@ const RequestRow = (r: RequestVM): HtmlResult => html`
 	<tr id="request-${r.id}">
 		<td>${r.id}</td>
 		<td>${r.productName}<br><span class="is-size-7 has-text-grey" title="Requested at">${r.createdAt}</span></td>
-		<td class="has-text-right">${r.delivered} / ${r.requested}</td>
+		<td class="has-text-right">${r.shipped} / ${r.requested}</td>
 		<td><span class="tag ${STATUS_TAGS[r.status] ?? ''}">${r.status}</span></td>
 		<td>${OriginTag(r)}</td>
 	</tr>

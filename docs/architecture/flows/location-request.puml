@@ -9,7 +9,8 @@ participant "ReplenishmentHandler\n(Core)" as handler
 participant "ReplenishmentService\n(PostgreSQL)" as service
 participant "InventoryEvent\n(CDI, async)" as changes
 participant "AuditLogService\n(MongoDB)" as audit
-database "PostgreSQL\n(stock, replenishment_request)" as db
+participant "CarrierService\n(Kafka)" as carrier
+database "PostgreSQL\n(stock, replenishment_request,\nshipment)" as db
 database "MongoDB\n(Audit)" as db_audit
 
 user -> receiver: POST /locations/{id}/requests\n(productName, quantity)
@@ -36,17 +37,19 @@ else
   service -> db: INSERT request (PENDING)
   service -> db: lock all PENDING requests of the product
   opt DC stock > 0
-    service -> db: FairShare: split DC stock in proportion to outstanding;\nper request: DC row -, location row + (created if missing)
-    service -> db: delivered += moved; all delivered? FULFILLED
+    service -> db: FairShare: split DC stock in proportion to outstanding;\nper request: DC row -, location row created if missing
+    service -> db: shipped += share; all shipped? FULFILLED;\nINSERT shipment (IN_TRANSIT)
   end
   service -> db: COMMIT
   service --> handler: Requested(request, transfers)
-  handler -> audit: log("STOCK_TRANSFERRED") per transfer;\nlog("REQUEST_PENDING") if still pending
+  handler -> audit: log("STOCK_SHIPPED") per transfer;\nlog("REQUEST_PENDING") if still pending
+  handler ->> carrier: dispatch(shipment) per transfer\n→ topic shipments (see in-transit.puml)
   handler ->> changes: fireAsync(ReplenishmentChanged)
   receiver --> user: 200 (empty body)
   note right of user
     The inventoryChanged SSE event then makes the page
     re-fetch GET /locations/{id}/inventory-fragment.
+    The location's stock grows when the shipment arrives.
     A PENDING rest is served by the next delivery to the DC
     (InventoryHandler → DeliveredToDc event → DeliveryEventReceiver
     → fulfilPending, shared fairly among all pending requests).

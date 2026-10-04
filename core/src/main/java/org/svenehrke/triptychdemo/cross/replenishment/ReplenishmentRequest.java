@@ -4,11 +4,14 @@ import org.svenehrke.triptychdemo.cross.location.Replenished;
 
 import java.time.Instant;
 
-/** A stored request of {@code location} to the DC; {@code delivered} grows with every (partial) transfer. */
-public record ReplenishmentRequest(long id, Replenished location, String productName, int requested, int delivered,
+/**
+ * A stored request of {@code location} to the DC; {@code shipped} grows with every (partial) transfer. What is shipped
+ * may still be in transit (see {@link Shipment}).
+ */
+public record ReplenishmentRequest(long id, Replenished location, String productName, int requested, int shipped,
                                    RequestStatus status, RequestOrigin origin, Instant createdAt) {
 
 	public int outstanding() {
-		return status == RequestStatus.PENDING ? requested - delivered : 0;
+		return status == RequestStatus.PENDING ? requested - shipped : 0;
 	}
 }

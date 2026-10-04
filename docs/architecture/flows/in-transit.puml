@@ -1,0 +1,62 @@
+@startuml in_transit
+skinparam monochrome true
+skinparam sequenceMessageAlign center
+skinparam backgroundColor #ffffff
+
+participant "ReplenishmentHandler\n(Core)" as handler
+participant "CarrierService\n(Kafka)" as carrier
+participant "Kafka Topic:\nshipments" as topic_out
+participant "CarrierStub\n(external)" as stub
+participant "Kafka Topic:\nshipment-arrivals" as topic_in
+participant "ShipmentArrivalReceiver\n(Kafka)" as receiver
+participant "ReplenishmentService\n(PostgreSQL)" as service
+participant "InventoryEvent\n(CDI, async)" as changes
+participant "AuditLogService\n(MongoDB)" as audit
+database "PostgreSQL\n(stock, shipment)" as db
+
+note over handler
+  After a transfer committed (request, automatic request,
+  fulfilPending, head-office fulfil): the DC stock is gone,
+  the shipment is IN_TRANSIT and counts towards the
+  location's position (available + in transit + outstanding).
+end note
+handler ->> carrier: dispatch(shipment)
+carrier -> topic_out: ShipmentMessage\n{shipmentId, locationId, productName, quantity}
+alt send fails
+  handler -> audit: log("SHIPMENT_DISPATCH_FAILED")\n(the period close sends it again)
+end
+topic_out -> stub: consume (@Incoming)
+stub -> stub: wait carrier-stub.transit-time ± 20%\n(Mutiny worker pool)
+stub -> topic_in: ShipmentArrivalMessage {shipmentId}
+topic_in -> receiver: consume (@Incoming)
+receiver -> audit: log("SHIPMENT_ARRIVAL_RECEIVED")
+alt null payload / no shipmentId
+  receiver -> topic_in: → shipment-arrivals-dlq
+end
+receiver -> handler: receiveShipment(shipmentId)
+handler -> service: receiveShipment(id)
+note right of service
+  One transaction. Lock order: shipment, then the
+  location's row - never the DC row.
+end note
+service -> db: SELECT shipment FOR UPDATE (only if IN_TRANSIT)
+alt unknown or arrived already (repeated message)
+  service --> handler: empty
+  handler -> audit: log("SHIPMENT_ARRIVAL_IGNORED")
+else
+  service -> db: location row FOR UPDATE: available += quantity
+  service -> db: shipment ARRIVED, arrivedAt = now
+  service -> db: COMMIT
+  service --> handler: shipment
+  handler -> audit: log("SHIPMENT_ARRIVED")
+  handler ->> changes: fireAsync(ReplenishmentChanged(location))
+end
+
+== Catch-up at every period close (ShipmentCatchUpReceiver, LevelsRecalculated) ==
+handler -> service: findInTransit(now − inventory.shipment-redispatch-after)
+loop overdue shipments
+  handler -> audit: log("SHIPMENT_REDISPATCHED")
+  handler ->> carrier: dispatch(shipment)
+end
+
+@enduml

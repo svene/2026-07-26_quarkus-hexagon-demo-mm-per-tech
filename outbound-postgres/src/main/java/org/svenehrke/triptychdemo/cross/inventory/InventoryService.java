@@ -6,6 +6,7 @@ import org.svenehrke.triptychdemo.cross.location.Replenished;
 import org.svenehrke.triptychdemo.cross.products.Product;
 import org.svenehrke.triptychdemo.cross.products.ProductType;
 import org.svenehrke.triptychdemo.cross.reorder.ReorderPolicy;
+import org.svenehrke.triptychdemo.cross.replenishment.ShipmentEntity;
 import io.quarkus.narayana.jta.QuarkusTransaction;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.transaction.Transactional;
@@ -102,8 +103,9 @@ public class InventoryService implements InventoryRepositorySPI {
 
     @Override
     public List<LocationStock> findAllLocations() {
+        var inTransit = ShipmentEntity.inTransitByLocationAndProduct();
         return StockEntity.<StockEntity>listAll().stream()
-                .map(StockEntity::toLocationStock)
+                .map(e -> e.toLocationStock(inTransit.getOrDefault(new ShipmentEntity.Key(e.locationId, e.name), 0)))
                 .toList();
     }
 

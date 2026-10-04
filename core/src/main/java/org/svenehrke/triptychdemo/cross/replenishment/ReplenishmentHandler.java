@@ -9,6 +9,8 @@ import org.svenehrke.triptychdemo.cross.location.Replenished;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Event;
 import jakarta.inject.Inject;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -22,12 +24,18 @@ import java.util.stream.Stream;
  * requests, too. Creating a request also fires a {@link DcDemandChanged}: it lowers the DC's inventory position, as a
  * new backorder or as stock leaving the DC. Serving a request that already exists does not, since its backorder
  * shrinks by what leaves.
+ * <p>
+ * Every transfer ships: its {@link Shipment} is handed to the {@link CarrierSPI} after the transaction that recorded it
+ * has committed, and the location books it when the carrier reports the arrival ({@link #receiveShipment}). A shipment
+ * whose dispatch got lost is sent again by {@link #redispatchOverdue}.
  */
 @ApplicationScoped
 public class ReplenishmentHandler {
 
     @Inject
     ReplenishmentRepositorySPI replenishmentRepository;
+    @Inject
+    CarrierSPI carrier;
     @Inject
     AuditLogSPI auditLog;
     @Inject
@@ -45,7 +53,7 @@ public class ReplenishmentHandler {
         }
         var stored = requested.get().request();
         var transfers = requested.get().transfers();
-        transfers.forEach(this::logTransfer);
+        ship(transfers);
         if (stored.status() == RequestStatus.PENDING && transfers.stream().noneMatch(t -> t.request().id() == stored.id())) {
             auditLog.log("ReplenishmentHandler: REQUEST_PENDING", describe(stored));
         }
@@ -74,19 +82,20 @@ public class ReplenishmentHandler {
     /** After a delivery to the DC: shares it among the requests waiting for it. */
     public void fulfilPending(String productName) {
         var transfers = replenishmentRepository.allocate(productName);
-        transfers.forEach(this::logTransfer);
+        ship(transfers);
         fireChanged(locations(transfers));
     }
 
-    /** Head office. Empty if there is no such pending request. */
-    public Optional<Transfer> fulfil(long requestId) {
+    /** Head office. Empty if there is no such pending request; else its state afterwards. */
+    public Optional<ReplenishmentRequest> fulfil(long requestId) {
         auditLog.log("ReplenishmentHandler: FULFIL_PROCESSING", "request " + requestId);
-        var transfer = replenishmentRepository.fulfil(requestId);
-        transfer.ifPresent(t -> {
-            logTransfer(t);
-            inventoryEvents.fireAsync(new ReplenishmentChanged(t.request().location()));
+        var fulfilled = replenishmentRepository.fulfil(requestId);
+        fulfilled.ifPresent(f -> {
+            ship(f.transfers());
+            if (f.transfers().isEmpty()) logPending(f.request());
+            inventoryEvents.fireAsync(new ReplenishmentChanged(f.request().location()));
         });
-        return transfer;
+        return fulfilled.map(Requested::request);
     }
 
     /** Head office. Empty if there is no such pending request. */
@@ -98,6 +107,30 @@ public class ReplenishmentHandler {
             inventoryEvents.fireAsync(new ReplenishmentChanged(r.location()));
         });
         return rejected;
+    }
+
+    /** The carrier reports an arrival. A repeated or unknown one changes nothing. */
+    public void receiveShipment(long shipmentId) {
+        auditLog.log("ReplenishmentHandler: SHIPMENT_ARRIVAL_PROCESSING", "shipment " + shipmentId);
+        replenishmentRepository.receiveShipment(shipmentId).ifPresentOrElse(
+            shipment -> {
+                auditLog.log("ReplenishmentHandler: SHIPMENT_ARRIVED", describe(shipment));
+                inventoryEvents.fireAsync(new ReplenishmentChanged(shipment.location()));
+            },
+            () -> auditLog.log("ReplenishmentHandler: SHIPMENT_ARRIVAL_IGNORED",
+                "shipment " + shipmentId + ": not in transit (unknown or arrived already)"));
+    }
+
+    /**
+     * Sends every shipment that is in transit for longer than {@code overdueAfter} to the carrier again: its dispatch
+     * may have been lost (a crash between the commit and the send), or the carrier may have lost it. Harmless if it
+     * was not, since an arrival is booked only once.
+     */
+    public void redispatchOverdue(Duration overdueAfter) {
+        replenishmentRepository.findInTransit(Instant.now().minus(overdueAfter)).forEach(shipment -> {
+            auditLog.log("ReplenishmentHandler: SHIPMENT_REDISPATCHED", describe(shipment));
+            dispatch(shipment);
+        });
     }
 
     public List<ReplenishmentRequest> listPending() {
@@ -115,7 +148,7 @@ public class ReplenishmentHandler {
         if (created.isEmpty()) return;
         created.forEach(r -> auditLog.log("ReplenishmentHandler: AUTO_REQUEST_CREATED", describe(r)));
         var transfers = replenishmentRepository.allocate(productName);
-        transfers.forEach(this::logTransfer);
+        ship(transfers);
         created.stream()
             .filter(r -> transfers.stream().noneMatch(t -> t.request().id() == r.id()))
             .forEach(r -> auditLog.log("ReplenishmentHandler: REQUEST_PENDING", describe(r)));
@@ -131,19 +164,38 @@ public class ReplenishmentHandler {
         locations.distinct().forEach(location -> inventoryEvents.fireAsync(new ReplenishmentChanged(location)));
     }
 
-    private void logTransfer(Transfer transfer) {
-        var r = transfer.request();
-        if (transfer.quantity() > 0) {
-            auditLog.log("ReplenishmentHandler: STOCK_TRANSFERRED",
-                "dc → " + r.location().id() + ": " + r.productName() + " " + transfer.quantity() + " (" + describe(r) + ")");
+    private void ship(List<Transfer> transfers) {
+        transfers.forEach(transfer -> {
+            auditLog.log("ReplenishmentHandler: STOCK_SHIPPED", describe(transfer.shipment()) + " (" + describe(transfer.request()) + ")");
+            logPending(transfer.request());
+            dispatch(transfer.shipment());
+        });
+    }
+
+    /**
+     * The shipment is committed already, so a failing carrier must not fail the operation that shipped it: the
+     * failure is audit-logged, and {@link #redispatchOverdue} sends it again.
+     */
+    private void dispatch(Shipment shipment) {
+        try {
+            carrier.dispatch(shipment);
+        } catch (RuntimeException e) {
+            auditLog.log("ReplenishmentHandler: SHIPMENT_DISPATCH_FAILED", describe(shipment) + ": " + e);
         }
+    }
+
+    private void logPending(ReplenishmentRequest r) {
         if (r.status() == RequestStatus.PENDING) {
             auditLog.log("ReplenishmentHandler: REQUEST_PENDING", describe(r));
         }
     }
 
+    private static String describe(Shipment s) {
+        return "shipment " + s.id() + " dc → " + s.location().id() + ": " + s.productName() + " " + s.quantity();
+    }
+
     private static String describe(ReplenishmentRequest r) {
         return "request " + r.id() + " " + r.location().id() + ": " + r.productName()
-            + " " + r.delivered() + "/" + r.requested() + " " + r.status();
+            + " " + r.shipped() + "/" + r.requested() + " " + r.status();
     }
 }

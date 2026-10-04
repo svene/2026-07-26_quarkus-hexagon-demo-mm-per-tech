@@ -14,7 +14,7 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
  * A supplier's lead time: the stubs deliver an order {@code supplier-stub.lead-time} ± 20% after it was placed. The
  * delivery is scheduled on Mutiny's worker pool, so the thread that received the order (HTTP, SOAP or Kafka consumer)
  * returns right away instead of waiting for it. Each external module has its own copy, as they stand for independent
- * suppliers.
+ * suppliers. The carrier stub uses {@link #later} with its own transit time.
  */
 @ApplicationScoped
 public class LeadTime {
@@ -23,17 +23,22 @@ public class LeadTime {
     Duration leadTime;
 
     public void deliverLater(Runnable delivery) {
-        Infrastructure.getDefaultWorkerPool().schedule(() -> {
-            try {
-                delivery.run();
-            } catch (RuntimeException e) {
-                Log.error("Supplier stub delivery failed", e);
-            }
-        }, jittered(), MILLISECONDS);
+        later(leadTime, delivery);
     }
 
-    private long jittered() {
-        long millis = leadTime.toMillis();
+    /** Runs {@code action} {@code delay} ± 20% from now, on Mutiny's worker pool. */
+    public void later(Duration delay, Runnable action) {
+        Infrastructure.getDefaultWorkerPool().schedule(() -> {
+            try {
+                action.run();
+            } catch (RuntimeException e) {
+                Log.error("Delayed stub action failed", e);
+            }
+        }, jittered(delay), MILLISECONDS);
+    }
+
+    private static long jittered(Duration delay) {
+        long millis = delay.toMillis();
         long jitter = millis / 5;
         // Quarkus' worker pool schedules on Vert.x timers, which reject delays below 1 ms
         return Math.max(1, millis - jitter + ThreadLocalRandom.current().nextLong(2 * jitter + 1));

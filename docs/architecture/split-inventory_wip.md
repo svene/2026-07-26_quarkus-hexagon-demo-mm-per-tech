@@ -5,7 +5,7 @@ distribution centre (DC) that all supplier deliveries go to, 3 physical stores a
 fulfilment centre (dark store). Locations are replenished from the DC by **pull**; reorder levels
 are **learned from sales**, not maintained by hand. Tracked as `PLAN.md` `split-inventory`.
 
-Status: **PHASE 1, 2 AND 3 DONE** — phase 1 committed 2026-10-03 (`f894a93`); phase 2 incl. the fair share committed 2026-10-03 (`b7aac71`); phase 3 (DC stage) committed 2026-10-04 (`cf79f6d`), follow-up (enums, `ProductJson`) committed (`3691af4`). Phase 4: supplier lead time done (staged); direct store delivery dropped; in-transit transfers open.
+Status: **PHASE 1, 2 AND 3 DONE** — phase 1 committed 2026-10-03 (`f894a93`); phase 2 incl. the fair share committed 2026-10-03 (`b7aac71`); phase 3 (DC stage) committed 2026-10-04 (`cf79f6d`), follow-up (enums, `ProductJson`) committed (`3691af4`). Phase 4: supplier lead time done (`b96a7c7`); direct store delivery dropped; in-transit transfers done (staged).
 
 ## Current state
 
@@ -154,7 +154,7 @@ JSON API: `GET /api/products` and `POST /api/products/purchase` → ONLINE.
 3. **DC stage.** DC levels learned from replenishment demand, automatic supplier orders, open
    supplier orders matched by product on delivery.
 4. **Later (separate items):** ~~direct store delivery for beverages~~ (dropped 2026-10-04: not needed for the
-   demo), supplier lead time in the stubs (done 2026-10-04), in-transit transfers via Kafka.
+   demo), supplier lead time in the stubs (done 2026-10-04), in-transit transfers via Kafka (done 2026-10-04).
 
 Each phase: core first (unit tests for the pure policy maths), then adapters, flow tests, Playwright
 (`admin.spec.ts`, `shop.spec.ts`, new location page spec), docs via `update-architecture-docs`
@@ -516,6 +516,97 @@ session-notes baseline.
 7. Left out (phase 4 / later): supplier lead time in the stubs (which would make OPEN orders visible), direct store
    delivery, in-transit transfers.
 
+## Phase 4 implementation plan: in-transit transfers (APPROVED 2026-10-04, all recommendations)
+
+Goal: a DC → location transfer is no longer instant. The DC ships (stock leaves the DC), the goods are on the road for
+a while, and the location books them when they arrive. The road is an external **carrier** reached via Kafka - the
+counterpart of the supplier lead time. Two-pod constraints ([two-pods_wip.md](two-pods_wip.md)) apply: no delay held in
+the app's memory, the arrival message is idempotent, in-transit stock counts towards the location's position.
+
+```
+allocate / fulfil  (one tx: DC −qty, request.shipped += qty, shipment IN_TRANSIT)
+  → ReplenishmentHandler → CarrierSPI.dispatch(shipment) → topic `shipments`
+      → CarrierStub (external-outbound-kafka): waits carrier-stub.transit-time ± 20%
+          → topic `shipment-arrivals` {shipmentId}
+              → ShipmentArrivalReceiver (inbound-kafka) → ReplenishmentHandler.receiveShipment(id)
+                  → one tx: shipment IN_TRANSIT → ARRIVED, location +qty  (already ARRIVED → no-op)
+                  → ReplenishmentChanged(location) → SSE
+```
+
+**Core (`cross.replenishment`)**
+- `Shipment(id, requestId, location, productName, quantity, status IN_TRANSIT | ARRIVED, dispatchedAt, arrivedAt)`,
+  `ShipmentStatus` an enum (field-less labels).
+- `Transfer(request, quantity)` → `Transfer(request, Shipment shipment)`: every transfer creates exactly one shipment.
+- `ReplenishmentRequest.delivered` → **`shipped`** (see open point 1). A request is `FULFILLED` once everything is
+  shipped: the DC's part is done; the arrival is the carrier's.
+- **Location position** = `available + in transit + outstanding requests` (`requestIfLow`). Without the in-transit part
+  a store would request the same goods again while they are on the road.
+- New `CarrierSPI.dispatch(Shipment)`. `ReplenishmentHandler` dispatches every shipment of the transfers it gets back
+  (`request`, `replenishIfLow`, `fulfilPending`, `fulfil`), **after** the repository transaction committed - so the
+  shipment row exists before the message, like supplier orders ("record before sending").
+- `ReplenishmentHandler.receiveShipment(long id)` → SPI `receiveShipment(id)`: `Optional<Shipment>`, empty if unknown
+  or already arrived (audit `SHIPMENT_ARRIVAL_IGNORED`), else audit `SHIPMENT_ARRIVED` + `ReplenishmentChanged`.
+- `ReplenishmentHandler.redispatchOverdue()`: re-sends shipments that are `IN_TRANSIT` for longer than
+  `inventory.shipment-redispatch-after` (default 2 min, i.e. 2 periods). This is the catch-up for a lost dispatch (crash
+  between commit and send) and for a carrier that lost the delay (stub restart). Safe because the arrival is idempotent.
+- Audit: `STOCK_TRANSFERRED` → `STOCK_SHIPPED`; new `SHIPMENT_ARRIVED`, `SHIPMENT_ARRIVAL_IGNORED`,
+  `SHIPMENT_REDISPATCHED`; Receiver `SHIPMENT_ARRIVAL_RECEIVED`.
+
+**outbound-postgres**
+- `ShipmentEntity` (table `shipment`), created in `transfer()` instead of adding to the target row; `transfer()` no
+  longer locks the target row.
+- `receiveShipment`: lock the shipment (`FOR UPDATE`, status `IN_TRANSIT`), then the location row (create if missing).
+  Lock order shipment → location never meets DC → … → location in reverse, so no deadlock. The shipment row is the
+  "inbox" - no separate `processed_message` table needed.
+- `requestIfLow` adds the in-transit sum of the location + product (read under the location row lock, which
+  `receiveShipment` also takes, so the sum and `available` are consistent).
+- `findOverdue(Instant before)`, `inTransit(location)` for the UI.
+
+**outbound-kafka**: `CarrierService implements CarrierSPI` + `ShipmentMessage(shipmentId, locationId, productName,
+quantity)`, channel `shipments-out` → topic `shipments`. One topic for all commodities (a cross concern).
+
+**external-outbound-kafka**: `CarrierStub` (`@Incoming("shipments")`, `@Blocking`) sends
+`ShipmentArrivalMessage(shipmentId)` to `shipment-arrivals` after `carrier-stub.transit-time` ± 20% (dev `20s`, below
+the stores' L of 1 period; `0s` in `%test` and e2e). The delay is the stub's, as with the suppliers; in k8s it would be
+its own deployment. `LeadTime`'s scheduling is generalized to take the duration (one bean, two properties).
+
+**inbound-kafka**: `ShipmentArrivalReceiver` + deserializer, channel `shipment-arrivals` with
+`dead-letter-or-fail-stop` like the delivery channels.
+
+**inbound-event**: `AutoReplenishmentReceiver` (or a new `ShipmentCatchUpReceiver`) calls `redispatchOverdue()` on
+`LevelsRecalculated`, so it runs once per period close and is off in `%test`/e2e with the scheduler.
+
+**UI**
+- Location page: new column **"In transit"** per product; the requests table shows `shipped/requested`.
+- Admin matrix: the cell title adds "in transit n". No separate shipments section (open point 3).
+
+**Testing**
+- Unit: `Transfer`/`Shipment` wiring is thin; the position maths stays in `LearnedLevelsTest` (in transit is just more
+  `outstanding`).
+- Flow `ShipmentFlowTest` (new): a fulfilled request ships (DC −qty, location unchanged, shipment IN_TRANSIT), the
+  arrival books it; a duplicate arrival message is ignored; an unknown id is ignored; `requestIfLow` doesn't
+  re-request goods in transit; `redispatchOverdue` re-sends only overdue shipments.
+- Lead-time style test with the profile `carrier-stub.transit-time=2s`: the location gets nothing before ~1.6 s.
+- Existing flow tests (`ReplenishmentFlowTest`, `AutoReplenishmentFlowTest`, …) assert location stock right after a
+  transfer; with 0 s transit the arrival is still an async Kafka round trip, so those asserts move into `await()`.
+  e2e: the location page updates via SSE on arrival, so Playwright's retrying `expect` should cover it.
+
+**Docs**: `update-architecture-docs` (new SPI, adapter, receiver, 2 topics, table), new `flows/in-transit.puml`, WIP
+progress log, session-notes baseline.
+
+### Phase 4 open points (in-transit; all recommendations approved 2026-10-04)
+
+1. **Rename `delivered` → `shipped`** on the request (recommended): with transit, "delivered" would be wrong for goods
+   still on the road. ~10 places plus test JSON paths. Alternative: keep the name, document the new meaning.
+2. **Redispatch catch-up** (recommended, cheap): without it a shipment whose message got lost stays in transit forever,
+   and since it counts towards the position, the location would never request that quantity again. Alternative: leave
+   it out and note it in two-pods_wip.md.
+3. **No admin shipments list** (recommended): numbers in the location page and matrix title are enough for the demo.
+   Alternative: an "In transit" section in `/admin` like "Supplier Orders".
+4. **Head-office fulfil ships too** (recommended, consistent). Alternative: fulfil stays an instant "express" transfer.
+5. **One `shipments` topic for all commodities** (recommended). Per-commodity topics would mirror the supplier side but
+   add 14 channels for no domain reason - the carrier is one external system.
+
 ## Progress log
 
 _(append dated entries as steps land)_
@@ -646,3 +737,28 @@ _(append dated entries as steps land)_
     the jars were current - the same effect as the 13 timeouts noted on 2026-10-03.
   - Docs: `architecture-module-participants.md` (external modules), `architecture-flow-kafka-reference.md` (topic
     cycles intro).
+- **2026-10-04, phase 4: in-transit transfers (staged).** Plan approved with all recommendations. Core: `Shipment`,
+  `ShipmentStatus`, `CarrierSPI`; `Transfer(request, shipment)`; `ReplenishmentRequest.delivered` → `shipped`;
+  `ReplenishmentHandler` dispatches every shipment after its transaction (a failing carrier is audit-logged
+  `SHIPMENT_DISPATCH_FAILED`, not rethrown), `receiveShipment` (idempotent: only an `IN_TRANSIT` shipment can arrive),
+  `redispatchOverdue(Duration)`; `LocationStock`/`ProductStock` carry what is in transit. outbound-postgres:
+  `ShipmentEntity` (table `shipment`); `requestIfLow` counts in transit. outbound-kafka: `CarrierService` → `shipments`;
+  external-outbound-kafka: `CarrierStub` → `shipment-arrivals` after `carrier-stub.transit-time` (20s dev, 0s `%test`/e2e;
+  `LeadTime.later(delay, action)`); inbound-kafka: `ShipmentArrivalReceiver` (DLQ like the other channels);
+  inbound-event: `ShipmentCatchUpReceiver` (`LevelsRecalculated` → redispatch after `inventory.shipment-redispatch-after`
+  = 2m). UI: "In transit" column on `/locations`, "Shipped" in the request tables, "in transit n" in the admin matrix
+  cell title.
+  - Deviation: `transfer()` still locks / creates the target row (no stock added), so a location shows what is in
+    transit to it before its first arrival; the lock order is unchanged.
+  - Deviation: `ReplenishmentRepositorySPI.fulfil` returns `Optional<Requested>` (a fulfil with an empty DC ships
+    nothing); `ReplenishmentHandler.fulfil` returns the request afterwards. The shipment stores the product type, so the
+    arrival needs no DC lookup.
+  - Tests: `ShipmentFlowTest` (6, mocked carrier: in transit until reported, repeated / unknown arrival ignored, in
+    transit counts towards the position, failing carrier + redispatch, arrived shipments not resent),
+    `ShipmentTransitFlowTest` (real Kafka round trip, transit 2s); `ReplenishmentFlowTest` awaits arrivals; the test
+    reset deletes shipments too (a leftover in-transit shipment had booked into the next test). 161 core + 149
+    app-server tests green; e2e 24/24 (`--retries=0`), `location.spec.ts` checks the In transit column.
+  - Known limit (dev only): `drop-and-create` restarts the shipment ids while Kafka keeps its messages, so an arrival
+    redelivered after a restart could book a newer shipment with the same id early. Not an issue with Flyway (two-pods).
+  - Docs: participants, flow, Kafka reference, new `flows/in-transit.puml`, `location-request.puml`,
+    `admin-decide-request.puml`, session-notes baseline `0d3c572`.

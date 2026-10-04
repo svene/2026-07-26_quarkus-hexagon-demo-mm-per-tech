@@ -99,6 +99,8 @@ UI-only events (`ReplenishmentChanged`, `SupplierOrdersChanged`) only feed secti
   a redelivered cashpoint sale deducts twice. Fix: a message id in every message (the supplier's delivery id, the
   cashpoint's receipt id) and a `processed_message` table (the "inbox"), written in the same transaction as the stock
   change; a known id is skipped. For the demo's own stubs, the stubs generate the id.
+  Already idempotent: the carrier's `shipment-arrivals` (in-transit transfers) - the shipment row is the inbox, only
+  an `IN_TRANSIT` shipment can arrive.
 - **Partitions (should do).** With Dev Services every topic has one partition, so only one pod consumes a topic and the
   other one idles (fine for failover, no parallelism). For parallel processing: several partitions per topic, with the
   product name as the message key, so all messages for one product stay in order.
@@ -130,7 +132,8 @@ What to do:
 - **External systems as their own deployments.** In dev/test the supplier stubs (`external-outbound-*`) and the
   `CashpointStub` (`external-inbound-kafka`, `@Scheduled` every 10 s) run inside the app. In two pods they would run
   twice (twice the cashpoint traffic, two SOAP/REST endpoints), and the stubs' in-memory delayed deliveries
-  (`LeadTime`) would be lost when a pod stops. In Kubernetes they would be separate deployments; the app's REST/SOAP
+  (`LeadTime`) would be lost when a pod stops (for the carrier, `ShipmentCatchUpReceiver` re-sends shipments still in
+  transit after 2 min). In Kubernetes they would be separate deployments; the app's REST/SOAP
   client URLs (`%dev` / `%test` point to `localhost`) then come from config.
 - **No Dev Services.** Postgres, MongoDB and Kafka come from config (`quarkus.datasource.*`, `quarkus.mongodb.*`,
   `kafka.bootstrap.servers`), secrets from Kubernetes Secrets.

@@ -10,11 +10,12 @@ public class TestInventoryHelper {
 
     @Inject EntityManager em;
 
-    /** The stock of every location, every replenishment request and every supplier order. */
+    /** The stock of every location, every replenishment request, shipment and supplier order. */
     @Transactional
     public void resetInventory() {
         em.createNativeQuery("DELETE FROM stock").executeUpdate();
         em.createNativeQuery("DELETE FROM replenishment_request").executeUpdate();
+        em.createNativeQuery("DELETE FROM shipment").executeUpdate();
         em.createNativeQuery("DELETE FROM supplier_order").executeUpdate();
     }
 }
