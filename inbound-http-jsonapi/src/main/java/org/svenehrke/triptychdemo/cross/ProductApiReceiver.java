@@ -2,7 +2,6 @@ package org.svenehrke.triptychdemo.cross;
 
 import org.svenehrke.triptychdemo.cross.auditlog.AuditLogHandler;
 import org.svenehrke.triptychdemo.cross.location.Locations;
-import org.svenehrke.triptychdemo.cross.products.Product;
 import org.svenehrke.triptychdemo.cross.products.ProductsHandler;
 import org.svenehrke.triptychdemo.cross.purchase.ParsedPurchase;
 import org.svenehrke.triptychdemo.cross.purchase.Purchase;
@@ -79,8 +78,8 @@ public class ProductApiReceiver {
 
     @GET
     @Produces(MediaType.APPLICATION_JSON)
-    public List<Product> list() {
-        return productsHandler.listAll(Locations.ONLINE);
+    public List<ProductJson> list() {
+        return ProductJson.of(productsHandler.listAll(Locations.ONLINE));
     }
 
     @POST

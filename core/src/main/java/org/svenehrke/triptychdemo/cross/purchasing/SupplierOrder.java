@@ -15,7 +15,7 @@ public record SupplierOrder(long id, String productName, ProductType type, int q
 	public static final int MAX_QUANTITY = 2000;
 
 	public int outstanding() {
-		return status instanceof SupplierOrderStatus.Open ? quantity - delivered : 0;
+		return status == SupplierOrderStatus.OPEN ? quantity - delivered : 0;
 	}
 
 	/** For the audit log, e.g. {@code supplier order 7 Apple 4/10 OPEN AUTOMATIC}. */

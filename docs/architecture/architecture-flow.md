@@ -345,7 +345,7 @@ LocationReceiver.request(id, productName, quantity)
 
 #### GET /api/products - Product List (JSON)
 ```
-ProductApiReceiver.list()
+ProductApiReceiver.list()   → List<ProductJson>
 └─ ProductsHandler.listAll(ONLINE)   (the JSON API is the online shop's)
    └─ InventoryRepositorySPI.findAll(ONLINE)
       └─ InventoryService (outbound-postgres)
@@ -399,7 +399,7 @@ ProductApiReceiver.purchase(request)
 #### GET /api/locations/{id}/products - Stock of One Location (JSON)
 Read by the cashpoint stub to pick what a store sells. Any location incl. the DC; unknown id → 404.
 ```
-LocationApiReceiver.list(id)
+LocationApiReceiver.list(id)   → List<ProductJson>
 └─ ProductsHandler.listAll(location)
    └─ InventoryRepositorySPI.findAll(location)
       └─ InventoryService (outbound-postgres)

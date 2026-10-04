@@ -5,7 +5,7 @@ distribution centre (DC) that all supplier deliveries go to, 3 physical stores a
 fulfilment centre (dark store). Locations are replenished from the DC by **pull**; reorder levels
 are **learned from sales**, not maintained by hand. Tracked as `PLAN.md` `split-inventory`.
 
-Status: **PHASE 1 DONE, PHASE 2 DONE, PHASE 3 LANDED (staged)** — phase 1 committed 2026-10-03 (`f894a93`); phase 2 incl. the fair share committed 2026-10-03 (`b7aac71`); phase 3 (DC stage) landed 2026-10-04, staged, not committed.
+Status: **PHASE 1, 2 AND 3 DONE** — phase 1 committed 2026-10-03 (`f894a93`); phase 2 incl. the fair share committed 2026-10-03 (`b7aac71`); phase 3 (DC stage) committed 2026-10-04 (`cf79f6d`), follow-up (enums, `ProductJson`) staged. Phase 4 items are separate, later items.
 
 ## Current state
 
@@ -513,8 +513,6 @@ session-notes baseline.
    happen with the stubs, since they always deliver in full.
 6. **Origin enum**: rename `RequestOrigin` to a shared `Origin` (`MANUAL | AUTOMATIC`), or add a second enum
    `SupplierOrderOrigin`. Recommended: a second enum, since there is less churn and the two may diverge later.
-   (The user added: use a sealed interface instead of an enum wherever possible, so `SupplierOrderOrigin` and
-   `SupplierOrderStatus` are sealed interfaces.)
 7. Left out (phase 4 / later): supplier lead time in the stubs (which would make OPEN orders visible), direct store
    delivery, in-transit transfers.
 
@@ -600,13 +598,12 @@ _(append dated entries as steps land)_
   new `LandingPageTest`, admin/shop shell tests assert no nav, `location.spec.ts` (landing page links, section
   order, requests scoped to a section); 157 core + 131 app-server tests and 23 e2e tests (`--retries=0`) green
   (a first e2e run right after `mvn install` had 13 Kafka-delivery timeouts, not reproducible).
-- **2026-10-04, phase 3 code landed (staged, not committed).** Core: `cross.purchasing` (`SupplierOrder`,
-  `SupplierOrderStatus` and `SupplierOrderOrigin` as sealed interfaces with record constants, `SupplierOrderRepositorySPI`,
-  `PurchasingHandler`), `ReorderPolicy.DC` (`of(Location)`), new events `DcDemandChanged(productName)` and
+- **2026-10-04, phase 3 code landed (committed in `cf79f6d`).** Core: `cross.purchasing` (`SupplierOrder`,
+  `SupplierOrderStatus`, `SupplierOrderOrigin` (enums), `SupplierOrderRepositorySPI`, `PurchasingHandler`), `ReorderPolicy.DC` (`of(Location)`), new events `DcDemandChanged(productName)` and
   `SupplierOrdersChanged()`. The 7 commodity Handlers record every order before sending it (`order` → `open(MANUAL)` →
   `place`) and cancel it if the supplier fails (audit `…_ORDER_CANCELLED`). `InventoryHandler` uses
   `receiveDelivery` (DC stock + close open orders oldest first, one transaction; audit `SUPPLIER_ORDER_DELIVERED`).
-  outbound-postgres: `SupplierOrderEntity` (table `supplier_order`, status/origin through JPA `AttributeConverter`s),
+  outbound-postgres: `SupplierOrderEntity` (table `supplier_order`),
   `SupplierOrderService`; DC rows get estimate and levels, too; `request`/`requestIfLow` add to the DC `periodDemand`;
   `closePeriod` includes the DC. inbound-event: `AutoPurchasingReceiver`. Admin: a "Supplier Orders" section
   (`GET /admin/supplier-orders-fragment`); DC cells are red below `min`, with the levels in the title.
@@ -622,8 +619,15 @@ _(append dated entries as steps land)_
   - Tests: `SupplierOrderTest`, two new `LearnedLevelsTest` cases (negative outstanding, DC cold start 136/316),
     `AutoPurchasingFlowTest` (5, own profile: auto purchasing on, scheduler off), `SupplierOrderFlowTest` (4, mocked
     fruit supplier), `FruitOrderDeliveryFlowTest` checks the order is closed by its delivery, `KafkaTransientFailureTest`
-    now spies on `SupplierOrderService.receiveDelivery`, period close "5 rows"; 162 core + 140 app-server tests green.
+    now spies on `SupplierOrderService.receiveDelivery`, period close "5 rows"; 161 core + 140 app-server tests green.
     e2e: two new `admin.spec.ts` tests (DC cell levels, Supplier Orders section); all 24 e2e tests (`--retries=0`) green.
   - Docs: participants, flow (new "Event: DcDemandChanged" and `GET /admin/supplier-orders-fragment`, delivery tree),
     Kafka reference, new `flows/auto-purchasing.puml`, 4 order diagrams + `inventory-events.puml` updated.
-  - Open: `docs/ai/session-notes.md` commit-hash baseline, to be set in the commit.
+  - `docs/ai/session-notes.md` commit-hash baseline: set to `cf79f6d` with the follow-up below.
+- **2026-10-04, enums vs. sealed interfaces (staged).** The status/origin types and `ProductType`, `RequestStatus`,
+  `RequestOrigin`, `OnShortage` were briefly converted to sealed interfaces, then reverted after weighing both: the
+  variants carry no data, so enums give the same exhaustive `switch` plus `name()`/`valueOf`, singletons (`==` is safe),
+  `@Enumerated` and Jackson for free, while the sealed version needed hand-written `name()`/`of`, 5 JPA converters and
+  `instanceof` checks. Rule: enums for fixed, field-less labels; sealed interfaces when the variants differ in data or in
+  what may be done with them (`Location`, `InventoryEvent`, `PurchaseOutcome`, `Parsed*`). Kept from it: `ProductJson`
+  (inbound-http-jsonapi), so the JSON API no longer serializes core's `Product` directly; the wire format is unchanged.

@@ -21,7 +21,7 @@ public interface SupplierOrderRepositorySPI {
 	/**
 	 * Automatic ordering: if the DC's inventory position of the product (available + outstanding supplier orders −
 	 * outstanding requests of the locations, i.e. the DC's backorders) is below its learned reorder point, records an
-	 * {@link SupplierOrderOrigin.Automatic} order up to the order-up-to level (at most {@link SupplierOrder#MAX_QUANTITY}).
+	 * {@link SupplierOrderOrigin#AUTOMATIC} order up to the order-up-to level (at most {@link SupplierOrder#MAX_QUANTITY}).
 	 * Checking and recording happen in one locked transaction, so concurrent checks cannot both order. Empty if nothing
 	 * was ordered, or the DC has never carried the product.
 	 */

@@ -1,7 +1,6 @@
 package org.svenehrke.triptychdemo.cross;
 
 import org.svenehrke.triptychdemo.cross.location.Locations;
-import org.svenehrke.triptychdemo.cross.products.Product;
 import org.svenehrke.triptychdemo.cross.products.ProductsHandler;
 
 import jakarta.inject.Inject;
@@ -23,8 +22,8 @@ public class LocationApiReceiver {
     @GET
     @Path("/{id}/products")
     @Produces(MediaType.APPLICATION_JSON)
-    public List<Product> list(@PathParam("id") String id) {
+    public List<ProductJson> list(@PathParam("id") String id) {
         var location = Locations.byId(id).orElseThrow(() -> new NotFoundException("unknown location: " + id));
-        return productsHandler.listAll(location);
+        return ProductJson.of(productsHandler.listAll(location));
     }
 }

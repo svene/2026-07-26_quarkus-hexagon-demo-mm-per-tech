@@ -12,7 +12,7 @@ Complete inventory of all classes participating in the system flows, organized b
 | Module | Participants |
 |--------|--------------|
 | **inbound-http-html** | `AdminReceiver`<br>`ShopReceiver`<br>`LocationReceiver`<br>`InventoryEventsReceiver`<br>`InventoryEventBroadcaster`<br>`ShopCart`<br>`PageShell` |
-| **inbound-http-jsonapi** | `ProductApiReceiver`<br>`LocationApiReceiver`<br>`XxxOrderRequest` (+ `OrderRequest`)/`PurchaseRequest`/`PurchaseRequestItem`/`RequestStructureErrorMessages`<br>`JsonInputErrors`/`StrictJsonReader`/`JsonResponses` |
+| **inbound-http-jsonapi** | `ProductApiReceiver`<br>`LocationApiReceiver`<br>`XxxOrderRequest` (+ `OrderRequest`)/`PurchaseRequest`/`PurchaseRequestItem`/`RequestStructureErrorMessages`<br>`JsonInputErrors`/`StrictJsonReader`/`JsonResponses`<br>`ProductJson` |
 | **inbound-kafka** | `FruitDeliveryReceiver`<br>`VegetablesDeliveryReceiver`<br>`DairyDeliveryReceiver`<br>`BeveragesDeliveryReceiver`<br>`MeatDeliveryReceiver`<br>`BakeryDeliveryReceiver`<br>`NonFoodDeliveryReceiver`<br>`CashpointReceiver` |
 | **inbound-event** | `DeliveryEventReceiver`, `AutoReplenishmentReceiver`, `AutoPurchasingReceiver`, `DemandPeriodReceiver` |
 | **core** | `FruitSupplierSPI`/`FruitDelivery`/`FruitsHandler`<br>`VegetablesSupplierSPI`/`VegetableDelivery`/`VegetablesHandler`<br>`DairySupplierSPI`/`DairyDelivery`/`DairyHandler`<br>`BeverageSupplierSPI`/`BeverageDelivery`/`BeveragesHandler`<br>`MeatSupplierSPI`/`MeatDelivery`/`MeatHandler`<br>`BakerySupplierSPI`/`BakeryDelivery`/`BakeryHandler`<br>`NonFoodSupplierSPI`/`NonFoodDelivery`/`NonFoodHandler`<br>`InventoryRepositorySPI`/`InventoryHandler`/`InventoryEvent` (`DeliveredToDc`/`StockDeducted`/`ReplenishmentChanged`/`LevelsRecalculated`/`DcDemandChanged`/`SupplierOrdersChanged`)<br>`Location`/`Replenished`/`Warehouse`/`Store`/`OnlineFc`/`Locations`<br>`ReplenishmentRepositorySPI`/`ReplenishmentHandler`/`StockRequest`/`ReplenishmentRequest`/`RequestOrigin`<br>`ReorderPolicyHandler`/`ReorderPolicy`/`DemandEstimate`/`LearnedLevels`<br>`SupplierOrderRepositorySPI`/`PurchasingHandler`/`SupplierOrder`/`SupplierOrderStatus`/`SupplierOrderOrigin`<br>`AuditLogSPI`/`AuditLogHandler`/`AuditLogEntry`<br>`ProductsHandler`/`Product`/`ProductStock`/`ProductType`<br>`PurchaseHandler`/`PurchaseItem` |
@@ -82,6 +82,7 @@ Complete inventory of all classes participating in the system flows, organized b
 - `StrictJsonReader` - `@CustomDeserialization` reader without silent scalar coercions (global mapper untouched)
 - `JsonInputErrors` - messages for Jackson deserialization errors, used by `ProductApiReceiver`'s resource-local `@ServerExceptionMapper`s
 - `JsonResponses` - `badRequest(List<String>)`, the `400` JSON array
+- `ProductJson` - the product list's JSON shape (name, type, availableAmount); core's `Product` is not serialized directly, so a change inside core can't silently change the API
 
 **Responsibilities**:
 - Parse HTTP JSON requests (APPLICATION_JSON)
@@ -218,8 +219,8 @@ Complete inventory of all classes participating in the system flows, organized b
 - `SupplierOrderRepositorySPI` - The DC's supplier orders, each method one transaction with the DC stock row locked first (methods: open - records an order before it is sent, openIfLow - automatic: position = available + open orders − pending requests (the DC's backorders), below min → AUTOMATIC order up to max (≤ 2000), checked and recorded in one locked transaction, cancel, receiveDelivery - DC stock + close open orders oldest first, findOpen)
 - `PurchasingHandler` - Central purchasing (methods: orderIfLow(productName) - via AutoPurchasingReceiver, `openIfLow`, audit `AUTO_SUPPLIER_ORDER_CREATED`, then the commodity Handler's `place` chosen by `ProductType`; listOpen)
 - `SupplierOrder` - Stored order (id, productName, type, quantity, delivered, status, origin, createdAt; outstanding, describe)
-- `SupplierOrderStatus` - Sealed interface (`Open` | `Delivered` | `Cancelled`, constants `OPEN`/`DELIVERED`/`CANCELLED`, `name()`/`of`)
-- `SupplierOrderOrigin` - Sealed interface (`Manual` | `Automatic`, constants `MANUAL`/`AUTOMATIC`, `name()`/`of`)
+- `SupplierOrderStatus` - Enum (OPEN, DELIVERED, CANCELLED)
+- `SupplierOrderOrigin` - Enum (MANUAL, AUTOMATIC)
 
 **Responsibilities**:
 - Implement business logic for each use case
@@ -245,7 +246,7 @@ Complete inventory of all classes participating in the system flows, organized b
 - `ReplenishmentService` - Implements ReplenishmentRepositorySPI: stock transfer and request update in one transaction; locks the DC stock row first, then requests, then the target row; `requestIfLow` locks the DC row, then the target row, sums the outstanding requests and stores an AUTOMATIC request if below min (unserved); `allocate` shares the DC stock via `FairShare`; every request created adds its quantity to the DC row's periodDemand
 - `ReplenishmentRequestEntity` - Panache entity backing the `replenishment_request` table
 - `SupplierOrderService` - Implements SupplierOrderRepositorySPI; locks the DC stock row first, then the supplier orders
-- `SupplierOrderEntity` - Panache entity backing the `supplier_order` table (status/origin stored by name via JPA `AttributeConverter`s)
+- `SupplierOrderEntity` - Panache entity backing the `supplier_order` table
 
 **Technology**: Quarkus Panache (ORM), Hibernate, PostgreSQL
 **Database**: `stock` and `replenishment_request` tables in PostgreSQL

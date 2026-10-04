@@ -3,9 +3,6 @@ package org.svenehrke.triptychdemo.cross.purchasing;
 import org.svenehrke.triptychdemo.cross.products.ProductType;
 import io.quarkus.hibernate.orm.panache.PanacheEntity;
 import io.quarkus.panache.common.Sort;
-import jakarta.persistence.AttributeConverter;
-import jakarta.persistence.Convert;
-import jakarta.persistence.Converter;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -28,10 +25,10 @@ public class SupplierOrderEntity extends PanacheEntity {
 
     public int delivered;
 
-    @Convert(converter = StatusConverter.class)
+    @Enumerated(EnumType.STRING)
     public SupplierOrderStatus status;
 
-    @Convert(converter = OriginConverter.class)
+    @Enumerated(EnumType.STRING)
     public SupplierOrderOrigin origin;
 
     public Instant createdAt;
@@ -83,17 +80,5 @@ public class SupplierOrderEntity extends PanacheEntity {
 
     public SupplierOrder toDomain() {
         return new SupplierOrder(id, productName, type, quantity, delivered, status, origin, createdAt);
-    }
-
-    @Converter
-    static class StatusConverter implements AttributeConverter<SupplierOrderStatus, String> {
-        @Override public String convertToDatabaseColumn(SupplierOrderStatus status) { return status.name(); }
-        @Override public SupplierOrderStatus convertToEntityAttribute(String name) { return SupplierOrderStatus.of(name); }
-    }
-
-    @Converter
-    static class OriginConverter implements AttributeConverter<SupplierOrderOrigin, String> {
-        @Override public String convertToDatabaseColumn(SupplierOrderOrigin origin) { return origin.name(); }
-        @Override public SupplierOrderOrigin convertToEntityAttribute(String name) { return SupplierOrderOrigin.of(name); }
     }
 }
