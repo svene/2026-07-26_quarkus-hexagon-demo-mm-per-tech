@@ -75,7 +75,7 @@ class AutoReplenishmentFlowTest {
         // initial avg 15, α 0.3: 15 + 0.3·(5 − 15)
         assertThat(row(Locations.ONLINE, "Apple").getDouble("avgDemand")).isCloseTo(12, within(1e-9));
         assertThat(given().get("/api/locations/online/products").jsonPath().getList("name")).containsExactly("Apple");
-        assertThat(auditHelper.findEventDetails("ReorderPolicyHandler: PERIOD_CLOSED")).containsExactly("4 rows");
+        assertThat(auditHelper.findEventDetails("ReorderPolicyHandler: PERIOD_CLOSED")).containsExactly("5 rows");
     }
 
     @Test

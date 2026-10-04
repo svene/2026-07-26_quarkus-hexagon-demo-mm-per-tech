@@ -34,9 +34,10 @@ hono/html templates in `hx-hono.js` (see `docs/architecture/browser-templating_w
 #### GET /admin - Admin Dashboard
 ```
 AdminReceiver.shell()  → static shell (shells/admin.html), whose #app loads GET /admin/page
-AdminReceiver.page()   → UiResponse(AdminPage, {locations, products, pendingRequests, auditEntries})
+AdminReceiver.page()   → UiResponse(AdminPage, {locations, products, pendingRequests, supplierOrders, auditEntries})
 ├─ ProductsHandler.listAllLocations()  (as in GET /admin/inventory-fragment)
 ├─ ReplenishmentHandler.listPending()  (as in GET /admin/requests-fragment)
+├─ PurchasingHandler.listOpen()  (as in GET /admin/supplier-orders-fragment)
 └─ AuditLogHandler.recent(limit)  (as in GET /admin/audit-fragment)
 ```
 
@@ -62,6 +63,16 @@ AdminReceiver.requestsFragment()   → UiResponse(AdminRequests, {requests})
    └─ ReplenishmentRepositorySPI.findPending()   (oldest first)
       └─ ReplenishmentService (outbound-postgres)
          └─ PostgreSQL (table replenishment_request)
+```
+
+#### GET /admin/supplier-orders-fragment - Open Supplier Orders
+Fetched by `/admin` on every `inventoryChanged` event, morphed into `#admin-supplier-orders`. Read-only.
+```
+AdminReceiver.supplierOrdersFragment()   → UiResponse(AdminSupplierOrders, {supplierOrders})
+└─ PurchasingHandler.listOpen()
+   └─ SupplierOrderRepositorySPI.findOpen()   (oldest first)
+      └─ SupplierOrderService (outbound-postgres)
+         └─ PostgreSQL (table supplier_order)
 ```
 
 #### POST /admin/requests/{id}/fulfil, /reject - Head Office Decides on a Pending Request
@@ -96,7 +107,10 @@ AdminReceiver.orderFruits()
    ├─ AuditLogSPI.log("FRUITS_ORDER_PROCESSING")
    │  └─ AuditLogService (outbound-mongodb)
    │     └─ MongoDB
-   ├─ FruitSupplierSPI.placeOrder()
+   ├─ SupplierOrderRepositorySPI.open(…, MANUAL)   (recorded before sending: the delivery may arrive first)
+   │  └─ SupplierOrderService (outbound-postgres) → PostgreSQL (table supplier_order)
+   │  ── FruitsHandler.place(supplierOrder): the rest of this tree; automatic orders join here (Event: DcDemandChanged)
+   ├─ FruitSupplierSPI.placeOrder()   (throws → SupplierOrderRepositorySPI.cancel(), audit "FRUITS_ORDER_CANCELLED")
    │  └─ FruitSupplierService (outbound-httpclient)
    │     └─ FruitSupplierClient (REST)
    │        └─ FruitSupplierStub (external-outbound-rest, same Quarkus instance)
@@ -105,9 +119,11 @@ AdminReceiver.orderFruits()
    │                 └─ FruitDeliveryReceiver (@Incoming("fruit-deliveries"))
    │                    ├─ AuditLogHandler.log("FRUIT_DELIVERY_RECEIVED")
    │                    └─ InventoryHandler.updateFruitAmount()
-   │                       ├─ InventoryRepositorySPI.addAmount(DC, …)   (every delivery goes to the DC)
-   │                       │  └─ InventoryService (outbound-postgres)
-   │                       │     └─ PostgreSQL
+   │                       ├─ SupplierOrderRepositorySPI.receiveDelivery(…)   (every delivery goes to the DC; one transaction:
+   │                       │  │                                                DC stock + close open orders oldest first)
+   │                       │  └─ SupplierOrderService (outbound-postgres)
+   │                       │     └─ PostgreSQL (tables stock, supplier_order)
+   │                       ├─ AuditLogSPI.log("SUPPLIER_ORDER_DELIVERED")   (per order the delivery went to)
    │                       ├─ AuditLogSPI.log("FRUIT_INVENTORY_UPDATED")
    │                       └─ Event<InventoryEvent>.fireAsync(DeliveredToDc)   (after the commit; decoupled from the delivery;
    │                          │                                                also refreshes the pages, see GET /inventory/events)
@@ -116,9 +132,10 @@ AdminReceiver.orderFruits()
    │                             └─ ReplenishmentHandler.fulfilPending(productName)
    │                                └─ ReplenishmentRepositorySPI.allocate()   (shared among all pending requests, FairShare)
    │                                   └─ ReplenishmentService (outbound-postgres) → PostgreSQL
-   └─ AuditLogSPI.log("FRUITS_ORDER_PLACED")
-      └─ AuditLogService (outbound-mongodb)
-         └─ MongoDB
+   ├─ AuditLogSPI.log("FRUITS_ORDER_PLACED")
+   │  └─ AuditLogService (outbound-mongodb)
+   │     └─ MongoDB
+   └─ Event<InventoryEvent>.fireAsync(SupplierOrdersChanged)   (refreshes /admin)
 ```
 
 #### POST /admin/order-vegetables - HTML Form → REST Client → Kafka Delivery Topic
@@ -319,7 +336,8 @@ LocationReceiver.request(id, productName, quantity)
    │     └─ PostgreSQL: lock DC stock row; store the request; share what the DC has among all pending requests
    │        of the product in proportion to what each still needs (FairShare) - the rest stays PENDING
    ├─ AuditLogSPI.log("STOCK_TRANSFERRED" / "REQUEST_PENDING")
-   └─ Event<InventoryEvent>.fireAsync(ReplenishmentChanged(location))
+   ├─ Event<InventoryEvent>.fireAsync(ReplenishmentChanged(location))
+   └─ Event<InventoryEvent>.fireAsync(DcDemandChanged(productName))   (see AutoPurchasingReceiver below)
    → 200 empty body; 409 UiResponse(OrderErrors) if the DC never carried the product ("REQUEST_REJECTED")
 ```
 
@@ -390,8 +408,9 @@ LocationApiReceiver.list(id)
 
 ## Event and Timer Inbound Flows (inbound-event)
 
-Automatic replenishment of the stores and the online FC (`split-inventory` phase 2). Both switches are off in `%test`
-and in the e2e dev server (`inventory.demand-period=off`, `inventory.auto-replenishment.enabled=false`).
+Automatic replenishment of the stores and the online FC (`split-inventory` phase 2) and automatic supplier orders of
+the DC (phase 3). All switches are off in `%test` and in the e2e dev server (`inventory.demand-period=off`,
+`inventory.auto-replenishment.enabled=false`, `inventory.auto-purchasing.enabled=false`).
 
 #### Timer: end of a demand period (`inventory.demand-period`, 1 min)
 ```
@@ -400,13 +419,16 @@ DemandPeriodReceiver.closePeriod()   (@Scheduled)
    ├─ InventoryRepositorySPI.closePeriod()
    │  └─ InventoryService (outbound-postgres)
    │     ├─ every store / online FC gets a row for every DC product (available 0, cold-start estimate)
-   │     └─ per row, one transaction (FOR UPDATE): DemandEstimate.next(periodDemand) → LearnedLevels.of() → periodDemand = 0
+   │     └─ per row (the DC's included), one transaction (FOR UPDATE): DemandEstimate.next(periodDemand)
+   │        → LearnedLevels.of() → periodDemand = 0   (the DC's demand: what the locations requested)
    ├─ AuditLogSPI.log("PERIOD_CLOSED")
    └─ Event<InventoryEvent>.fireAsync(LevelsRecalculated)
-      └─ AutoReplenishmentReceiver.onLevelsRecalculated (@ObservesAsync)
-         └─ ReplenishmentHandler.replenishAllIfLow(DC products)
-            └─ per product: requestIfLow for every store and the online FC, then one allocate (as below),
-               so a DC shortfall is shared among all of them
+      ├─ AutoReplenishmentReceiver.onLevelsRecalculated (@ObservesAsync)
+      │  └─ ReplenishmentHandler.replenishAllIfLow(DC products)
+      │     └─ per product: requestIfLow for every store and the online FC, then one allocate (as below),
+      │        so a DC shortfall is shared among all of them
+      └─ AutoPurchasingReceiver.onLevelsRecalculated (@ObservesAsync)
+         └─ PurchasingHandler.orderIfLow(productName)   per DC product (as below)
 ```
 
 #### Event: StockDeducted (after a checkout or a cashpoint sale)
@@ -420,7 +442,22 @@ AutoReplenishmentReceiver.onStockDeducted (@ObservesAsync)
    ├─ ReplenishmentRepositorySPI.allocate(productName)   if a request was created: DC stock shared among all
    │                                                      pending requests (FairShare), one transaction
    ├─ AuditLogSPI.log("AUTO_REQUEST_CREATED"), ("STOCK_TRANSFERRED"), ("REQUEST_PENDING")
-   └─ Event<InventoryEvent>.fireAsync(ReplenishmentChanged)   (if a request was created)
+   ├─ Event<InventoryEvent>.fireAsync(ReplenishmentChanged)   (if a request was created)
+   └─ Event<InventoryEvent>.fireAsync(DcDemandChanged)   (if a request was created)
+```
+
+#### Event: DcDemandChanged (a store / the online FC requested from the DC)
+```
+AutoPurchasingReceiver.onDcDemandChanged (@ObservesAsync)
+└─ PurchasingHandler.orderIfLow(productName)
+   ├─ SupplierOrderRepositorySPI.openIfLow(productName)   one transaction
+   │  └─ SupplierOrderService (outbound-postgres) → PostgreSQL
+   │     (DC row FOR UPDATE; position = available + open supplier orders − pending requests;
+   │      below min → AUTOMATIC supplier order up to max, at most 2000)
+   ├─ AuditLogSPI.log("AUTO_SUPPLIER_ORDER_CREATED")
+   └─ FruitsHandler.place(supplierOrder) / VegetablesHandler.place(…) / …   by ProductType
+      └─ as in POST /admin/order-fruits from FruitSupplierSPI.placeOrder() on: supplier → Kafka delivery →
+         receiveDelivery closes the order → DeliveredToDc → fulfilPending
 ```
 
 ## Note: Kafka Delivery Receivers

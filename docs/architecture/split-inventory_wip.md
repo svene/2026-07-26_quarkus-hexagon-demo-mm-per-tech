@@ -5,7 +5,7 @@ distribution centre (DC) that all supplier deliveries go to, 3 physical stores a
 fulfilment centre (dark store). Locations are replenished from the DC by **pull**; reorder levels
 are **learned from sales**, not maintained by hand. Tracked as `PLAN.md` `split-inventory`.
 
-Status: **PHASE 1 DONE, PHASE 2 DONE** — phase 1 committed 2026-10-03 (`f894a93`); phase 2 incl. the fair share committed 2026-10-03 (`b7aac71`); phase 3 (DC stage) not started, needs a detailed plan first.
+Status: **PHASE 1 DONE, PHASE 2 DONE, PHASE 3 LANDED (staged)** — phase 1 committed 2026-10-03 (`f894a93`); phase 2 incl. the fair share committed 2026-10-03 (`b7aac71`); phase 3 (DC stage) landed 2026-10-04, staged, not committed.
 
 ## Current state
 
@@ -407,6 +407,117 @@ locations. **Replaces the strict-FIFO rule** (phase 1 decision 2 and its refinem
   with older ones; `AutoReplenishmentFlowTest` period close with too little DC stock splits it across all four.
 - **Accepted:** small amounts are split into single items (no minimum batch).
 
+## Phase 3 implementation plan (APPROVED 2026-10-04, all recommendations; deviations in the progress log)
+
+Goal: the DC keeps itself stocked. It learns its demand from the requests of the stores and the online FC, and
+orders from the supplier automatically once its *inventory position* falls below the learned `min`. Every supplier
+order (manual or automatic) is recorded as an **open supplier order**. Deliveries close open orders of the same
+product, oldest first, so the supplier stubs and the delivery messages stay unchanged.
+
+**Core - DC levels (`cross.reorder`)**
+- `ReorderPolicy.DC = (α 0.3, z 2, L 2, R 3, initial avg 60)` (the starting defaults). `ReorderPolicy.of(Location)`
+  switches over all of `Location`, so the DC has a policy. `LocationStock.estimate`/`levels` are then never null,
+  and the null handling in the VMs goes away.
+- **DC demand** = the quantity of every replenishment request (manual + automatic) at creation, unserved shares
+  included. It is added to the DC row's `periodDemand` inside `request`/`requestIfLow`, where the DC row is locked
+  already. A request for a product the DC never carried is not counted (there is no row).
+- `closePeriod()` also learns the DC rows (`ReorderPolicy.DC`), still one transaction per row.
+- **DC inventory position** = `available + outstanding supplier orders − outstanding PENDING requests`. The pending
+  requests are the DC's backorders. Without subtracting them, a DC with 0 stock and 500 waiting would order only up
+  to `max`, and the backorders would swallow that whole order. `LearnedLevels.reorderQuantity(available, outstanding)`
+  stays as it is, with `outstanding = open orders − backorders` (this can be negative).
+
+**Core - supplier orders (new `cross.purchasing`)**
+- `SupplierOrder(id, productName, type, quantity, delivered, status OPEN | DELIVERED | CANCELLED, origin
+  MANUAL | AUTOMATIC, createdAt)`; `OrderOrigin` reuses `RequestOrigin`, or gets its own enum (see the open points).
+- `SupplierOrderRepositorySPI` (outbound-postgres, every method is one transaction, DC row locked first like
+  `ReplenishmentService`):
+  - `open(name, type, qty, MANUAL)` records a manual order.
+  - `openIfLow(name)` locks the DC row, computes the position and, if `reorderQuantity > 0`, records an AUTOMATIC
+    order (capped at 2000, the `@Max` of the `XxxOrder`s). Check and record happen in one locked transaction, so two
+    concurrent triggers cannot both order (same pattern as `requestIfLow`).
+  - `cancel(id)` is used when sending the order failed.
+  - `receiveDelivery(name, type, qty)` adds the delivery to the DC stock **and** closes the open orders of the
+    product oldest first (partial: `delivered += …`, it stays OPEN). One transaction, so a crash in between cannot
+    leave an order open forever (that would block the DC's reordering). A delivery larger than what is open, or one
+    nobody ordered (Kafka in tests), simply adds stock. **Replaces `InventoryRepositorySPI.addAmount`** in
+    `InventoryHandler`.
+  - `findOpen()` returns the open orders, oldest first (for admin).
+- **Record before sending**: the stubs deliver almost immediately via Kafka, so the order has to exist before
+  `placeOrder` is called. If `placeOrder` throws, the handler calls `cancel` and rethrows.
+- Commodity handlers (`FruitsHandler` etc., 7 of them): `order(FruitOrder)` (manual) = `open(MANUAL)` + `place`;
+  new `place(SupplierOrder)` = `new FruitOrder(...)` → `fruitSupplier.placeOrder` (cancel on failure) → audit
+  `FRUITS_ORDER_PLACED`. Manual and automatic orders share `place`, so they go through the same validation, audit
+  and Kafka path, as the design asked.
+- `PurchasingHandler.orderIfLow(Collection<String> productNames)`: `openIfLow` per product, then `place` through the
+  commodity handler of the order's `ProductType` (exhaustive `switch`), plus audit `AUTO_SUPPLIER_ORDER_CREATED`.
+  Also `listOpen()`.
+
+**Trigger (inbound-event)**
+- New `InventoryEvent` `DcDemandChanged(Set<String> productNames)`. `ReplenishmentHandler` fires it once per
+  operation that created a request or moved DC stock (`request`, `replenishIfLow`, `replenishAllIfLow`, `fulfil`).
+  `reject` and `fulfilPending` (after a delivery) never lower the position, so they don't fire it.
+- New `AutoPurchasingReceiver` (`cross.purchasing`):
+  - `@ObservesAsync DcDemandChanged` → `purchasingHandler.orderIfLow(productNames)`.
+  - `@ObservesAsync LevelsRecalculated` → `orderIfLow(all DC products)`, so new DC levels take effect even if no
+    store requests anything.
+  - Failures are audit-logged (`AUTO_PURCHASING_FAILED`); nothing is lost, the next trigger checks again.
+  - Uses the same switch, `inventory.auto-replenishment.enabled`, so it is off in `%test` and e2e.
+- New event `SupplierOrdersChanged()`, fired on open, cancel and `receiveDelivery`, refreshes the admin page via SSE
+  (it is generic, `InventoryEventBroadcaster` needs no change).
+
+The whole chain, with no Handler→Handler reaction:
+```
+sale → StockDeducted → AutoReplenishmentReceiver → ReplenishmentHandler (request, DC −qty)
+  → DcDemandChanged → AutoPurchasingReceiver → PurchasingHandler.orderIfLow → FruitsHandler.place → supplier
+      → Kafka delivery → InventoryHandler → receiveDelivery (DC +qty, close orders) → DeliveredToDc → fulfilPending
+```
+
+**outbound-postgres**: `SupplierOrderEntity` (table `supplier_order`), `SupplierOrderService`; `StockEntity.create`
+gives a DC row the cold-start estimate too; `ReplenishmentService` adds to the DC `periodDemand`;
+`InventoryService.closePeriod` includes the DC rows; `addAmount` is removed.
+
+**UI (admin)**
+- Matrix: DC cells are also highlighted below `min`, with `min/max` in the `title` (the same as the stores today).
+- New section **"Supplier Orders"** below "Pending Requests": open orders (product, type, delivered/ordered, origin
+  auto/manual, age). Read-only: no cancel button (see the open points). The restock forms stay as they are.
+
+**Testing**
+- Unit: DC position with backorders (negative `outstanding`), cap at 2000.
+- Flow `AutoPurchasingFlowTest` (profile with auto on, scheduler off, like `AutoReplenishmentFlowTest`): DC below
+  `min` after a transfer → one AUTOMATIC order, whose stub delivery closes it; repeated triggers don't reorder while
+  it is open; concurrent triggers create one order; backorders raise the order quantity; the period close learns the
+  DC levels from requests.
+- Flow, existing commodity tests: a manual order is recorded and closed by its delivery; a partial delivery leaves
+  it open; a failing `placeOrder` cancels it (mock SPI); a delivery without an order only adds stock.
+- Playwright: `admin.spec.ts` checks the DC cell title shows min/max and that the Supplier Orders section exists.
+  The order/delivery round trip is too fast to see an OPEN order reliably, so that stays in the flow tests.
+
+**Docs**: `update-architecture-docs` (new Handler, SPI, Receiver, events, `supplier_order`), WIP progress log,
+session-notes baseline.
+
+### Phase 3 open points (all recommendations approved 2026-10-04)
+
+1. **Commodity handler `place(SupplierOrder)` called by `PurchasingHandler`** is a direct Handler→Handler call.
+   This is composition, not a reaction, so I recommend it. Alternatives: (b) the Receiver switches on the type and
+   calls the commodity handler (domain dispatch in an adapter); (c) another event `SupplierOrderOpened` plus a
+   Receiver per type (heavier, and the order would only be sent after a second async hop).
+2. **Backorders count against the DC position** (recommended, see above). Without it the DC under-orders whenever
+   it is short.
+3. **DC demand = requested quantities** (as designed), not the stores' sales. This is lumpy, because requests come
+   in batches up to `max`, so the DC's variance and safety stock grow. That is the real bullwhip effect, and it suits
+   a demo.
+4. **One switch** (`inventory.auto-replenishment.enabled`) for both stages, instead of a separate
+   `auto-purchasing` one.
+5. **No cancel of open orders in the UI** in this phase; an open order that is never delivered stays open. That can't
+   happen with the stubs, since they always deliver in full.
+6. **Origin enum**: rename `RequestOrigin` to a shared `Origin` (`MANUAL | AUTOMATIC`), or add a second enum
+   `SupplierOrderOrigin`. Recommended: a second enum, since there is less churn and the two may diverge later.
+   (The user added: use a sealed interface instead of an enum wherever possible, so `SupplierOrderOrigin` and
+   `SupplierOrderStatus` are sealed interfaces.)
+7. Left out (phase 4 / later): supplier lead time in the stubs (which would make OPEN orders visible), direct store
+   delivery, in-transit transfers.
+
 ## Progress log
 
 _(append dated entries as steps land)_
@@ -489,3 +600,30 @@ _(append dated entries as steps land)_
   new `LandingPageTest`, admin/shop shell tests assert no nav, `location.spec.ts` (landing page links, section
   order, requests scoped to a section); 157 core + 131 app-server tests and 23 e2e tests (`--retries=0`) green
   (a first e2e run right after `mvn install` had 13 Kafka-delivery timeouts, not reproducible).
+- **2026-10-04, phase 3 code landed (staged, not committed).** Core: `cross.purchasing` (`SupplierOrder`,
+  `SupplierOrderStatus` and `SupplierOrderOrigin` as sealed interfaces with record constants, `SupplierOrderRepositorySPI`,
+  `PurchasingHandler`), `ReorderPolicy.DC` (`of(Location)`), new events `DcDemandChanged(productName)` and
+  `SupplierOrdersChanged()`. The 7 commodity Handlers record every order before sending it (`order` → `open(MANUAL)` →
+  `place`) and cancel it if the supplier fails (audit `…_ORDER_CANCELLED`). `InventoryHandler` uses
+  `receiveDelivery` (DC stock + close open orders oldest first, one transaction; audit `SUPPLIER_ORDER_DELIVERED`).
+  outbound-postgres: `SupplierOrderEntity` (table `supplier_order`, status/origin through JPA `AttributeConverter`s),
+  `SupplierOrderService`; DC rows get estimate and levels, too; `request`/`requestIfLow` add to the DC `periodDemand`;
+  `closePeriod` includes the DC. inbound-event: `AutoPurchasingReceiver`. Admin: a "Supplier Orders" section
+  (`GET /admin/supplier-orders-fragment`); DC cells are red below `min`, with the levels in the title.
+  - Deviation: **a switch of its own**, `inventory.auto-purchasing.enabled` (off in `%test` and e2e), instead of
+    sharing `inventory.auto-replenishment.enabled` (open point 4). `AutoReplenishmentFlowTest` turns auto
+    replenishment on, so with one shared switch the DC would order from suppliers there too, and its DC assertions
+    would race with the deliveries.
+  - Deviation: **`InventoryRepositorySPI.addAmount` stays**: deliveries no longer use it, but ~75 test call sites seed
+    stock with it (stores included, which `receiveDelivery` can't do).
+  - Deviation: `DcDemandChanged` carries one product name, not a set, and it is fired only when a request was
+    *created* (`request`, `replenishIfLow`, `replenishAllIfLow`). `fulfil` does not fire it: serving an existing
+    request leaves the DC position unchanged, because the backorder shrinks by what leaves.
+  - Tests: `SupplierOrderTest`, two new `LearnedLevelsTest` cases (negative outstanding, DC cold start 136/316),
+    `AutoPurchasingFlowTest` (5, own profile: auto purchasing on, scheduler off), `SupplierOrderFlowTest` (4, mocked
+    fruit supplier), `FruitOrderDeliveryFlowTest` checks the order is closed by its delivery, `KafkaTransientFailureTest`
+    now spies on `SupplierOrderService.receiveDelivery`, period close "5 rows"; 162 core + 140 app-server tests green.
+    e2e: two new `admin.spec.ts` tests (DC cell levels, Supplier Orders section); all 24 e2e tests (`--retries=0`) green.
+  - Docs: participants, flow (new "Event: DcDemandChanged" and `GET /admin/supplier-orders-fragment`, delivery tree),
+    Kafka reference, new `flows/auto-purchasing.puml`, 4 order diagrams + `inventory-events.puml` updated.
+  - Open: `docs/ai/session-notes.md` commit-hash baseline, to be set in the commit.

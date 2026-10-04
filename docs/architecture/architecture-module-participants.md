@@ -14,9 +14,9 @@ Complete inventory of all classes participating in the system flows, organized b
 | **inbound-http-html** | `AdminReceiver`<br>`ShopReceiver`<br>`LocationReceiver`<br>`InventoryEventsReceiver`<br>`InventoryEventBroadcaster`<br>`ShopCart`<br>`PageShell` |
 | **inbound-http-jsonapi** | `ProductApiReceiver`<br>`LocationApiReceiver`<br>`XxxOrderRequest` (+ `OrderRequest`)/`PurchaseRequest`/`PurchaseRequestItem`/`RequestStructureErrorMessages`<br>`JsonInputErrors`/`StrictJsonReader`/`JsonResponses` |
 | **inbound-kafka** | `FruitDeliveryReceiver`<br>`VegetablesDeliveryReceiver`<br>`DairyDeliveryReceiver`<br>`BeveragesDeliveryReceiver`<br>`MeatDeliveryReceiver`<br>`BakeryDeliveryReceiver`<br>`NonFoodDeliveryReceiver`<br>`CashpointReceiver` |
-| **inbound-event** | `DeliveryEventReceiver`, `AutoReplenishmentReceiver`, `DemandPeriodReceiver` |
-| **core** | `FruitSupplierSPI`/`FruitDelivery`/`FruitsHandler`<br>`VegetablesSupplierSPI`/`VegetableDelivery`/`VegetablesHandler`<br>`DairySupplierSPI`/`DairyDelivery`/`DairyHandler`<br>`BeverageSupplierSPI`/`BeverageDelivery`/`BeveragesHandler`<br>`MeatSupplierSPI`/`MeatDelivery`/`MeatHandler`<br>`BakerySupplierSPI`/`BakeryDelivery`/`BakeryHandler`<br>`NonFoodSupplierSPI`/`NonFoodDelivery`/`NonFoodHandler`<br>`InventoryRepositorySPI`/`InventoryHandler`/`InventoryEvent` (`DeliveredToDc`/`StockDeducted`/`ReplenishmentChanged`/`LevelsRecalculated`)<br>`Location`/`Replenished`/`Warehouse`/`Store`/`OnlineFc`/`Locations`<br>`ReplenishmentRepositorySPI`/`ReplenishmentHandler`/`StockRequest`/`ReplenishmentRequest`/`RequestOrigin`<br>`ReorderPolicyHandler`/`ReorderPolicy`/`DemandEstimate`/`LearnedLevels`<br>`AuditLogSPI`/`AuditLogHandler`/`AuditLogEntry`<br>`ProductsHandler`/`Product`/`ProductStock`/`ProductType`<br>`PurchaseHandler`/`PurchaseItem` |
-| **outbound-postgres** | `InventoryService`<br>`StockEntity`<br>`ReplenishmentService`<br>`ReplenishmentRequestEntity` |
+| **inbound-event** | `DeliveryEventReceiver`, `AutoReplenishmentReceiver`, `AutoPurchasingReceiver`, `DemandPeriodReceiver` |
+| **core** | `FruitSupplierSPI`/`FruitDelivery`/`FruitsHandler`<br>`VegetablesSupplierSPI`/`VegetableDelivery`/`VegetablesHandler`<br>`DairySupplierSPI`/`DairyDelivery`/`DairyHandler`<br>`BeverageSupplierSPI`/`BeverageDelivery`/`BeveragesHandler`<br>`MeatSupplierSPI`/`MeatDelivery`/`MeatHandler`<br>`BakerySupplierSPI`/`BakeryDelivery`/`BakeryHandler`<br>`NonFoodSupplierSPI`/`NonFoodDelivery`/`NonFoodHandler`<br>`InventoryRepositorySPI`/`InventoryHandler`/`InventoryEvent` (`DeliveredToDc`/`StockDeducted`/`ReplenishmentChanged`/`LevelsRecalculated`/`DcDemandChanged`/`SupplierOrdersChanged`)<br>`Location`/`Replenished`/`Warehouse`/`Store`/`OnlineFc`/`Locations`<br>`ReplenishmentRepositorySPI`/`ReplenishmentHandler`/`StockRequest`/`ReplenishmentRequest`/`RequestOrigin`<br>`ReorderPolicyHandler`/`ReorderPolicy`/`DemandEstimate`/`LearnedLevels`<br>`SupplierOrderRepositorySPI`/`PurchasingHandler`/`SupplierOrder`/`SupplierOrderStatus`/`SupplierOrderOrigin`<br>`AuditLogSPI`/`AuditLogHandler`/`AuditLogEntry`<br>`ProductsHandler`/`Product`/`ProductStock`/`ProductType`<br>`PurchaseHandler`/`PurchaseItem` |
+| **outbound-postgres** | `InventoryService`<br>`StockEntity`<br>`ReplenishmentService`<br>`ReplenishmentRequestEntity`<br>`SupplierOrderService`<br>`SupplierOrderEntity` |
 | **outbound-mongodb** | `AuditLogService`<br>`AuditLogEntryEntity` |
 | **outbound-httpclient** | `FruitSupplierService`<br>`VegetablesSupplierService`<br>`DairySupplierService`<br>`FruitSupplierClient`<br>`VegetablesSupplierClient`<br>`DairySupplierClient` |
 | **outbound-webservice** | `BeverageSupplierService`<br>`MeatSupplierService`<br>`BakerySupplierService`<br>`BeverageOrderService`<br>`MeatOrderService`<br>`BakeryOrderService` |
@@ -34,7 +34,7 @@ Complete inventory of all classes participating in the system flows, organized b
 **Package**: `org.svenehrke.triptychdemo.cross` (both receivers are cross-cutting aggregators — Admin touches every commodity's ordering Handler, Shop touches Products+Purchase — so neither lives in a `feature.<name>` package)
 
 ### Receivers
-- `AdminReceiver` - Admin dashboard: product × location matrix, supplier orders (to the DC), pending requests (GET /admin shell, GET /admin/page and fragments, POST /admin/order-*, POST /admin/requests/{id}/fulfil|reject)
+- `AdminReceiver` - Admin dashboard: product × location matrix, supplier orders (to the DC) and the open ones, pending requests (GET /admin shell, GET /admin/page and fragments incl. /admin/supplier-orders-fragment, POST /admin/order-*, POST /admin/requests/{id}/fulfil|reject)
 - `ShopReceiver` - Customer shopping interface, sells the online FC's stock (GET /shop shell, GET /shop/page and fragment, POST /shop/checkout)
 - `LocationReceiver` - One page for all stores and the online FC: stock, requests to the DC (GET /locations shell, GET /locations/page, GET /locations/{id}/inventory-fragment, POST /locations/{id}/requests)
 - `InventoryEventsReceiver` - GET /inventory/events SSE stream (`inventoryChanged`), used by the shop, admin and locations shells
@@ -97,11 +97,12 @@ Complete inventory of all classes participating in the system flows, organized b
 ## inbound-event
 
 **Purpose**: Inbound adapter for domain events that core fires as CDI async events (`Event.fireAsync`) - in-process, like `inbound-kafka` is for messages
-**Package**: `org.svenehrke.triptychdemo.cross.inventory`, `org.svenehrke.triptychdemo.cross.replenishment`, `org.svenehrke.triptychdemo.cross.reorder`
+**Package**: `org.svenehrke.triptychdemo.cross.inventory`, `org.svenehrke.triptychdemo.cross.replenishment`, `org.svenehrke.triptychdemo.cross.reorder`, `org.svenehrke.triptychdemo.cross.purchasing`
 
 ### Receivers
 - `DeliveryEventReceiver` - `@ObservesAsync DeliveredToDc` → `ReplenishmentHandler.fulfilPending(productName)`; audit-logs a failure (`FULFIL_PENDING_FAILED`) instead of letting it vanish, the requests then stay pending
 - `AutoReplenishmentReceiver` - `@ObservesAsync StockDeducted` → `ReplenishmentHandler.replenishIfLow(location, productNames)`; `@ObservesAsync LevelsRecalculated` → `replenishAllIfLow(DC products)` - all locations at once, so a shortfall is shared (fills empty locations at cold start); failures audit-logged (`AUTO_REPLENISHMENT_FAILED`); off with `inventory.auto-replenishment.enabled=false` (`%test`, e2e)
+- `AutoPurchasingReceiver` - `@ObservesAsync DcDemandChanged` → `PurchasingHandler.orderIfLow(productName)`; `@ObservesAsync LevelsRecalculated` → `orderIfLow` per DC product (one at a time, so a supplier that is down does not block the others); failures audit-logged (`AUTO_PURCHASING_FAILED`); off with `inventory.auto-purchasing.enabled=false` (`%test`, e2e) - a switch of its own, so a flow test can turn on one stage only
 - `DemandPeriodReceiver` - `@Scheduled(every = "${inventory.demand-period}")` (1 min, `off` in `%test` and e2e) → `ReorderPolicyHandler.closePeriod()`; needs `quarkus-scheduler`
 
 **Responsibilities**:
@@ -145,7 +146,7 @@ Complete inventory of all classes participating in the system flows, organized b
 ### feature.fruit
 - `FruitSupplierSPI` - Interface for fruit supplier (method: placeOrder)
 - `FruitDelivery` - Delivery domain record (productName, quantity)
-- `FruitsHandler` - Handles fruit orders (method: order; injects FruitSupplierSPI + AuditLogSPI)
+- `FruitsHandler` - Handles fruit orders (methods: order - records a MANUAL supplier order, then places it; place(SupplierOrder) - sends a recorded order, manual or automatic (PurchasingHandler), cancels it if the supplier fails, fires `SupplierOrdersChanged`; injects FruitSupplierSPI + SupplierOrderRepositorySPI + AuditLogSPI)
 
 ### feature.vegetable
 - `VegetablesSupplierSPI`, `VegetableDelivery`, `VegetablesHandler` - same shape as feature.fruit
@@ -166,13 +167,13 @@ Complete inventory of all classes participating in the system flows, organized b
 - `NonFoodSupplierSPI`, `NonFoodDelivery`, `NonFoodHandler` - same shape as feature.fruit
 
 ### cross.inventory
-- `InventoryRepositorySPI` - Interface for stock per location (methods: findAll(location), findAllLocations, addAmount(location, …), deductAll(location, …), recordDemand(location, …) - own transaction, also for rejected/capped sales, closePeriod - one transaction per row)
-- `LocationStock` - Domain record (location, product, estimate, levels; the last two null at the DC), returned by findAllLocations
-- `InventoryEvent` - Sealed interface of the CDI events core fires with `fireAsync`, one per committed change: `DeliveredToDc(productName)` (InventoryHandler), `StockDeducted(location, productNames)` (PurchaseHandler), `ReplenishmentChanged(location)` (ReplenishmentHandler), `LevelsRecalculated()` (ReorderPolicyHandler). Observed by inbound adapters only - specific ones (DeliveryEventReceiver, AutoReplenishmentReceiver) or all (InventoryEventBroadcaster, for the SSE live updates). All of them live in this package: core is no named module, so a sealed type's subclasses must share its package
+- `InventoryRepositorySPI` - Interface for stock per location (methods: findAll(location), findAllLocations, addAmount(location, …) - seeding/tests, deliveries go through SupplierOrderRepositorySPI, deductAll(location, …), recordDemand(location, …) - own transaction, also for rejected/capped sales, closePeriod - one transaction per row, the DC's rows included)
+- `LocationStock` - Domain record (location, product, estimate, levels), returned by findAllLocations
+- `InventoryEvent` - Sealed interface of the CDI events core fires with `fireAsync`, one per committed change: `DeliveredToDc(productName)` (InventoryHandler), `StockDeducted(location, productNames)` (PurchaseHandler), `ReplenishmentChanged(location)` (ReplenishmentHandler), `LevelsRecalculated()` (ReorderPolicyHandler), `DcDemandChanged(productName)` (ReplenishmentHandler, on every request created), `SupplierOrdersChanged()` (commodity Handlers). Observed by inbound adapters only - specific ones (DeliveryEventReceiver, AutoReplenishmentReceiver, AutoPurchasingReceiver) or all (InventoryEventBroadcaster, for the SSE live updates). All of them live in this package: core is no named module, so a sealed type's subclasses must share its package
 - `OnShortage` - Enum passed to deductAll: `REJECT` (online, deduct nothing) | `CAP_AT_ZERO` (physical store)
 - `StockDeduction` - Result of deductAll (updated products, shortages)
 - `Shortage` - Domain record (productName, requested, available) with rejection and discrepancy messages
-- `InventoryHandler` - Adds deliveries to the DC, then fires `DeliveredToDc` asynchronously (see inbound-event), for all commodities (methods: updateFruitAmount, updateVegetableAmount, updateDairyAmount, updateBeverageAmount, updateMeatAmount, updateBakeryAmount, updateNonFoodAmount) - imports each commodity's `*Delivery` record from its `feature.<commodity>` package
+- `InventoryHandler` - Adds deliveries to the DC and closes open supplier orders of the product oldest first (`SupplierOrderRepositorySPI.receiveDelivery`, one transaction; audit `SUPPLIER_ORDER_DELIVERED`), then fires `DeliveredToDc` asynchronously (see inbound-event), for all commodities (methods: updateFruitAmount, updateVegetableAmount, updateDairyAmount, updateBeverageAmount, updateMeatAmount, updateBakeryAmount, updateNonFoodAmount) - imports each commodity's `*Delivery` record from its `feature.<commodity>` package
 
 ### cross.auditlog
 - `AuditLogSPI` - Interface for audit log persistence (methods: log, findRecent)
@@ -198,7 +199,7 @@ Complete inventory of all classes participating in the system flows, organized b
 
 ### cross.replenishment
 - `ReplenishmentRepositorySPI` - Requests to the DC and the transfers serving them, each use case one transaction (methods: request, requestIfLow - automatic: checks the learned levels and creates the request in one locked transaction, allocate - shares the DC stock among all pending requests of the product (`FairShare`), fulfil, reject, findPending, findRecent); a request that gets less than it needs stays pending
-- `ReplenishmentHandler` - Pull replenishment (methods: request, replenishIfLow / replenishAllIfLow - via AutoReplenishmentReceiver, after a sale / a period close, fulfilPending - after a delivery, via DeliveryEventReceiver, fulfil/reject - head office, listPending, listRecent)
+- `ReplenishmentHandler` - Pull replenishment; fires `DcDemandChanged` whenever a request is created (methods: request, replenishIfLow / replenishAllIfLow - via AutoReplenishmentReceiver, after a sale / a period close, fulfilPending - after a delivery, via DeliveryEventReceiver, fulfil/reject - head office, listPending, listRecent)
 - `StockRequest` / `ParsedStockRequest` - What a location asks for (location, productName, quantity 1-2000), via `parse()` like the supplier orders
 - `ReplenishmentRequest` - Stored request (id, location, productName, requested, delivered, status, origin, createdAt)
 - `RequestStatus` - Enum (PENDING, FULFILLED, REJECTED)
@@ -208,10 +209,17 @@ Complete inventory of all classes participating in the system flows, organized b
 - `FairShare` - Pure: splits DC stock among requests in proportion to outstanding (largest remainder, ties to the oldest)
 
 ### cross.reorder
-- `ReorderPolicy` - Domain constants per location type (α, z, lead time L, covered periods R, initial avg), chosen by a switch over `Replenished`; the DC has none yet
+- `ReorderPolicy` - Domain constants per location type (α, z, lead time L, covered periods R, initial avg), chosen by a switch over `Location`; the DC's demand is what the locations request from it
 - `DemandEstimate` - Exponentially smoothed mean/variance of the demand per period (`initial`, `next` - pure)
 - `LearnedLevels` - min (reorder point) / max (order-up-to), rounded up (`of`, `reorderQuantity(available, outstanding)` - pure)
 - `ReorderPolicyHandler` - closePeriod: `InventoryRepositorySPI.closePeriod()`, audit `PERIOD_CLOSED`, fires `LevelsRecalculated`
+
+### cross.purchasing
+- `SupplierOrderRepositorySPI` - The DC's supplier orders, each method one transaction with the DC stock row locked first (methods: open - records an order before it is sent, openIfLow - automatic: position = available + open orders − pending requests (the DC's backorders), below min → AUTOMATIC order up to max (≤ 2000), checked and recorded in one locked transaction, cancel, receiveDelivery - DC stock + close open orders oldest first, findOpen)
+- `PurchasingHandler` - Central purchasing (methods: orderIfLow(productName) - via AutoPurchasingReceiver, `openIfLow`, audit `AUTO_SUPPLIER_ORDER_CREATED`, then the commodity Handler's `place` chosen by `ProductType`; listOpen)
+- `SupplierOrder` - Stored order (id, productName, type, quantity, delivered, status, origin, createdAt; outstanding, describe)
+- `SupplierOrderStatus` - Sealed interface (`Open` | `Delivered` | `Cancelled`, constants `OPEN`/`DELIVERED`/`CANCELLED`, `name()`/`of`)
+- `SupplierOrderOrigin` - Sealed interface (`Manual` | `Automatic`, constants `MANUAL`/`AUTOMATIC`, `name()`/`of`)
 
 **Responsibilities**:
 - Implement business logic for each use case
@@ -226,16 +234,18 @@ Complete inventory of all classes participating in the system flows, organized b
 
 ## outbound-postgres
 
-**Purpose**: PostgreSQL persistence adapter - implements InventoryRepositorySPI and ReplenishmentRepositorySPI
-**Package**: `org.svenehrke.triptychdemo.cross.inventory`, `org.svenehrke.triptychdemo.cross.replenishment`
+**Purpose**: PostgreSQL persistence adapter - implements InventoryRepositorySPI, ReplenishmentRepositorySPI and SupplierOrderRepositorySPI
+**Package**: `org.svenehrke.triptychdemo.cross.inventory`, `org.svenehrke.triptychdemo.cross.replenishment`, `org.svenehrke.triptychdemo.cross.purchasing`
 
 ### Services
 - `InventoryService` - Implements InventoryRepositorySPI using Hibernate/Panache ORM
   - Manages StockEntity persistence (one row per location and product)
   - Handles stock additions and deductions per location, demand recording and the period close (calls core's pure `DemandEstimate`/`LearnedLevels`)
-- `StockEntity` - Panache entity backing the `stock` table (unique on locationId + name + type; plus periodDemand, avgDemand, demandVar, minLevel, maxLevel - null at the DC)
-- `ReplenishmentService` - Implements ReplenishmentRepositorySPI: stock transfer and request update in one transaction; locks the DC stock row first, then requests, then the target row; `requestIfLow` locks the DC row, then the target row, sums the outstanding requests and stores an AUTOMATIC request if below min (unserved); `allocate` shares the DC stock via `FairShare`
+- `StockEntity` - Panache entity backing the `stock` table (unique on locationId + name + type; plus periodDemand, avgDemand, demandVar, minLevel, maxLevel - at the DC, too)
+- `ReplenishmentService` - Implements ReplenishmentRepositorySPI: stock transfer and request update in one transaction; locks the DC stock row first, then requests, then the target row; `requestIfLow` locks the DC row, then the target row, sums the outstanding requests and stores an AUTOMATIC request if below min (unserved); `allocate` shares the DC stock via `FairShare`; every request created adds its quantity to the DC row's periodDemand
 - `ReplenishmentRequestEntity` - Panache entity backing the `replenishment_request` table
+- `SupplierOrderService` - Implements SupplierOrderRepositorySPI; locks the DC stock row first, then the supplier orders
+- `SupplierOrderEntity` - Panache entity backing the `supplier_order` table (status/origin stored by name via JPA `AttributeConverter`s)
 
 **Technology**: Quarkus Panache (ORM), Hibernate, PostgreSQL
 **Database**: `stock` and `replenishment_request` tables in PostgreSQL
@@ -413,7 +423,7 @@ Complete inventory of all classes participating in the system flows, organized b
 ### Presentation Layer (HTTP Inbound)
 - `inbound-http-html` module - HTML user interfaces (AdminReceiver, ShopReceiver, LocationReceiver, InventoryEventsReceiver)
 - `inbound-http-jsonapi` module - JSON REST API (ProductApiReceiver, LocationApiReceiver)
-- `inbound-event` module - CDI async domain events from core and timers (DeliveryEventReceiver, AutoReplenishmentReceiver, DemandPeriodReceiver)
+- `inbound-event` module - CDI async domain events from core and timers (DeliveryEventReceiver, AutoReplenishmentReceiver, AutoPurchasingReceiver, DemandPeriodReceiver)
 - Responsibility: Handle HTTP requests, return HTTP responses (HTML or JSON)
 - Package: `cross` in both modules (both aggregate across every commodity)
 
@@ -428,7 +438,7 @@ Complete inventory of all classes participating in the system flows, organized b
 - Responsibility: Implement business logic, coordinate flow between inbound and outbound
 
 ### Data Persistence Layer
-- `outbound-postgres` module - InventoryService (StockEntity), ReplenishmentService (ReplenishmentRequestEntity), packages `cross.inventory`, `cross.replenishment`
+- `outbound-postgres` module - InventoryService (StockEntity), ReplenishmentService (ReplenishmentRequestEntity), SupplierOrderService (SupplierOrderEntity), packages `cross.inventory`, `cross.replenishment`, `cross.purchasing`
 - `outbound-mongodb` module - AuditLogService (AuditLogEntryEntity), package `cross.auditlog`
 - Responsibility: Persist and query data
 
@@ -455,9 +465,9 @@ Complete inventory of all classes participating in the system flows, organized b
 | inbound-http-html | 4 | HTTP HTML Receivers |
 | inbound-http-jsonapi | 3 | HTTP JSON API Receivers + request records |
 | inbound-kafka | 8 + 3 | Kafka Receivers + cashpoint message types |
-| inbound-event | 3 | CDI event / scheduled Receivers |
-| core | 14 Handlers, 10 SPI interfaces, 27 domain records/enum/sealed interfaces/events | Feature (7 packages) + Cross (7 packages) |
-| outbound-postgres | 4 | Services (InventoryService, ReplenishmentService) + Entities (StockEntity, ReplenishmentRequestEntity) |
+| inbound-event | 4 | CDI event / scheduled Receivers |
+| core | 15 Handlers, 11 SPI interfaces, 32 domain records/enum/sealed interfaces/events | Feature (7 packages) + Cross (8 packages) |
+| outbound-postgres | 6 | Services (InventoryService, ReplenishmentService, SupplierOrderService) + Entities (StockEntity, ReplenishmentRequestEntity, SupplierOrderEntity) |
 | outbound-mongodb | 2 | Service (AuditLogService) + Entity (AuditLogEntryEntity) |
 | outbound-httpclient | 3 | Services + 3 REST Clients |
 | outbound-webservice | 3 | Services + 3 SOAP Clients |
@@ -466,7 +476,7 @@ Complete inventory of all classes participating in the system flows, organized b
 | external-outbound-soap | 3 | Supplier Stubs |
 | external-outbound-kafka | 1 | Supplier Stub |
 | external-inbound-kafka | 2 | Mock Event Sources |
-| **Total** | **~95 classes** | **across 15 Maven modules (child modules of the root POM, app-server included)** |
+| **Total** | **~103 classes** | **across 15 Maven modules (child modules of the root POM, app-server included)** |
 
 ---
 

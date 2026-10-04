@@ -93,7 +93,8 @@ export const QuantityButtons = (): HtmlResult => html`
 
 const STATUS_TAGS: Record<string, string> = {PENDING: "is-warning", FULFILLED: "is-success", REJECTED: "is-danger"};
 
-export const OriginTag = (r: RequestVM): HtmlResult =>
+// Also used for supplier orders, which have the same two origins.
+export const OriginTag = (r: {origin: string}): HtmlResult =>
 	r.origin === 'AUTOMATIC' ? html`<span class="tag is-info is-light">auto</span>` : html`<span class="has-text-grey">manual</span>`;
 
 const RequestRow = (r: RequestVM): HtmlResult => html`

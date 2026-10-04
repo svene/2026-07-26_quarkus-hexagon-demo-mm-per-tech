@@ -20,7 +20,7 @@ public class ReorderPolicyHandler {
     Event<InventoryEvent> inventoryEvents;
 
     /**
-     * Folds the period's demand into every stock row's estimate and recalculates its levels (see
+     * Folds the period's demand into every stock row's estimate (the DC's included) and recalculates its levels (see
      * {@link InventoryRepositorySPI#closePeriod()}), then fires {@link LevelsRecalculated}, so every location re-checks
      * its stock against the new levels.
      */

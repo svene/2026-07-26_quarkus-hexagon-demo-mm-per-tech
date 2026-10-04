@@ -16,8 +16,8 @@ receiver -> broadcaster: subscribe events()
 receiver --> user: event: inventoryChanged (on connect)
 
 == an inventory change (Kafka delivery, checkout, cashpoint sale, replenishment request) ==
-handler -> db: addAmount / deductAll / transfer (committed)
-handler ->> broadcaster: fireAsync(InventoryEvent)\nDeliveredToDc | StockDeducted | ReplenishmentChanged
+handler -> db: receiveDelivery / deductAll / transfer / supplier order (committed)
+handler ->> broadcaster: fireAsync(InventoryEvent)\nDeliveredToDc | StockDeducted | ReplenishmentChanged |\nLevelsRecalculated | DcDemandChanged | SupplierOrdersChanged
 note right of broadcaster
   @ObservesAsync InventoryEvent: one observer for
   all kinds (CDI delivers subtypes to it)

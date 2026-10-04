@@ -153,6 +153,15 @@ PlantUML sequence diagrams for all primary flows in the supermarket inventory sy
 - **Participants**: none (timer, CDI events)
 - **Databases**: PostgreSQL (`stock`, `replenishment_request`), MongoDB (audit log)
 
+### Automatic Supplier Orders
+**File**: `auto-purchasing.puml`
+- **Trigger**: `DcDemandChanged` (a store / the online FC requested from the DC) or `LevelsRecalculated` (after a period close)
+- **Flow**: AutoPurchasingReceiver → PurchasingHandler → SupplierOrderService → PostgreSQL; then the commodity Handler's `place` → supplier, like a manual order
+- **Actions**: the DC's position (available + open supplier orders − pending requests) below its learned min → AUTOMATIC supplier order up to max; the delivery closes it, oldest first
+- **Returns**: nothing (async)
+- **Participants**: none (CDI events)
+- **Databases**: PostgreSQL (`stock`, `replenishment_request`, `supplier_order`), MongoDB (audit log)
+
 ## Event-Driven Flow (Kafka Inbound)
 
 ### Cashpoint Purchase Event

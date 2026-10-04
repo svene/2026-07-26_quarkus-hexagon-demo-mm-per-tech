@@ -8,8 +8,10 @@ import type {
 	LevelsVM,
 	LocationVM,
 	OrderErrorsVM,
+	AdminSupplierOrdersVM,
 	RequestVM,
-	StockRowVM
+	StockRowVM,
+	SupplierOrderVM
 } from "./generated/vm-types";
 import type {HtmlResult} from "./route-types";
 import {OriginTag, QuantityButtons} from "./location";
@@ -80,6 +82,11 @@ export const AdminPage = (vm: AdminPageVM): HtmlResult => html`
 			<div id="admin-requests" hx-get="/admin/requests-fragment" hx-trigger="inventoryChanged from:body" hx-sync="this:replace" hx-swap="innerMorph">
 				${AdminRequests({requests: vm.pendingRequests})}
 			</div>
+
+			<h2 class="title is-4 mt-5">Supplier Orders</h2>
+			<div id="admin-supplier-orders" hx-get="/admin/supplier-orders-fragment" hx-trigger="inventoryChanged from:body" hx-sync="this:replace" hx-swap="innerMorph">
+				${AdminSupplierOrders({supplierOrders: vm.supplierOrders})}
+			</div>
 		</div>
 	</div>
 
@@ -109,8 +116,8 @@ export const AdminInventory = (vm: AdminInventoryVM): HtmlResult => html`
 // Narrow enough that two-word names like "Store Basel" wrap.
 const LocationHeader = (l: LocationVM): HtmlResult => html`<th class="has-text-right" data-location="${l.id}" style="max-width:5em">${l.name}</th>`;
 
-// The cells to act on: an empty DC (order from the supplier) is red; a store / the online FC below its learned reorder
-// point is orange (it requests from the DC automatically), its title shows the levels.
+// The cells to act on, each below its learned reorder point - its title shows the levels: the DC is red (it orders from
+// the supplier automatically), a store / the online FC orange (it requests from the DC automatically).
 // (A location without a row for the product has no levels yet: there, only 0 counts as low.)
 const AmountCell = (amount: number, levels: LevelsVM | null, i: number): HtmlResult => {
 	const low = levels ? amount < levels.min : amount === 0;
@@ -165,6 +172,32 @@ const PendingRequestRow = (r: RequestVM): HtmlResult => html`
 			</div>
 		</td>
 		<td class="has-text-danger is-size-7 request-error"></td>
+	</tr>
+`;
+
+// The DC's open supplier orders, oldest first. A delivery closes them oldest first (deliveries carry no order id), so a
+// partial one shows here as delivered < ordered. Read-only: the suppliers always deliver.
+export const AdminSupplierOrders = (vm: AdminSupplierOrdersVM): HtmlResult => html`
+	${vm.supplierOrders.length === 0
+		? html`<p class="has-text-grey"><em>No open supplier orders.</em></p>`
+		: html`
+			<table class="table is-fullwidth is-striped is-narrow" id="supplier-orders">
+				<thead>
+				<tr><th>#</th><th>Product</th><th>Type</th><th class="has-text-right">Delivered</th><th>Origin</th></tr>
+				</thead>
+				<tbody>
+				${vm.supplierOrders.map(SupplierOrderRow)}
+				</tbody>
+			</table>`}
+`;
+
+const SupplierOrderRow = (o: SupplierOrderVM): HtmlResult => html`
+	<tr id="supplier-order-${o.id}">
+		<td>${o.id}</td>
+		<td>${o.productName}<br><span class="is-size-7 has-text-grey" title="Ordered at">${o.createdAt}</span></td>
+		<td>${o.type}</td>
+		<td class="has-text-right">${o.delivered} / ${o.quantity}</td>
+		<td>${OriginTag(o)}</td>
 	</tr>
 `;
 

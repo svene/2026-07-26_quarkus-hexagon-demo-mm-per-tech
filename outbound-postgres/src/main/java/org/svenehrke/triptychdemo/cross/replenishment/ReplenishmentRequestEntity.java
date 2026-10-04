@@ -55,6 +55,16 @@ public class ReplenishmentRequestEntity extends PanacheEntity {
             .getSingleResult().intValue();
     }
 
+    /** What is still to be delivered by all pending requests of {@code productName}: the DC's backorders. */
+    public static int outstanding(String productName) {
+        return getEntityManager()
+            .createQuery("select coalesce(sum(r.requested - r.delivered), 0) from ReplenishmentRequestEntity r"
+                + " where r.productName = :productName and r.status = :status", Long.class)
+            .setParameter("productName", productName)
+            .setParameter("status", RequestStatus.PENDING)
+            .getSingleResult().intValue();
+    }
+
     /** Oldest first: the order they are locked in, and the tie-break of the fair share. */
     public static List<ReplenishmentRequestEntity> findPendingForUpdate(String productName) {
         return find("productName = ?1 and status = ?2", Sort.by("id"), productName, RequestStatus.PENDING)

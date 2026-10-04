@@ -1,6 +1,7 @@
 package org.svenehrke.triptychdemo.cross.replenishment;
 
 import org.svenehrke.triptychdemo.cross.auditlog.AuditLogSPI;
+import org.svenehrke.triptychdemo.cross.inventory.DcDemandChanged;
 import org.svenehrke.triptychdemo.cross.inventory.InventoryEvent;
 import org.svenehrke.triptychdemo.cross.inventory.ReplenishmentChanged;
 import org.svenehrke.triptychdemo.cross.location.Locations;
@@ -18,7 +19,9 @@ import java.util.stream.Stream;
  * ({@link FairShare}) and the transactions live in {@link ReplenishmentRepositorySPI}.
  * <p>
  * Every change fires a {@link ReplenishmentChanged}, also when no stock moved, since the pages showing stock show the
- * requests, too.
+ * requests, too. Creating a request also fires a {@link DcDemandChanged}: it lowers the DC's inventory position, as a
+ * new backorder or as stock leaving the DC. Serving a request that already exists does not, since its backorder
+ * shrinks by what leaves.
  */
 @ApplicationScoped
 public class ReplenishmentHandler {
@@ -47,6 +50,7 @@ public class ReplenishmentHandler {
             auditLog.log("ReplenishmentHandler: REQUEST_PENDING", describe(stored));
         }
         fireChanged(Stream.concat(Stream.of(stored.location()), locations(transfers)));
+        inventoryEvents.fireAsync(new DcDemandChanged(request.productName()));
         return Optional.of(stored);
     }
 
@@ -116,6 +120,7 @@ public class ReplenishmentHandler {
             .filter(r -> transfers.stream().noneMatch(t -> t.request().id() == r.id()))
             .forEach(r -> auditLog.log("ReplenishmentHandler: REQUEST_PENDING", describe(r)));
         fireChanged(Stream.concat(created.stream().map(ReplenishmentRequest::location), locations(transfers)));
+        inventoryEvents.fireAsync(new DcDemandChanged(productName));
     }
 
     private static Stream<Replenished> locations(List<Transfer> transfers) {

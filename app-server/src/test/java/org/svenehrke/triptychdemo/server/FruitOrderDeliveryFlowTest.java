@@ -67,6 +67,9 @@ class FruitOrderDeliveryFlowTest {
             // FRUIT_INVENTORY_UPDATED proves InventoryHandler's call to InventoryRepositorySPI returned.
             assertThat(auditHelper.findEventDetails("InventoryHandler: FRUIT_INVENTORY_UPDATED"))
                 .containsExactly("dc: Mango +5");
+            // SUPPLIER_ORDER_DELIVERED proves the delivery closed the order FruitsHandler recorded before placing it.
+            assertThat(auditHelper.findEventDetails("InventoryHandler: SUPPLIER_ORDER_DELIVERED")).singleElement()
+                .asString().endsWith("Mango 5/5 DELIVERED MANUAL");
         });
     }
 }

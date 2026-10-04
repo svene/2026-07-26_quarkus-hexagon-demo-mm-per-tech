@@ -9,9 +9,9 @@ import java.util.List;
 import java.util.SortedMap;
 
 /**
- * Stock per location; moving stock between locations is {@code ReplenishmentRepositorySPI}'s job. A stock row of a
- * store or the online FC also carries its learned demand and reorder levels ({@code cross.reorder}); a new one starts
- * with the cold-start estimate of its location's {@code ReorderPolicy}.
+ * Stock per location; moving stock between locations is {@code ReplenishmentRepositorySPI}'s job, supplier deliveries
+ * to the DC are {@code SupplierOrderRepositorySPI}'s. Every stock row also carries its learned demand and reorder levels
+ * ({@code cross.reorder}); a new one starts with the cold-start estimate of its location's {@code ReorderPolicy}.
  */
 public interface InventoryRepositorySPI {
 	Product addAmount(Location location, String name, ProductType type, int delta);
@@ -32,8 +32,8 @@ public interface InventoryRepositorySPI {
 
 	/**
 	 * Closes the demand period: first gives every store and the online FC a row for every product the DC carries,
-	 * then folds each row's period demand into its estimate, recalculates its levels and resets the period demand -
-	 * one short transaction per row. Returns the number of rows.
+	 * then folds each row's period demand into its estimate (the DC's rows included), recalculates its levels and
+	 * resets the period demand - one short transaction per row. Returns the number of rows.
 	 */
 	int closePeriod();
 

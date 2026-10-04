@@ -3,6 +3,7 @@ package org.svenehrke.triptychdemo.cross;
 import org.svenehrke.triptychdemo.cross.auditlog.AuditLogHandler;
 import org.svenehrke.triptychdemo.cross.location.Locations;
 import org.svenehrke.triptychdemo.cross.products.ProductsHandler;
+import org.svenehrke.triptychdemo.cross.purchasing.PurchasingHandler;
 import org.svenehrke.triptychdemo.cross.replenishment.ReplenishmentHandler;
 import org.svenehrke.triptychdemo.feature.bakery.BakeryHandler;
 import org.svenehrke.triptychdemo.feature.bakery.BakeryOrder;
@@ -67,6 +68,8 @@ public class AdminReceiver {
     @Inject
     ReplenishmentHandler replenishmentHandler;
     @Inject
+    PurchasingHandler purchasingHandler;
+    @Inject
     AuditLogHandler auditLogHandler;
 
     /** The static page shell; its {@code #app} element loads {@link #page()} and renders it in the browser. */
@@ -80,7 +83,7 @@ public class AdminReceiver {
     @Path("/page")
     @Produces(MediaType.APPLICATION_JSON)
     public UiResponse page() {
-        return UiResponse.of(UiRoute.AdminPage, new AdminPageVM(locations(), products(), pendingRequests(), auditEntries()));
+        return UiResponse.of(UiRoute.AdminPage, new AdminPageVM(locations(), products(), pendingRequests(), supplierOrders(), auditEntries()));
     }
 
     @GET
@@ -95,6 +98,13 @@ public class AdminReceiver {
     @Produces(MediaType.APPLICATION_JSON)
     public UiResponse requestsFragment() {
         return UiResponse.of(UiRoute.AdminRequests, new AdminRequestsVM(pendingRequests()));
+    }
+
+    @GET
+    @Path("/supplier-orders-fragment")
+    @Produces(MediaType.APPLICATION_JSON)
+    public UiResponse supplierOrdersFragment() {
+        return UiResponse.of(UiRoute.AdminSupplierOrders, new AdminSupplierOrdersVM(supplierOrders()));
     }
 
     /** Serves the request with whatever the DC has, ahead of older ones; the rest stays pending. */
@@ -255,6 +265,10 @@ public class AdminReceiver {
 
     private List<RequestVM> pendingRequests() {
         return replenishmentHandler.listPending().stream().map(RequestVM::of).toList();
+    }
+
+    private List<SupplierOrderVM> supplierOrders() {
+        return purchasingHandler.listOpen().stream().map(SupplierOrderVM::of).toList();
     }
 
     private List<AuditEntryVM> auditEntries() {

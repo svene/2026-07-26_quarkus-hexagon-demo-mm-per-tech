@@ -182,3 +182,28 @@ test('clicking a quantity button of an inventory row restocks that amount at the
   // No reload: the delivery arrives via Kafka and the SSE-triggered morph updates the row.
   await expect.poll(available, { timeout: 15_000 }).toBe(25);
 });
+
+// The DC learns its levels like the stores: a fresh product starts with the cold-start levels (min 136 / max 316), so 5
+// is below min and red. (Automatic supplier orders are off on the e2e server, so nothing tops it up.)
+test('a DC cell shows its learned levels and is red below min', async ({ page }) => {
+  const name = `Kiwi-${RUN_ID}`;
+  await page.goto('/admin');
+  await stockFruit(page.request, name, 5);
+  await waitForProductRow(page, name);
+
+  const dcCell = inventoryRow(page, name).getByRole('cell').nth(2);
+  await expect(dcCell).toHaveAttribute('title', 'min 136 / max 316');
+  await expect(dcCell).toHaveClass(/has-text-danger/);
+});
+
+// The stubs deliver right away, so an order is open only for a moment; that it is listed while open is covered by
+// SupplierOrderFlowTest. Here: the section is there, and live.
+test('the supplier orders section lists no open order once the delivery has arrived', async ({ page }) => {
+  const name = `Lime-${RUN_ID}`;
+  await page.goto('/admin');
+  await expect(page.getByRole('heading', { name: 'Supplier Orders' })).toBeVisible();
+  await stockFruit(page.request, name, 5);
+  await waitForProductRow(page, name);
+
+  await expect(page.locator('#admin-supplier-orders').getByRole('cell', { name, exact: false })).toHaveCount(0, { timeout: 15_000 });
+});

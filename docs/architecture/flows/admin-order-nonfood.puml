@@ -13,7 +13,7 @@ participant "NonFoodSupplierStub\n(External)" as stub
 participant "Kafka Topic:\nnonfood-deliveries" as kafka_delivery
 participant "NonFoodDeliveryReceiver\n(Kafka)" as kafka_receiver
 participant "InventoryHandler\n(Core)" as inv_handler
-participant "InventoryService\n(PostgreSQL)" as inventory
+participant "SupplierOrderService\n(PostgreSQL)" as inventory
 database "PostgreSQL\n(Inventory)" as db_inv
 database "MongoDB\n(Audit)" as db_audit
 
@@ -25,7 +25,9 @@ receiver -> handler: order(productName, quantity)
 handler -> audit: log("NONFOOD_ORDER_PROCESSING")
 audit -> db_audit: Insert audit entry
 audit --> handler
-handler -> service: placeOrder(productName, quantity)
+handler -> inventory: SupplierOrderRepositorySPI.open(…, MANUAL)\n(recorded before sending: the delivery may arrive first)
+inventory -> db_inv: INSERT supplier_order (OPEN)
+handler -> service: placeOrder(productName, quantity)\n(throws → cancel the order)
 service -> kafka_order: publish order message
 kafka_order --> service: ack
 service --> handler
@@ -48,8 +50,8 @@ kafka_receiver -> audit: log("NON_FOOD_DELIVERY_RECEIVED")
 audit -> db_audit: Insert audit entry
 audit --> kafka_receiver
 kafka_receiver -> inv_handler: updateNonFoodAmount(productName, quantity)
-inv_handler -> inventory: addAmount(DC, productName, quantity)
-inventory -> db_inv: UPDATE stock SET availableAmount += quantity (DC row)
+inv_handler -> inventory: receiveDelivery(productName, type, quantity)
+inventory -> db_inv: one transaction: UPDATE stock (DC row) += quantity;\nclose open supplier_orders of the product oldest first
 db_inv --> inventory
 inventory --> inv_handler
 inv_handler -> audit: log("NON_FOOD_INVENTORY_UPDATED")

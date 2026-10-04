@@ -53,4 +53,17 @@ class LearnedLevelsTest {
 	void reorderQuantity_isZero_aboveMax() {
 		assertThat(new LearnedLevels(8, 20).reorderQuantity(30, 0)).isZero();
 	}
+
+	@Test
+	void reorderQuantity_alsoCoversBackorders_whenOutstandingIsNegative() {
+		// the DC: 0 available, 30 open in supplier orders, 50 requested by the locations → position −20
+		assertThat(new LearnedLevels(8, 20).reorderQuantity(0, 30 - 50)).isEqualTo(40);
+	}
+
+	@Test
+	void of_dcColdStart() {
+		// avg 60, var 60, L 2, R 3: min ⌈120 + 2·√60⌉ = 136, max ⌈136 + 180⌉ = 316
+		assertThat(LearnedLevels.of(DemandEstimate.initial(ReorderPolicy.DC), ReorderPolicy.DC))
+			.isEqualTo(new LearnedLevels(136, 316));
+	}
 }

@@ -70,24 +70,27 @@ public class InventoryService implements InventoryRepositorySPI {
      */
     @Override
     public int closePeriod() {
-        record Key(String name, ProductType type) {}
         var dcProducts = QuarkusTransaction.requiringNew().call(() ->
             StockEntity.<StockEntity>list("locationId", Locations.DC.id()).stream()
                 .map(e -> new Key(e.name, e.type)).toList());
         int rows = 0;
-        for (var location : Locations.REPLENISHED) {
-            var policy = ReorderPolicy.of(location);
+        for (var location : Locations.ALL) {
             for (var product : dcProducts) {
-                QuarkusTransaction.requiringNew().run(() -> {
-                    var entity = StockEntity.findForUpdate(location, product.name(), product.type())
-                        .orElseGet(() -> StockEntity.create(location, product.name(), product.type()));
-                    entity.learned(entity.estimate().next(entity.periodDemand, policy), policy);
-                    entity.periodDemand = 0;
-                });
+                QuarkusTransaction.requiringNew().run(() -> learn(location, product));
                 rows++;
             }
         }
         return rows;
+    }
+
+    private record Key(String name, ProductType type) {}
+
+    private static void learn(Location location, Key product) {
+        var policy = ReorderPolicy.of(location);
+        var entity = StockEntity.findForUpdate(location, product.name(), product.type())
+            .orElseGet(() -> StockEntity.create(location, product.name(), product.type()));
+        entity.learned(entity.estimate().next(entity.periodDemand, policy), policy);
+        entity.periodDemand = 0;
     }
 
     @Override

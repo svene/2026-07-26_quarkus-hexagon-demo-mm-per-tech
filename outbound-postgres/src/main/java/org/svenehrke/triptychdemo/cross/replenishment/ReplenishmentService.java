@@ -12,7 +12,8 @@ import java.util.Optional;
 
 /**
  * Every method that touches a product's requests locks that product's DC stock row first, so all of them are
- * serialized per product; then the requests, then the target location's row (see the SPI for why).
+ * serialized per product; then the requests, then the target location's row (see the SPI for why). Every request
+ * created adds its quantity to the DC row's period demand: what the DC learns its levels from.
  */
 @ApplicationScoped
 public class ReplenishmentService implements ReplenishmentRepositorySPI {
@@ -23,6 +24,7 @@ public class ReplenishmentService implements ReplenishmentRepositorySPI {
         var dcStock = StockEntity.findByNameForUpdate(Locations.DC, request.productName()).orElse(null);
         if (dcStock == null) return Optional.empty();
         var entity = ReplenishmentRequestEntity.create(request, RequestOrigin.MANUAL);
+        dcStock.periodDemand += request.quantity();
         var transfers = allocate(dcStock);
         return Optional.of(new Requested(entity.toDomain(), transfers));
     }
@@ -43,6 +45,7 @@ public class ReplenishmentService implements ReplenishmentRepositorySPI {
             ReplenishmentRequestEntity.outstanding(location.id(), productName));
         if (quantity <= 0) return Optional.empty();
         var request = new StockRequest(location, productName, Math.min(quantity, StockRequest.MAX_QUANTITY));
+        dcStock.periodDemand += request.quantity();
         return Optional.of(ReplenishmentRequestEntity.create(request, RequestOrigin.AUTOMATIC).toDomain());
     }
 

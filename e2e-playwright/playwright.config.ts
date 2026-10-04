@@ -14,11 +14,12 @@ export default defineConfig({
     // blocking when Playwright spawns the process without a TTY.
     // -Dquarkus.analytics.disabled=true suppresses the first-run analytics prompt.
     command: 'mvn -pl app-server quarkus:dev -Dnodebug -Dquarkus.console.enabled=false -Dquarkus.analytics.disabled=true'
-      // Automatic replenishment would race with the tests' own stock changes (e.g. drain the DC after a restock).
-      + ' -Dinventory.demand-period=off -Dinventory.auto-replenishment.enabled=false',
+      // Automatic replenishment and supplier orders would race with the tests' own stock changes (e.g. drain the DC
+      // after a restock, or refill it).
+      + ' -Dinventory.demand-period=off -Dinventory.auto-replenishment.enabled=false -Dinventory.auto-purchasing.enabled=false',
     url: 'http://localhost:8080/admin',
     timeout: 120_000,
-    // Reuse a running server locally so you can keep quarkus:dev open in a terminal (start it with the two
+    // Reuse a running server locally so you can keep quarkus:dev open in a terminal (start it with the three
     // -Dinventory... flags above, or automatic replenishment makes the stock assertions flaky).
     // In CI (CI=true) always start fresh.
     reuseExistingServer: !process.env.CI,

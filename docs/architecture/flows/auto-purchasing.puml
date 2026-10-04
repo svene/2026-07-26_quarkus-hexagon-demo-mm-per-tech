@@ -1,0 +1,41 @@
+@startuml auto_purchasing
+skinparam monochrome true
+skinparam sequenceMessageAlign center
+skinparam backgroundColor #ffffff
+
+participant "ReplenishmentHandler /\nReorderPolicyHandler\n(Core)" as source
+participant "AutoPurchasingReceiver\n(inbound-event, @ObservesAsync)" as auto
+participant "PurchasingHandler\n(Core)" as purchasing
+participant "SupplierOrderService\n(PostgreSQL)" as service
+participant "FruitsHandler / …\n(Core, by ProductType)" as commodity
+participant "FruitSupplierService / …\n(outbound adapter)" as supplier
+participant "AuditLogService\n(MongoDB)" as audit
+database "PostgreSQL\n(stock, replenishment_request,\nsupplier_order)" as db
+
+== a store / the online FC requested from the DC ==
+source ->> auto: fireAsync(DcDemandChanged(productName))
+auto -> purchasing: orderIfLow(productName)
+
+== after a period close (the DC's levels were learned, too) ==
+source ->> auto: fireAsync(LevelsRecalculated)
+loop every DC product (a failure is audit-logged, the others still run)
+  auto -> purchasing: orderIfLow(productName)
+end
+
+== orderIfLow ==
+purchasing -> service: SupplierOrderRepositorySPI.openIfLow(productName)
+service -> db: one transaction: lock DC row;\nposition = available + open supplier orders − pending requests
+alt position < min
+  service -> db: INSERT supplier_order (AUTOMATIC, OPEN, qty = max − position, ≤ 2000)
+  service --> purchasing: supplier order
+  purchasing -> audit: log("AUTO_SUPPLIER_ORDER_CREATED")
+  purchasing -> commodity: place(supplierOrder)
+  commodity -> supplier: placeOrder(productName, quantity)\n(throws → cancel the order)
+  commodity -> audit: log("FRUITS_ORDER_PLACED")
+  commodity ->> commodity: fireAsync(SupplierOrdersChanged)
+  note over supplier, db: the stub delivers via Kafka → InventoryHandler →\nreceiveDelivery: DC stock + close the order (oldest first)\n→ DeliveredToDc → fulfilPending (see admin-order-fruits.puml)
+else at or above min
+  service --> purchasing: empty
+end
+
+@enduml

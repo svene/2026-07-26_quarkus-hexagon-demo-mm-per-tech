@@ -19,7 +19,7 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.svenehrke.triptychdemo.cross.inventory.InventoryService;
+import org.svenehrke.triptychdemo.cross.purchasing.SupplierOrderService;
 import org.svenehrke.triptychdemo.cross.products.ProductType;
 
 import java.time.Duration;
@@ -31,7 +31,6 @@ import java.util.UUID;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -72,7 +71,7 @@ class KafkaTransientFailureTest {
     static String bootstrap;
 
     @Inject TestAuditLogHelper auditHelper;
-    @InjectSpy InventoryService inventoryService;
+    @InjectSpy SupplierOrderService supplierOrderService;
 
     @BeforeAll
     static void createProducer() {
@@ -100,7 +99,7 @@ class KafkaTransientFailureTest {
     void transient_failure_is_retried() throws Exception {
         doThrow(new IllegalStateException("database down"))
             .doCallRealMethod()
-            .when(inventoryService).addAmount(any(), anyString(), eq(ProductType.FRUIT), anyInt());
+            .when(supplierOrderService).receiveDelivery(anyString(), eq(ProductType.FRUIT), anyInt());
 
         send("transient-fruit-deliveries", """
             {"productName": "Mango", "quantity": 5}""");
@@ -117,7 +116,7 @@ class KafkaTransientFailureTest {
     @Test
     void persistent_failure_stops_the_channel_without_dead_lettering() throws Exception {
         doThrow(new IllegalStateException("database down"))
-            .when(inventoryService).addAmount(any(), anyString(), eq(ProductType.VEGETABLE), anyInt());
+            .when(supplierOrderService).receiveDelivery(anyString(), eq(ProductType.VEGETABLE), anyInt());
 
         send("transient-vegetables-deliveries", """
             {"productName": "Leek", "quantity": 5}""");
@@ -128,7 +127,7 @@ class KafkaTransientFailureTest {
                 .hasSize(4));
 
         // The database "recovers", but the stopped channel doesn't consume the next message.
-        doCallRealMethod().when(inventoryService).addAmount(any(), anyString(), eq(ProductType.VEGETABLE), anyInt());
+        doCallRealMethod().when(supplierOrderService).receiveDelivery(anyString(), eq(ProductType.VEGETABLE), anyInt());
         send("transient-vegetables-deliveries", """
             {"productName": "Carrot", "quantity": 5}""");
         await().during(5, SECONDS).atMost(6, SECONDS).untilAsserted(() ->

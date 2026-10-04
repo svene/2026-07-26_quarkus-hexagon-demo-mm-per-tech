@@ -2,8 +2,6 @@ package org.svenehrke.triptychdemo.cross.inventory;
 
 import org.svenehrke.triptychdemo.cross.location.Location;
 import org.svenehrke.triptychdemo.cross.location.Locations;
-import org.svenehrke.triptychdemo.cross.location.Replenished;
-import org.svenehrke.triptychdemo.cross.location.Warehouse;
 import org.svenehrke.triptychdemo.cross.products.Product;
 import org.svenehrke.triptychdemo.cross.products.ProductType;
 import org.svenehrke.triptychdemo.cross.reorder.DemandEstimate;
@@ -19,8 +17,8 @@ import jakarta.persistence.UniqueConstraint;
 import java.util.Optional;
 
 /**
- * One product's stock at one location. At a store or the online FC it also carries the learned demand and levels
- * (null at the DC, which has no {@link ReorderPolicy} yet); a new row starts with the cold-start estimate.
+ * One product's stock at one location, with its learned demand and levels; a new row starts with the cold-start
+ * estimate of its location's {@link ReorderPolicy}.
  */
 @Entity
 @Table(name = "stock", uniqueConstraints = @UniqueConstraint(columnNames = {"locationId", "name", "type"}))
@@ -35,30 +33,25 @@ public class StockEntity extends PanacheEntity {
 
     public int availableAmount;
 
-    /** What customers asked for in the current demand period. */
+    /** What customers asked for in the current demand period - at the DC: what the other locations requested. */
     public int periodDemand;
 
-    public Double avgDemand;
+    public double avgDemand;
 
-    public Double demandVar;
+    public double demandVar;
 
     /** Not {@code min}/{@code max}: SQL keywords. */
-    public Integer minLevel;
+    public int minLevel;
 
-    public Integer maxLevel;
+    public int maxLevel;
 
     public static StockEntity create(Location location, String name, ProductType type) {
         var entity = new StockEntity();
         entity.locationId = location.id();
         entity.name = name;
         entity.type = type;
-        switch (location) {
-            case Warehouse warehouse -> {}
-            case Replenished replenished -> {
-                var policy = ReorderPolicy.of(replenished);
-                entity.learned(DemandEstimate.initial(policy), policy);
-            }
-        }
+        var policy = ReorderPolicy.of(location);
+        entity.learned(DemandEstimate.initial(policy), policy);
         entity.persist();
         return entity;
     }
@@ -77,14 +70,12 @@ public class StockEntity extends PanacheEntity {
         return Locations.of(locationId);
     }
 
-    /** Null at the DC. */
     public DemandEstimate estimate() {
-        return avgDemand == null ? null : new DemandEstimate(avgDemand, demandVar);
+        return new DemandEstimate(avgDemand, demandVar);
     }
 
-    /** Null at the DC. */
     public LearnedLevels levels() {
-        return minLevel == null ? null : new LearnedLevels(minLevel, maxLevel);
+        return new LearnedLevels(minLevel, maxLevel);
     }
 
     /** Stores {@code estimate} and the levels derived from it. */
