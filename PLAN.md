@@ -156,7 +156,8 @@ deliveries, 3 physical stores (deducted by cashpoint sales) and an online fulfil
 by `/shop` and JSON API checkouts). Locations pull replenishment from the DC; reorder levels are
 learned from sales (no hand-maintained min/max); falling below them fires a CDI `StockBelowMinimum`
 event handled by a new `inbound-event` module, which requests from the DC or orders from the
-supplier. Three phases. Plan, decisions and progress are tracked in
+supplier. Three phases plus phase 4 items (supplier lead time done; direct store delivery dropped as not
+needed for the demo; in-transit transfers open). Plan, decisions and progress are tracked in
 [`docs/architecture/split-inventory_wip.md`](docs/architecture/split-inventory_wip.md).
 
 ## randomize-fill-only: Randomize (dev) buttons only fill the inputs, the user submits (DONE)
@@ -344,6 +345,25 @@ Done (2026-10-02):
   "restocking from an inventory row raises its amount live and keeps quantities typed into other rows",
   "the restock button of a row is disabled while its quantity is outside 1-2000"; the existing
   "ordering … adds it to the inventory table" tests now wait for the row without reloading.
+
+## kafka-internal-events: Replace `@ObservesAsync` with a Kafka topic the app sends to itself (TO ELABORATE)
+
+Idea (user, 2026-10-04): core's `InventoryEvent`s (`DeliveredToDc`, `StockDeducted`, `ReplenishmentChanged`,
+`LevelsRecalculated`, `DcDemandChanged`, `SupplierOrdersChanged`) are delivered with CDI `fireAsync` /
+`@ObservesAsync` today. Would it make sense to publish them to a Kafka topic instead and consume them in the same app?
+To elaborate before deciding:
+
+- **What it would buy:** durability - a `fireAsync` event is lost if the app dies after the commit (e.g. a lost
+  `DeliveredToDc` leaves requests pending until the next delivery); the existing retry / DLQ / fail-stop handling of the
+  Kafka receivers; ordering per product via the partition key; works with more than one app instance.
+- **The catch:** publishing is still not atomic with the Postgres commit - doing that properly needs a transactional
+  outbox (bigger step); higher latency; the sealed `InventoryEvent` types need (de)serialization; flow tests get more
+  asynchronous.
+- **Which consumers move:** the `inbound-event` receivers (`DeliveryEventReceiver`, `AutoReplenishmentReceiver`,
+  `AutoPurchasingReceiver`) are natural candidates. The SSE `InventoryEventBroadcaster` fits badly: every instance needs
+  every event (a consumer group per instance), so it probably stays on CDI.
+- **Hexagon placement:** core keeps firing domain events; an outbound adapter publishes them to Kafka, an inbound Kafka
+  receiver consumes them, so core does not change.
 
 ## Open questions
 

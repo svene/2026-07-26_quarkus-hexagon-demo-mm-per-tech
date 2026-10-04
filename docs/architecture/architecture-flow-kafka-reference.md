@@ -59,6 +59,8 @@ All endpoint: `placeOrder(productName, quantity)`
 
 These cycles show how external supplier integrations (REST/SOAP stubs) are decoupled using Kafka topics:
 
+Every stub publishes its delivery after the supplier lead time (`supplier-stub.lead-time`, 30s ± 20% in dev, 0 in `%test` and e2e), so the DC's supplier order stays OPEN until then.
+
 ### REST Supplier Cycles (Fruits, Vegetables, Dairy)
 
 **Topic: fruit-deliveries**

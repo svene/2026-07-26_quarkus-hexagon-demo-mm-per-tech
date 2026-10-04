@@ -5,7 +5,7 @@ distribution centre (DC) that all supplier deliveries go to, 3 physical stores a
 fulfilment centre (dark store). Locations are replenished from the DC by **pull**; reorder levels
 are **learned from sales**, not maintained by hand. Tracked as `PLAN.md` `split-inventory`.
 
-Status: **PHASE 1, 2 AND 3 DONE** — phase 1 committed 2026-10-03 (`f894a93`); phase 2 incl. the fair share committed 2026-10-03 (`b7aac71`); phase 3 (DC stage) committed 2026-10-04 (`cf79f6d`), follow-up (enums, `ProductJson`) staged. Phase 4 items are separate, later items.
+Status: **PHASE 1, 2 AND 3 DONE** — phase 1 committed 2026-10-03 (`f894a93`); phase 2 incl. the fair share committed 2026-10-03 (`b7aac71`); phase 3 (DC stage) committed 2026-10-04 (`cf79f6d`), follow-up (enums, `ProductJson`) committed (`3691af4`). Phase 4: supplier lead time done (staged); direct store delivery dropped; in-transit transfers open.
 
 ## Current state
 
@@ -153,8 +153,8 @@ JSON API: `GET /api/products` and `POST /api/products/purchase` → ONLINE.
    for STORE/ONLINE, new module `inbound-event`.
 3. **DC stage.** DC levels learned from replenishment demand, automatic supplier orders, open
    supplier orders matched by product on delivery.
-4. **Later (separate items):** direct store delivery for beverages, supplier lead time in the
-   stubs, in-transit transfers via Kafka.
+4. **Later (separate items):** ~~direct store delivery for beverages~~ (dropped 2026-10-04: not needed for the
+   demo), supplier lead time in the stubs (done 2026-10-04), in-transit transfers via Kafka.
 
 Each phase: core first (unit tests for the pure policy maths), then adapters, flow tests, Playwright
 (`admin.spec.ts`, `shop.spec.ts`, new location page spec), docs via `update-architecture-docs`
@@ -624,10 +624,25 @@ _(append dated entries as steps land)_
   - Docs: participants, flow (new "Event: DcDemandChanged" and `GET /admin/supplier-orders-fragment`, delivery tree),
     Kafka reference, new `flows/auto-purchasing.puml`, 4 order diagrams + `inventory-events.puml` updated.
   - `docs/ai/session-notes.md` commit-hash baseline: set to `cf79f6d` with the follow-up below.
-- **2026-10-04, enums vs. sealed interfaces (staged).** The status/origin types and `ProductType`, `RequestStatus`,
+- **2026-10-04, enums vs. sealed interfaces (committed in `3691af4`).** The status/origin types and `ProductType`, `RequestStatus`,
   `RequestOrigin`, `OnShortage` were briefly converted to sealed interfaces, then reverted after weighing both: the
   variants carry no data, so enums give the same exhaustive `switch` plus `name()`/`valueOf`, singletons (`==` is safe),
   `@Enumerated` and Jackson for free, while the sealed version needed hand-written `name()`/`of`, 5 JPA converters and
   `instanceof` checks. Rule: enums for fixed, field-less labels; sealed interfaces when the variants differ in data or in
   what may be done with them (`Location`, `InventoryEvent`, `PurchaseOutcome`, `Parsed*`). Kept from it: `ProductJson`
   (inbound-http-jsonapi), so the JSON API no longer serializes core's `Product` directly; the wire format is unchanged.
+- **2026-10-04, phase 4: supplier lead time (staged).** Direct store delivery dropped (not needed for the demo). The 7
+  supplier stubs deliver after `supplier-stub.lead-time` ± 20% jitter: 30s in dev (below the DC's L of 2 periods),
+  `0s` in `%test` and in the e2e dev server (`playwright.config.ts`). A `LeadTime` bean per external module (rest, soap,
+  kafka - independent suppliers, so one copy each) schedules the `emitter.send` on Mutiny's default worker pool, so the
+  thread that received the order (REST/SOAP request, Kafka consumer) returns right away; the delay is at least 1 ms,
+  since Quarkus' pool schedules on Vert.x timers, which reject less. No change in core or the adapters: the DC position
+  already counts open supplier orders, which now stay `OPEN` until the delivery arrives.
+  - Tests: `SupplierLeadTimeFlowTest` (own profile, lead time 2s; REST and Kafka stub: the order call returns in < 1 s,
+    the order is open and nothing delivered, then delivered and closed no earlier than 1.6 s after the order).
+    All 142 app-server tests green; e2e 24/24 (`--retries=0`) twice. The first two e2e runs after the code change had 14
+    SSE/delivery timeouts: global-setup's rebuild changed many classes, the dev server restarted twice overlapping
+    ("Cannot reset a started application", then a `ClassCastException` on `/inventory/events`). Not reproducible once
+    the jars were current - the same effect as the 13 timeouts noted on 2026-10-03.
+  - Docs: `architecture-module-participants.md` (external modules), `architecture-flow-kafka-reference.md` (topic
+    cycles intro).

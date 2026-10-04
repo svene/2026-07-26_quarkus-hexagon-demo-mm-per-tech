@@ -31,7 +31,7 @@ import static org.awaitility.Awaitility.await;
 /**
  * Learned DC levels and automatic supplier orders. Automatic replenishment of the stores stays off, so stock only
  * leaves the DC on the requests a test makes; the period is closed by calling {@link ReorderPolicyHandler} directly.
- * The supplier stubs deliver right away (via Kafka), like in dev mode.
+ * The supplier stubs deliver right away (via Kafka): their lead time is 0 in tests.
  * <p>
  * Cold-start DC levels (avg 60, var 60, L 2, R 3): min 136, max 316.
  */

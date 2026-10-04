@@ -342,10 +342,11 @@ Complete inventory of all classes participating in the system flows, organized b
 - `FruitSupplierStub` - Mock REST endpoint for fruit supplier
 - `VegetablesSupplierStub` - Mock REST endpoint for vegetable supplier
 - `DairySupplierStub` - Mock REST endpoint for dairy supplier
+- `LeadTime` - delays a stub's delivery (one copy per external-outbound module)
 
 **Responsibilities**:
 - Receive order requests via REST (called by outbound-httpclient services)
-- Publish delivery notifications to Kafka topics (`fruit-deliveries`, `vegetables-deliveries`, `dairy-deliveries`)
+- Publish delivery notifications to Kafka topics (`fruit-deliveries`, `vegetables-deliveries`, `dairy-deliveries`) after the supplier lead time (`LeadTime`: `supplier-stub.lead-time`, 30s ± 20% in dev, 0 in `%test` and e2e; scheduled on Mutiny's worker pool, so the receiving thread returns right away)
 - Simulate supplier behavior
 
 **Technology**: JAX-RS REST endpoint, Quarkus SmallRye Reactive Messaging Emitter
@@ -363,10 +364,11 @@ Complete inventory of all classes participating in the system flows, organized b
 - `BeverageSupplierStub` - Mock SOAP endpoint for beverage supplier
 - `MeatSupplierStub` - Mock SOAP endpoint for meat supplier
 - `BakerySupplierStub` - Mock SOAP endpoint for bakery supplier
+- `LeadTime` - delays a stub's delivery
 
 **Responsibilities**:
 - Receive order requests via SOAP (called by outbound-webservice services)
-- Publish delivery notifications to Kafka topics (`beverages-deliveries`, `meat-deliveries`, `bakery-deliveries`)
+- Publish delivery notifications to Kafka topics (`beverages-deliveries`, `meat-deliveries`, `bakery-deliveries`) after the supplier lead time (`LeadTime`: `supplier-stub.lead-time`, 30s ± 20% in dev, 0 in `%test` and e2e; scheduled on Mutiny's worker pool, so the receiving thread returns right away)
 - Simulate supplier behavior
 
 **Technology**: Apache CXF SOAP endpoint, Quarkus SmallRye Reactive Messaging Emitter
@@ -385,11 +387,12 @@ Complete inventory of all classes participating in the system flows, organized b
 - `NonFoodSupplierStub` - Mock Kafka consumer/producer for non-food supplier
   - Consumes from `nonfood-orders` topic
   - Publishes to `nonfood-deliveries` topic
+- `LeadTime` - delays a stub's delivery
 
 **Responsibilities**:
 - Listen to order events from `nonfood-orders` topic
 - Process orders asynchronously
-- Publish delivery notifications to `nonfood-deliveries` topic
+- Publish delivery notifications to `nonfood-deliveries` topic after the supplier lead time (`LeadTime`: `supplier-stub.lead-time`, 30s ± 20% in dev, 0 in `%test` and e2e; scheduled on Mutiny's worker pool, so the receiving thread returns right away)
 - Simulate supplier behavior
 
 **Technology**: Quarkus SmallRye Reactive Messaging (@Incoming, @Outgoing)
