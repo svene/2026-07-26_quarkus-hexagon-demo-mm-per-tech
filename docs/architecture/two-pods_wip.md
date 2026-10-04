@@ -107,15 +107,20 @@ UI-only events (`ReplenishmentChanged`, `SupplierOrdersChanged`) only feed secti
 - **Graceful shutdown.** On SIGTERM, Quarkus must stop consuming, finish the message in flight and commit its offset
   before it exits: `quarkus.shutdown.timeout` (e.g. 20 s) below the pod's `terminationGracePeriodSeconds`.
 
-## 5. Database schema: migrations instead of drop-and-create (must do)
+## 5. Database schema: migrations instead of drop-and-create (DONE 2026-10-04)
 
-`quarkus.hibernate-orm.database.generation=drop-and-create` drops all tables whenever **a pod starts**. With two pods,
-every restart or rolling update would wipe the stock of the running pod.
+`quarkus.hibernate-orm.database.generation=drop-and-create` dropped all tables whenever **a pod started**. With two pods,
+every restart or rolling update would have wiped the stock of the running pod.
 
-What to do:
-- Flyway migrations (`quarkus-flyway` is already prepared, commented out, in `outbound-postgres/pom.xml`) and
-  `database.generation=none` (or `validate`) outside dev/test. Flyway takes a database lock, so two pods starting at
-  once migrate only once.
+Done (2026-10-04, first triggered by the in-transit transfers: a dev-mode reload restarted the shipment ids while Kafka
+kept its arrival messages):
+- Flyway migrations: `quarkus-flyway` + `quarkus-flyway-postgresql` in `outbound-postgres`,
+  `db/migration/V1__initial_schema.sql`, `migrate-at-start`; `database.generation=validate` in every profile, so an
+  entity change without its migration fails at startup. Flyway takes a database lock, so two pods starting at once
+  migrate only once. Tests clean the schema at every app start (`%test.quarkus.flyway.clean-at-start`); dev mode keeps
+  the data across live reloads.
+
+Still to keep in mind:
 - Rolling updates run old and new versions side by side for a while, so schema changes must be **expand/contract**:
   add a column in one release, start using it in the next, drop the old one in a third. Never rename in place.
 - The same holds for Kafka message formats and the SSE / fragment contract between old and new pods: new fields
@@ -140,7 +145,7 @@ What to do:
 
 ## Suggested order
 
-1. Schema migrations (section 5) - without them a second pod destroys the data.
+1. ~~Schema migrations (section 5)~~ - done 2026-10-04.
 2. Single-instance period close (section 1).
 3. Idempotent Kafka consumers (section 4, redelivery).
 4. Cross-pod SSE fan-out via Kafka (section 2).

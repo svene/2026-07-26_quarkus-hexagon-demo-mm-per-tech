@@ -356,6 +356,55 @@ migrations instead of `drop-and-create`, health probes and the stubs as separate
 implement it for now (2026-10-04). Analysis and suggested order:
 [`docs/architecture/two-pods_wip.md`](docs/architecture/two-pods_wip.md).
 
+## store-capacity: Store sales driven by customers in the store, not a fixed timer (TO ELABORATE)
+
+Added 2026-10-04 at the user's request. Today the cashpoint traffic of the physical stores comes from one timer:
+`CashpointStub` (`external-inbound-kafka`, `@Scheduled(every = "10s")`) picks a random store each tick and sells from its
+stock, so every store sells at the same average rate, whatever its size.
+
+Replace that with a **capacity per store**: the maximum number of customers in the store at the same time. The capacity
+drives the purchase frequency at the store's checkout - a bigger store has more customers shopping, so more purchases
+per minute. The three stores become:
+
+| Store | Size | Capacity (customers at a time) |
+|---|---|---|
+| (one of Zurich / Bern / Basel) | small | 50 |
+| (one of Zurich / Bern / Basel) | medium | 150 |
+| (one of Zurich / Bern / Basel) | big | 500 |
+
+To elaborate before planning: which store gets which size; how customers enter, shop and leave (arrival rate, time in
+the store, occupancy vs. capacity, e.g. "customers waiting outside" when full); how the occupancy turns into purchases
+(one checkout per leaving customer?); whether the capacity is domain data in core (`Store`) or only configuration of the
+stub (the external checkout systems); whether the occupancy is shown in the UI; and the two-pod constraints
+([`two-pods_wip.md`](docs/architecture/two-pods_wip.md): the simulation is an external system, so no per-pod timer in
+the app). The learned reorder levels should then differ per store by themselves, since demand differs.
+
+## plain-sql: Replace JPA (Hibernate/Panache) with plain SQL in outbound-postgres (TO ELABORATE)
+
+Added 2026-10-04 at the user's request. The change stays inside `outbound-postgres` (~725 lines: 4 entities, 3 Services)
+plus the test helper `TestInventoryHelper`; core and the SPIs don't change - the hexagon at work. Flyway stays and
+owns the schema either way.
+
+Assessment (2026-10-04) - no real disadvantage for this demo, a few costs:
+- **More code for writes.** Today the Services change entity fields (`dcStock.availableAmount -= quantity`) and
+  Hibernate's dirty checking writes them on commit. With SQL every change is an explicit `UPDATE`. That is more lines,
+  but also clearer: what is written, and when, is visible in the code.
+- **Row mapping by hand** (`ResultSet` → record) for 4 tables. Small, and it can map straight to core's records
+  (`LocationStock`, `ReplenishmentRequest`, `Shipment`, `SupplierOrder`), so the entity → `toDomain()` step goes away.
+- **SQL in strings is not checked at build time.** A typo shows up at runtime; the flow tests cover every query, so
+  it would show up in the build, not in production. Today's JPQL strings are no better checked.
+- **No schema check at startup**: Hibernate's `database.generation=validate` goes away. The flow tests against the
+  Flyway schema take that role.
+- **Ids**: Panache's pooled sequences (`*_SEQ`, step 50) become `bigint generated always as identity` with
+  `INSERT … RETURNING id` (a new migration).
+
+Gains: locking becomes explicit (`SELECT … FOR UPDATE`, possibly `SKIP LOCKED`), the Hibernate workarounds go away
+(e.g. `productNameOf` "without loading, so it can be locked afterwards", first-level cache surprises), and the demo
+shows one more persistence style. `@Transactional` keeps working with the Agroal datasource.
+
+To decide: plain JDBC with a small helper (recommended, in line with avoiding heavyweight tools), Jdbi (less
+boilerplate, one more library), or jOOQ (type-safe SQL, but code generation - heavy for 4 tables).
+
 ## Open questions
 
 - Authentication/authorization is out of scope for this POC, but the separate routes (`/admin`, `/shop`) make it easy to add later.

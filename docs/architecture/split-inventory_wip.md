@@ -758,7 +758,8 @@ _(append dated entries as steps land)_
     `ShipmentTransitFlowTest` (real Kafka round trip, transit 2s); `ReplenishmentFlowTest` awaits arrivals; the test
     reset deletes shipments too (a leftover in-transit shipment had booked into the next test). 161 core + 149
     app-server tests green; e2e 24/24 (`--retries=0`), `location.spec.ts` checks the In transit column.
-  - Known limit (dev only): `drop-and-create` restarts the shipment ids while Kafka keeps its messages, so an arrival
-    redelivered after a restart could book a newer shipment with the same id early. Not an issue with Flyway (two-pods).
+  - Known limit (dev only) found here: `drop-and-create` restarted the shipment ids while Kafka kept its messages, so an
+    arrival redelivered after a restart could book a newer shipment with the same id early. **Resolved the same day by
+    Flyway** (two-pods section 5): the schema and its sequences survive restarts and live reloads, ids are never reused.
   - Docs: participants, flow, Kafka reference, new `flows/in-transit.puml`, `location-request.puml`,
     `admin-decide-request.puml`, session-notes baseline `0d3c572`.

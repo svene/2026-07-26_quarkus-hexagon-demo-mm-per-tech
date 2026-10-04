@@ -254,7 +254,8 @@ Complete inventory of all classes participating in the system flows, organized b
 - `SupplierOrderService` - Implements SupplierOrderRepositorySPI; locks the DC stock row first, then the supplier orders
 - `SupplierOrderEntity` - Panache entity backing the `supplier_order` table
 
-**Technology**: Quarkus Panache (ORM), Hibernate, PostgreSQL
+**Technology**: Quarkus Panache (ORM), Hibernate, PostgreSQL, Flyway
+**Schema**: Flyway migrations in `src/main/resources/db/migration` (`V1__initial_schema.sql`), applied at startup; Hibernate only validates (`database.generation=validate`) - every entity change needs a new `V<n>__*.sql`
 **Database**: `stock`, `replenishment_request`, `shipment` and `supplier_order` tables in PostgreSQL
 **Transactional**: Yes (@Transactional on write operations)
 

@@ -34,12 +34,15 @@
       <artifactId>quarkus-jdbc-postgresql</artifactId>
     </dependency>
 
-    <!-- Optional: enable if/when you want versioned schema migrations -->
-    <!--
+    <!-- Versioned schema migrations (src/main/resources/db/migration): the schema survives restarts and
+         live reloads, and two instances starting at once migrate only once (Flyway takes a database lock) -->
     <dependency>
       <groupId>io.quarkus</groupId>
       <artifactId>quarkus-flyway</artifactId>
     </dependency>
-    -->
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-flyway-postgresql</artifactId>
+    </dependency>
   </dependencies>
 </project>
