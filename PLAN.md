@@ -346,24 +346,15 @@ Done (2026-10-02):
   "the restock button of a row is disabled while its quantity is outside 1-2000"; the existing
   "ordering … adds it to the inventory table" tests now wait for the row without reloading.
 
-## kafka-internal-events: Replace `@ObservesAsync` with a Kafka topic the app sends to itself (TO ELABORATE)
+## two-pods: Run in two pods without downtime (ANALYSIS ONLY, no code)
 
-Idea (user, 2026-10-04): core's `InventoryEvent`s (`DeliveredToDc`, `StockDeducted`, `ReplenishmentChanged`,
-`LevelsRecalculated`, `DcDemandChanged`, `SupplierOrdersChanged`) are delivered with CDI `fireAsync` /
-`@ObservesAsync` today. Would it make sense to publish them to a Kafka topic instead and consume them in the same app?
-To elaborate before deciding:
-
-- **What it would buy:** durability - a `fireAsync` event is lost if the app dies after the commit (e.g. a lost
-  `DeliveredToDc` leaves requests pending until the next delivery); the existing retry / DLQ / fail-stop handling of the
-  Kafka receivers; ordering per product via the partition key; works with more than one app instance.
-- **The catch:** publishing is still not atomic with the Postgres commit - doing that properly needs a transactional
-  outbox (bigger step); higher latency; the sealed `InventoryEvent` types need (de)serialization; flow tests get more
-  asynchronous.
-- **Which consumers move:** the `inbound-event` receivers (`DeliveryEventReceiver`, `AutoReplenishmentReceiver`,
-  `AutoPurchasingReceiver`) are natural candidates. The SSE `InventoryEventBroadcaster` fits badly: every instance needs
-  every event (a consumer group per instance), so it probably stays on CDI.
-- **Hexagon placement:** core keeps firing domain events; an outbound adapter publishes them to Kafka, an inbound Kafka
-  receiver consumes them, so core does not change.
+The demo is developed as if it ran in Kubernetes with two pods. Started as the question whether the CDI `@ObservesAsync`
+events should go through a Kafka topic the app sends to itself (former item `kafka-internal-events`). The answer: Kafka
+for the cross-pod SSE fan-out, but not for the work-triggering events (that needs a transactional outbox, so catch up at
+the period close instead). Two pods also need a single-instance period close, idempotent Kafka consumers, schema
+migrations instead of `drop-and-create`, health probes and the stubs as separate deployments. The user decided not to
+implement it for now (2026-10-04). Analysis and suggested order:
+[`docs/architecture/two-pods_wip.md`](docs/architecture/two-pods_wip.md).
 
 ## Open questions
 
