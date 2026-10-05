@@ -5,6 +5,7 @@ import org.svenehrke.triptychdemo.cross.location.Locations;
 import org.svenehrke.triptychdemo.cross.products.ProductsHandler;
 import org.svenehrke.triptychdemo.cross.purchasing.PurchasingHandler;
 import org.svenehrke.triptychdemo.cross.replenishment.ReplenishmentHandler;
+import org.svenehrke.triptychdemo.cross.reset.ResetHandler;
 import org.svenehrke.triptychdemo.feature.bakery.BakeryHandler;
 import org.svenehrke.triptychdemo.feature.bakery.BakeryOrder;
 import org.svenehrke.triptychdemo.feature.bakery.ParsedBakeryOrder;
@@ -71,6 +72,8 @@ public class AdminReceiver {
     PurchasingHandler purchasingHandler;
     @Inject
     AuditLogHandler auditLogHandler;
+    @Inject
+    ResetHandler resetHandler;
 
     /** The static page shell; its {@code #app} element loads {@link #page()} and renders it in the browser. */
     @GET
@@ -120,6 +123,15 @@ public class AdminReceiver {
     public Response rejectRequest(@PathParam("requestId") long requestId) {
         auditLogHandler.log("AdminReceiver: REJECT_RECEIVED", "request " + requestId);
         return replenishmentHandler.reject(requestId).isPresent() ? orderAccepted() : notPending(requestId);
+    }
+
+    /** Deletes all demo data and the audit log (dev); the pages refresh through the {@code InventoryReset} event. */
+    @POST
+    @Path("/reset")
+    public Response reset() {
+        // not audit-logged before the reset: the reset clears the log, ResetHandler logs INVENTORY_RESET after it
+        resetHandler.reset();
+        return orderAccepted();
     }
 
     @GET

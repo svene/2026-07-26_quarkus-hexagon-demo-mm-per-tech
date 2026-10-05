@@ -12,4 +12,4 @@ package org.svenehrke.triptychdemo.cross.inventory;
  * subclasses then have to share its package.
  */
 public sealed interface InventoryEvent permits DeliveredToDc, StockDeducted, ReplenishmentChanged, LevelsRecalculated,
-	DcDemandChanged, SupplierOrdersChanged {}
+	DcDemandChanged, SupplierOrdersChanged, InventoryReset {}

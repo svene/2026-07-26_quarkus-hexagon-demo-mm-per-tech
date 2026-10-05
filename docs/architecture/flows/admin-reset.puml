@@ -1,0 +1,36 @@
+@startuml admin_reset
+skinparam monochrome true
+skinparam sequenceMessageAlign center
+skinparam backgroundColor #ffffff
+
+actor "Head Office" as user
+participant "AdminReceiver\n(HTTP)" as receiver
+participant "ResetHandler\n(Core)" as handler
+participant "ResetService\n(PostgreSQL)" as service
+participant "AuditLogService\n(MongoDB)" as audit
+participant "InventoryEvent\n(CDI, async)" as changes
+database "PostgreSQL\n(stock, replenishment_request,\nshipment, supplier_order)" as db
+database "MongoDB\n(Audit)" as db_audit
+
+user -> user: confirm dialog (hx-confirm)
+user -> receiver: POST /admin/reset
+note right of receiver
+  Not audit-logged on receipt:
+  the reset clears the log.
+end note
+receiver -> handler: reset()
+handler -> service: deleteAll()
+service -> db: DELETE shipment, replenishment_request,\nsupplier_order, stock (one transaction)
+note right of service
+  Sequences untouched: a new row never reuses
+  an id a message in flight still refers to.
+end note
+service -> db: COMMIT
+handler -> audit: clear()
+audit -> db_audit: Delete every audit entry
+handler -> audit: log("INVENTORY_RESET")
+audit -> db_audit: Insert audit entry
+handler ->> changes: fireAsync(InventoryReset)\n(SSE: every page refreshes)
+receiver --> user: 200 (empty body)
+
+@enduml

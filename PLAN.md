@@ -405,6 +405,16 @@ shows one more persistence style. `@Transactional` keeps working with the Agroal
 To decide: plain JDBC with a small helper (recommended, in line with avoiding heavyweight tools), Jdbi (less
 boilerplate, one more library), or jOOQ (type-safe SQL, but code generation - heavy for 4 tables).
 
+## admin-reset: Admin "Reset demo data" button (DONE)
+
+Done 2026-10-05. Since Flyway, the dev data survives restarts, so `/admin` got a *Reset demo data* button (shell
+header, `hx-confirm`) → `POST /admin/reset` → core `ResetHandler.reset()`: `ResetRepositorySPI.deleteAll()` (new
+`ResetService` in outbound-postgres deletes stock, replenishment_request, shipment and supplier_order in one
+transaction; the sequences stay, so ids remain unique), `AuditLogSPI.clear()` (the audit log is cleared, too), audit
+`INVENTORY_RESET`, then the new `InventoryReset` event refreshes every page via SSE. Messages in flight are harmless: a
+late supplier delivery adds to the DC, a late shipment arrival is ignored. Tests: `AdminReceiverTest` case; the e2e
+test intercepts the POST (a real reset would wipe the data of the spec files running in parallel).
+
 ## Open questions
 
 - Authentication/authorization is out of scope for this POC, but the separate routes (`/admin`, `/shop`) make it easy to add later.

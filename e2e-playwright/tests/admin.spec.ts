@@ -207,3 +207,27 @@ test('the supplier orders section lists no open order once the delivery has arri
 
   await expect(page.locator('#admin-supplier-orders').getByRole('cell', { name, exact: false })).toHaveCount(0, { timeout: 15_000 });
 });
+
+// The real reset would wipe the data of the other spec files, which run in parallel workers, so the POST is answered
+// here instead of by the server; AdminReceiverTest covers what the reset deletes.
+test('reset demo data asks for confirmation before it posts', async ({ page }) => {
+  const posts: string[] = [];
+  await page.route('**/admin/reset', async (route) => {
+    posts.push(route.request().method());
+    await route.fulfill({ status: 200, contentType: 'text/html', body: '' });
+  });
+  await page.goto('/admin');
+  const reset = page.getByRole('button', { name: 'Reset demo data' });
+
+  page.once('dialog', (dialog) => dialog.dismiss());
+  await reset.click();
+  await page.waitForTimeout(300);
+  expect(posts).toEqual([]);
+
+  page.once('dialog', (dialog) => {
+    expect(dialog.message()).toContain('audit log');
+    return dialog.accept();
+  });
+  await reset.click();
+  await expect.poll(() => posts).toEqual(['POST']);
+});

@@ -144,6 +144,15 @@ PlantUML sequence diagrams for all primary flows in the supermarket inventory sy
 - **Participants**: 1 (Head office)
 - **Databases**: PostgreSQL (`stock`, `replenishment_request`), MongoDB (audit log)
 
+### Admin Resets the Demo Data
+**File**: `admin-reset.puml`
+- **Trigger**: POST /admin/reset (*Reset demo data* button, after a confirm dialog)
+- **Flow**: AdminReceiver → ResetHandler → ResetService → PostgreSQL + AuditLogService → MongoDB
+- **Actions**: deletes the stock of every location, all requests, shipments and supplier orders (sequences stay), clears the audit log, fires `InventoryReset` so the pages refresh
+- **Returns**: 200 empty body
+- **Participants**: 1 (Head office)
+- **Databases**: PostgreSQL (`stock`, `replenishment_request`, `shipment`, `supplier_order`), MongoDB (audit log)
+
 ### Automatic Replenishment
 **File**: `auto-replenishment.puml`
 - **Trigger**: `StockDeducted` (after a sale) or the demand period timer (`DemandPeriodReceiver`, then `LevelsRecalculated`)

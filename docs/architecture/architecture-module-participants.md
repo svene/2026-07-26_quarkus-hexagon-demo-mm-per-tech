@@ -15,8 +15,8 @@ Complete inventory of all classes participating in the system flows, organized b
 | **inbound-http-jsonapi** | `ProductApiReceiver`<br>`LocationApiReceiver`<br>`XxxOrderRequest` (+ `OrderRequest`)/`PurchaseRequest`/`PurchaseRequestItem`/`RequestStructureErrorMessages`<br>`JsonInputErrors`/`StrictJsonReader`/`JsonResponses`<br>`ProductJson` |
 | **inbound-kafka** | `FruitDeliveryReceiver`<br>`VegetablesDeliveryReceiver`<br>`DairyDeliveryReceiver`<br>`BeveragesDeliveryReceiver`<br>`MeatDeliveryReceiver`<br>`BakeryDeliveryReceiver`<br>`NonFoodDeliveryReceiver`<br>`CashpointReceiver`<br>`ShipmentArrivalReceiver` |
 | **inbound-event** | `DeliveryEventReceiver`, `AutoReplenishmentReceiver`, `AutoPurchasingReceiver`, `ShipmentCatchUpReceiver`, `DemandPeriodReceiver` |
-| **core** | `FruitSupplierSPI`/`FruitDelivery`/`FruitsHandler`<br>`VegetablesSupplierSPI`/`VegetableDelivery`/`VegetablesHandler`<br>`DairySupplierSPI`/`DairyDelivery`/`DairyHandler`<br>`BeverageSupplierSPI`/`BeverageDelivery`/`BeveragesHandler`<br>`MeatSupplierSPI`/`MeatDelivery`/`MeatHandler`<br>`BakerySupplierSPI`/`BakeryDelivery`/`BakeryHandler`<br>`NonFoodSupplierSPI`/`NonFoodDelivery`/`NonFoodHandler`<br>`InventoryRepositorySPI`/`InventoryHandler`/`InventoryEvent` (`DeliveredToDc`/`StockDeducted`/`ReplenishmentChanged`/`LevelsRecalculated`/`DcDemandChanged`/`SupplierOrdersChanged`)<br>`Location`/`Replenished`/`Warehouse`/`Store`/`OnlineFc`/`Locations`<br>`ReplenishmentRepositorySPI`/`ReplenishmentHandler`/`StockRequest`/`ReplenishmentRequest`/`RequestOrigin`/`CarrierSPI`/`Shipment`/`ShipmentStatus`<br>`ReorderPolicyHandler`/`ReorderPolicy`/`DemandEstimate`/`LearnedLevels`<br>`SupplierOrderRepositorySPI`/`PurchasingHandler`/`SupplierOrder`/`SupplierOrderStatus`/`SupplierOrderOrigin`<br>`AuditLogSPI`/`AuditLogHandler`/`AuditLogEntry`<br>`ProductsHandler`/`Product`/`ProductStock`/`ProductType`<br>`PurchaseHandler`/`PurchaseItem` |
-| **outbound-postgres** | `InventoryService`<br>`StockEntity`<br>`ReplenishmentService`<br>`ReplenishmentRequestEntity`<br>`ShipmentEntity`<br>`SupplierOrderService`<br>`SupplierOrderEntity` |
+| **core** | `FruitSupplierSPI`/`FruitDelivery`/`FruitsHandler`<br>`VegetablesSupplierSPI`/`VegetableDelivery`/`VegetablesHandler`<br>`DairySupplierSPI`/`DairyDelivery`/`DairyHandler`<br>`BeverageSupplierSPI`/`BeverageDelivery`/`BeveragesHandler`<br>`MeatSupplierSPI`/`MeatDelivery`/`MeatHandler`<br>`BakerySupplierSPI`/`BakeryDelivery`/`BakeryHandler`<br>`NonFoodSupplierSPI`/`NonFoodDelivery`/`NonFoodHandler`<br>`InventoryRepositorySPI`/`InventoryHandler`/`InventoryEvent` (`DeliveredToDc`/`StockDeducted`/`ReplenishmentChanged`/`LevelsRecalculated`/`DcDemandChanged`/`SupplierOrdersChanged`/`InventoryReset`)<br>`Location`/`Replenished`/`Warehouse`/`Store`/`OnlineFc`/`Locations`<br>`ReplenishmentRepositorySPI`/`ReplenishmentHandler`/`StockRequest`/`ReplenishmentRequest`/`RequestOrigin`/`CarrierSPI`/`Shipment`/`ShipmentStatus`<br>`ReorderPolicyHandler`/`ReorderPolicy`/`DemandEstimate`/`LearnedLevels`<br>`SupplierOrderRepositorySPI`/`PurchasingHandler`/`SupplierOrder`/`SupplierOrderStatus`/`SupplierOrderOrigin`<br>`AuditLogSPI`/`AuditLogHandler`/`AuditLogEntry`<br>`ResetRepositorySPI`/`ResetHandler`<br>`ProductsHandler`/`Product`/`ProductStock`/`ProductType`<br>`PurchaseHandler`/`PurchaseItem` |
+| **outbound-postgres** | `InventoryService`<br>`StockEntity`<br>`ReplenishmentService`<br>`ReplenishmentRequestEntity`<br>`ShipmentEntity`<br>`SupplierOrderService`<br>`SupplierOrderEntity`<br>`ResetService` |
 | **outbound-mongodb** | `AuditLogService`<br>`AuditLogEntryEntity` |
 | **outbound-httpclient** | `FruitSupplierService`<br>`VegetablesSupplierService`<br>`DairySupplierService`<br>`FruitSupplierClient`<br>`VegetablesSupplierClient`<br>`DairySupplierClient` |
 | **outbound-webservice** | `BeverageSupplierService`<br>`MeatSupplierService`<br>`BakerySupplierService`<br>`BeverageOrderService`<br>`MeatOrderService`<br>`BakeryOrderService` |
@@ -34,7 +34,7 @@ Complete inventory of all classes participating in the system flows, organized b
 **Package**: `org.svenehrke.triptychdemo.cross` (both receivers are cross-cutting aggregators — Admin touches every commodity's ordering Handler, Shop touches Products+Purchase — so neither lives in a `feature.<name>` package)
 
 ### Receivers
-- `AdminReceiver` - Admin dashboard: product × location matrix, supplier orders (to the DC) and the open ones, pending requests (GET /admin shell, GET /admin/page and fragments incl. /admin/supplier-orders-fragment, POST /admin/order-*, POST /admin/requests/{id}/fulfil|reject)
+- `AdminReceiver` - Admin dashboard: product × location matrix, supplier orders (to the DC) and the open ones, pending requests (GET /admin shell, GET /admin/page and fragments incl. /admin/supplier-orders-fragment, POST /admin/order-*, POST /admin/requests/{id}/fulfil|reject, POST /admin/reset - the shell's *Reset demo data* button, `hx-confirm`)
 - `ShopReceiver` - Customer shopping interface, sells the online FC's stock (GET /shop shell, GET /shop/page and fragment, POST /shop/checkout)
 - `LocationReceiver` - One page for all stores and the online FC: stock, requests to the DC (GET /locations shell, GET /locations/page, GET /locations/{id}/inventory-fragment, POST /locations/{id}/requests)
 - `InventoryEventsReceiver` - GET /inventory/events SSE stream (`inventoryChanged`), used by the shop, admin and locations shells
@@ -172,14 +172,14 @@ Complete inventory of all classes participating in the system flows, organized b
 ### cross.inventory
 - `InventoryRepositorySPI` - Interface for stock per location (methods: findAll(location), findAllLocations, addAmount(location, …) - seeding/tests, deliveries go through SupplierOrderRepositorySPI, deductAll(location, …), recordDemand(location, …) - own transaction, also for rejected/capped sales, closePeriod - one transaction per row, the DC's rows included)
 - `LocationStock` - Domain record (location, product, estimate, levels), returned by findAllLocations
-- `InventoryEvent` - Sealed interface of the CDI events core fires with `fireAsync`, one per committed change: `DeliveredToDc(productName)` (InventoryHandler), `StockDeducted(location, productNames)` (PurchaseHandler), `ReplenishmentChanged(location)` (ReplenishmentHandler), `LevelsRecalculated()` (ReorderPolicyHandler), `DcDemandChanged(productName)` (ReplenishmentHandler, on every request created), `SupplierOrdersChanged()` (commodity Handlers). Observed by inbound adapters only - specific ones (DeliveryEventReceiver, AutoReplenishmentReceiver, AutoPurchasingReceiver) or all (InventoryEventBroadcaster, for the SSE live updates). All of them live in this package: core is no named module, so a sealed type's subclasses must share its package
+- `InventoryEvent` - Sealed interface of the CDI events core fires with `fireAsync`, one per committed change: `DeliveredToDc(productName)` (InventoryHandler), `StockDeducted(location, productNames)` (PurchaseHandler), `ReplenishmentChanged(location)` (ReplenishmentHandler), `LevelsRecalculated()` (ReorderPolicyHandler), `DcDemandChanged(productName)` (ReplenishmentHandler, on every request created), `SupplierOrdersChanged()` (commodity Handlers), `InventoryReset()` (ResetHandler). Observed by inbound adapters only - specific ones (DeliveryEventReceiver, AutoReplenishmentReceiver, AutoPurchasingReceiver) or all (InventoryEventBroadcaster, for the SSE live updates). All of them live in this package: core is no named module, so a sealed type's subclasses must share its package
 - `OnShortage` - Enum passed to deductAll: `REJECT` (online, deduct nothing) | `CAP_AT_ZERO` (physical store)
 - `StockDeduction` - Result of deductAll (updated products, shortages)
 - `Shortage` - Domain record (productName, requested, available) with rejection and discrepancy messages
 - `InventoryHandler` - Adds deliveries to the DC and closes open supplier orders of the product oldest first (`SupplierOrderRepositorySPI.receiveDelivery`, one transaction; audit `SUPPLIER_ORDER_DELIVERED`), then fires `DeliveredToDc` asynchronously (see inbound-event), for all commodities (methods: updateFruitAmount, updateVegetableAmount, updateDairyAmount, updateBeverageAmount, updateMeatAmount, updateBakeryAmount, updateNonFoodAmount) - imports each commodity's `*Delivery` record from its `feature.<commodity>` package
 
 ### cross.auditlog
-- `AuditLogSPI` - Interface for audit log persistence (methods: log, findRecent)
+- `AuditLogSPI` - Interface for audit log persistence (methods: log, findRecent, clear)
 - `AuditLogHandler` - Retrieves audit log entries (method: recent)
 - `AuditLogEntry` - Domain record (event, details, timestamp) - not to be confused with `outbound-mongodb`'s `AuditLogEntryEntity` (the Panache persistence entity); the two used to share the name `AuditLogEntry` until 2026-09-13, when the entity was renamed to avoid a fully-qualified-name collision once both landed in `cross.auditlog`
 
@@ -227,6 +227,10 @@ Complete inventory of all classes participating in the system flows, organized b
 - `SupplierOrderStatus` - Enum (OPEN, DELIVERED, CANCELLED)
 - `SupplierOrderOrigin` - Enum (MANUAL, AUTOMATIC)
 
+### cross.reset
+- `ResetRepositorySPI` - Deletes the stock of every location, every replenishment request, shipment and supplier order in one transaction; the id sequences stay (method: deleteAll)
+- `ResetHandler` - Resets the demo, needed since Flyway keeps the data across restarts (method: reset - via AdminReceiver: deleteAll, `AuditLogSPI.clear`, audit `INVENTORY_RESET`, fires `InventoryReset`). Messages in flight are harmless: a late supplier delivery adds to the DC, a late shipment arrival finds no shipment and is ignored
+
 **Responsibilities**:
 - Implement business logic for each use case
 - Coordinate between inbound adapters (Receivers) and outbound ports (SPIs)
@@ -240,8 +244,8 @@ Complete inventory of all classes participating in the system flows, organized b
 
 ## outbound-postgres
 
-**Purpose**: PostgreSQL persistence adapter - implements InventoryRepositorySPI, ReplenishmentRepositorySPI and SupplierOrderRepositorySPI
-**Package**: `org.svenehrke.triptychdemo.cross.inventory`, `org.svenehrke.triptychdemo.cross.replenishment`, `org.svenehrke.triptychdemo.cross.purchasing`
+**Purpose**: PostgreSQL persistence adapter - implements InventoryRepositorySPI, ReplenishmentRepositorySPI, SupplierOrderRepositorySPI and ResetRepositorySPI
+**Package**: `org.svenehrke.triptychdemo.cross.inventory`, `org.svenehrke.triptychdemo.cross.replenishment`, `org.svenehrke.triptychdemo.cross.purchasing`, `org.svenehrke.triptychdemo.cross.reset`
 
 ### Services
 - `InventoryService` - Implements InventoryRepositorySPI using Hibernate/Panache ORM
@@ -253,6 +257,7 @@ Complete inventory of all classes participating in the system flows, organized b
 - `ShipmentEntity` - Panache entity backing the `shipment` table (requestId, locationId, productName, type, quantity, status, dispatchedAt, arrivedAt)
 - `SupplierOrderService` - Implements SupplierOrderRepositorySPI; locks the DC stock row first, then the supplier orders
 - `SupplierOrderEntity` - Panache entity backing the `supplier_order` table
+- `ResetService` - Implements ResetRepositorySPI: bulk `deleteAll` of the four entities in one transaction; sequences untouched, so a new row never reuses an id a message in flight still refers to
 
 **Technology**: Quarkus Panache (ORM), Hibernate, PostgreSQL, Flyway
 **Schema**: Flyway migrations in `src/main/resources/db/migration` (`V1__initial_schema.sql`), applied at startup; Hibernate only validates (`database.generation=validate`) - every entity change needs a new `V<n>__*.sql`
@@ -267,7 +272,7 @@ Complete inventory of all classes participating in the system flows, organized b
 **Package**: `org.svenehrke.triptychdemo.cross.auditlog`
 
 ### Services
-- `AuditLogService` - Implements AuditLogSPI using Panache MongoDB
+- `AuditLogService` - Implements AuditLogSPI using Panache MongoDB (`clear` deletes every entry)
 - `AuditLogEntryEntity` - Panache Mongo entity backing the `audit_log` collection (renamed from `AuditLogEntry` on 2026-09-13 to avoid colliding with core's domain record of that name once both moved into `cross.auditlog`)
 
 **Responsibilities**:

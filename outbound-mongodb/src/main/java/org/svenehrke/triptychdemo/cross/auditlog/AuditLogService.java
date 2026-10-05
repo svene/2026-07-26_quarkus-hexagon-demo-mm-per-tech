@@ -26,4 +26,9 @@ public class AuditLogService implements AuditLogSPI {
             .map(e -> new AuditLogEntry(e.event, e.details, e.timestamp))
             .toList();
     }
+
+    @Override
+    public void clear() {
+        AuditLogEntryEntity.deleteAll();
+    }
 }

@@ -176,6 +176,7 @@ Every stub publishes its delivery after the supplier lead time (`supplier-stub.l
 | AdminReceiver | /admin/audit-fragment | GET | Query | - | MongoDB (read) |
 | AdminReceiver | /admin/requests-fragment | GET | Query | - | PostgreSQL (read) |
 | AdminReceiver | /admin/requests/{id}/fulfil, /reject | POST | Command | - | PostgreSQL + MongoDB |
+| AdminReceiver | /admin/reset | POST | Command (dev: deletes all demo data and the audit log) | - | PostgreSQL + MongoDB |
 | AdminReceiver | /admin/order-fruits | POST | Command | **→ fruit-deliveries** (stub publishes) | PostgreSQL + MongoDB |
 | AdminReceiver | /admin/order-vegetables | POST | Command | **→ vegetables-deliveries** (stub publishes) | PostgreSQL + MongoDB |
 | AdminReceiver | /admin/order-dairy | POST | Command | **→ dairy-deliveries** (stub publishes) | PostgreSQL + MongoDB |

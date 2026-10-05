@@ -91,6 +91,23 @@ AdminReceiver.fulfilRequest(id) / rejectRequest(id)
    → 200 empty body, or 409 UiResponse(OrderErrors) if the request is no longer pending
 ```
 
+#### POST /admin/reset - Reset Demo Data (dev)
+The shell's *Reset demo data* button (`hx-confirm`, `hx-swap="none"`). Needed since Flyway keeps the data across
+restarts. Not audit-logged on receipt: the reset clears the log.
+```
+AdminReceiver.reset()
+└─ ResetHandler.reset()
+   ├─ ResetRepositorySPI.deleteAll()   (one transaction)
+   │  └─ ResetService (outbound-postgres)
+   │     └─ PostgreSQL: DELETE shipment, replenishment_request, supplier_order, stock (sequences untouched)
+   ├─ AuditLogSPI.clear()
+   │  └─ AuditLogService (outbound-mongodb) → MongoDB: delete every audit entry
+   ├─ AuditLogSPI.log("INVENTORY_RESET")
+   └─ Event<InventoryEvent>.fireAsync(InventoryReset)   (refreshes every page; the audit panel by its 3 s poll)
+   → 200 empty body
+```
+Messages in flight: a late supplier delivery just adds to the DC, a late shipment arrival finds no shipment and is ignored.
+
 #### GET /admin/audit-fragment - Audit Log Update
 ```
 AdminReceiver.auditFragment()
@@ -279,7 +296,8 @@ InventoryEventsReceiver.events()   → text/event-stream, never ends
 │     ├─ DeliveredToDc          ← InventoryHandler.update*Amount()   (every Kafka delivery)
 │     ├─ StockDeducted          ← PurchaseHandler.deduct()           (shop/JSON API checkout, cashpoint sale; only if something was deducted)
 │     ├─ ReplenishmentChanged   ← ReplenishmentHandler               (every request, fulfil, reject, automatic request; fulfilPending per location served; shipment arrival)
-│     └─ LevelsRecalculated     ← ReorderPolicyHandler.closePeriod() (end of every demand period)
+│     ├─ LevelsRecalculated     ← ReorderPolicyHandler.closePeriod() (end of every demand period)
+│     └─ InventoryReset         ← ResetHandler.reset()               (POST /admin/reset)
 └─ ": heartbeat" comment every 15 s
 ```
 

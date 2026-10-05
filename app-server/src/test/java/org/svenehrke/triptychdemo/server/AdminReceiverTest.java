@@ -4,6 +4,10 @@ import org.svenehrke.triptychdemo.cross.inventory.InventoryRepositorySPI;
 
 import org.svenehrke.triptychdemo.cross.location.Locations;
 import org.svenehrke.triptychdemo.cross.products.ProductType;
+import org.svenehrke.triptychdemo.cross.purchasing.SupplierOrderOrigin;
+import org.svenehrke.triptychdemo.cross.purchasing.SupplierOrderRepositorySPI;
+import org.svenehrke.triptychdemo.cross.replenishment.ReplenishmentRepositorySPI;
+import org.svenehrke.triptychdemo.cross.replenishment.StockRequest;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,6 +25,10 @@ class AdminReceiverTest {
     @Inject TestAuditLogHelper auditLogHelper;
     @Inject
     InventoryRepositorySPI inventory;
+    @Inject
+    ReplenishmentRepositorySPI replenishment;
+    @Inject
+    SupplierOrderRepositorySPI supplierOrders;
 
     @BeforeEach
     void setUp() {
@@ -192,5 +200,30 @@ class AdminReceiverTest {
 
         assertThat(response.statusCode()).isEqualTo(400);
         assertThat(response.jsonPath().getList("vm.messages")).contains("must be less than or equal to 2000");
+    }
+
+    @Test
+    void reset_deletes_the_inventory_the_requests_the_supplier_orders_and_the_audit_log() {
+        inventory.addAmount(Locations.DC, "Apple", ProductType.FRUIT, 0);
+        inventory.addAmount(Locations.BERN, "Cola", ProductType.BEVERAGE, 5);
+        // the DC has no Apples, so the request stays pending
+        replenishment.request(new StockRequest(Locations.ZURICH, "Apple", 4));
+        supplierOrders.open("Apple", ProductType.FRUIT, 20, SupplierOrderOrigin.MANUAL);
+        given().post("/admin/requests/0/reject"); // audit-logs REJECT_RECEIVED (409, there is no request 0)
+        var before = given().get("/admin/page").jsonPath();
+        assertThat(before.getList("vm.products")).hasSize(2);
+        assertThat(before.getList("vm.pendingRequests")).hasSize(1);
+        assertThat(before.getList("vm.supplierOrders")).hasSize(1);
+        assertThat(before.getList("vm.auditEntries")).isNotEmpty();
+
+        var response = given().post("/admin/reset");
+
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(response.asString()).isEmpty();
+        var json = given().get("/admin/page").jsonPath();
+        assertThat(json.getList("vm.products")).isEmpty();
+        assertThat(json.getList("vm.pendingRequests")).isEmpty();
+        assertThat(json.getList("vm.supplierOrders")).isEmpty();
+        assertThat(json.getList("vm.auditEntries.event")).containsExactly("ResetHandler: INVENTORY_RESET");
     }
 }
