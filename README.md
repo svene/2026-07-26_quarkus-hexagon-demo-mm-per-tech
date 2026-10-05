@@ -126,7 +126,7 @@ inbound-http-html/          JAX-RS + hono/html (rendered in the browser) — HTM
 inbound-http-jsonapi/       JAX-RS — JSON API (/api/products, /api/locations)
 inbound-kafka/              Kafka @Incoming — delivery events + purchase events
 inbound-event/              CDI @ObservesAsync — domain events fired by core (delivery reached the DC)
-outbound-postgres/          Hibernate ORM / Panache — inventory persistence
+outbound-postgres/          plain SQL over JDBC (Agroal) — inventory persistence
 outbound-mongodb/           MongoDB / Panache — audit log
 outbound-httpclient/        MicroProfile REST Client — REST supplier orders
 outbound-webservice/        Apache CXF client — SOAP supplier orders
@@ -152,7 +152,7 @@ stubs.
 | `inbound-http-jsonapi` | Inbound adapter | JAX-RS (JSON) |
 | `inbound-kafka` | Inbound adapter | SmallRye Reactive Messaging |
 | `inbound-event` | Inbound adapter | CDI async events (`@ObservesAsync`) |
-| `outbound-postgres` | Outbound adapter | Hibernate ORM / Panache |
+| `outbound-postgres` | Outbound adapter | Plain SQL over JDBC (Agroal), Flyway |
 | `outbound-mongodb` | Outbound adapter | MongoDB / Panache |
 | `outbound-httpclient` | Outbound adapter | MicroProfile REST Client |
 | `outbound-webservice` | Outbound adapter | Apache CXF (SOAP client) |

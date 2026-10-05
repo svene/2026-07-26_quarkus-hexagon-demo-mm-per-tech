@@ -6,29 +6,33 @@ import org.svenehrke.triptychdemo.cross.location.Replenished;
 import org.svenehrke.triptychdemo.cross.products.Product;
 import org.svenehrke.triptychdemo.cross.products.ProductType;
 import org.svenehrke.triptychdemo.cross.reorder.ReorderPolicy;
-import org.svenehrke.triptychdemo.cross.replenishment.ShipmentEntity;
+^import org.svenehrke.triptychdemo.cross.replenishment.ShipmentTable;
 import io.quarkus.narayana.jta.QuarkusTransaction;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.SortedMap;
 
 /**
- * Every stock change reads its row with {@code SELECT ... FOR UPDATE} (see {@link StockEntity}), so
+ * Every stock change reads its row with {@code SELECT ... FOR UPDATE} (see {@link StockTable}), so
  * concurrent changes to the same product wait for each other instead of overwriting each other.
  */
 @ApplicationScoped
 public class InventoryService implements InventoryRepositorySPI {
 
+    @Inject
+    StockTable stockTable;
+
+    @Inject
+    ShipmentTable shipments;
+
     @Override
     @Transactional
     public Product addAmount(Location location, String name, ProductType type, int delta) {
-        StockEntity entity = StockEntity.findForUpdate(location, name, type)
-            .orElseGet(() -> StockEntity.create(location, name, type));
-        entity.availableAmount += delta;
-        return entity.toDomain();
+        var row = stockTable.findOrCreateForUpdate(location, name, type);
+        return stockTable.addAvailable(row.id(), delta).toDomain();
     }
 
     /** Locks the rows in the map's (sorted) order, so concurrent calls cannot deadlock. */
@@ -38,12 +42,11 @@ public class InventoryService implements InventoryRepositorySPI {
         var updated = new ArrayList<Product>();
         var shortages = new ArrayList<Shortage>();
         quantitiesByName.forEach((name, quantity) -> {
-            StockEntity entity = StockEntity.findByNameForUpdate(location, name).orElse(null);
-            int available = entity == null ? 0 : entity.availableAmount;
+            var row = stockTable.findByNameForUpdate(location, name).orElse(null);
+            int available = row == null ? 0 : row.availableAmount();
             if (available < quantity) shortages.add(new Shortage(name, quantity, available));
-            if (entity != null) {
-                entity.availableAmount = Math.max(0, available - quantity);
-                updated.add(entity.toDomain());
+            if (row != null) {
+                updated.add(stockTable.setAvailable(row.id(), Math.max(0, available - quantity)).toDomain());
             }
         });
         if (onShortage == OnShortage.REJECT && !shortages.isEmpty()) {
@@ -58,10 +61,9 @@ public class InventoryService implements InventoryRepositorySPI {
     @Transactional(Transactional.TxType.REQUIRES_NEW)
     public void recordDemand(Replenished location, SortedMap<String, Integer> quantitiesByName) {
         quantitiesByName.forEach((name, quantity) -> {
-            var entity = StockEntity.findByNameForUpdate(location, name)
-                .or(() -> dcType(name).map(type -> StockEntity.create(location, name, type)))
-                .orElse(null);
-            if (entity != null) entity.periodDemand += quantity;
+            stockTable.findByNameForUpdate(location, name)
+                .or(() -> stockTable.findType(Locations.DC, name).map(type -> stockTable.create(location, name, type)))
+                .ifPresent(row -> stockTable.addPeriodDemand(row.id(), quantity));
         });
     }
 
@@ -72,8 +74,8 @@ public class InventoryService implements InventoryRepositorySPI {
     @Override
     public int closePeriod() {
         var dcProducts = QuarkusTransaction.requiringNew().call(() ->
-            StockEntity.<StockEntity>list("locationId", Locations.DC.id()).stream()
-                .map(e -> new Key(e.name, e.type)).toList());
+            stockTable.findAll(Locations.DC).stream()
+                .map(row -> new Key(row.name(), row.type())).toList());
         int rows = 0;
         for (var location : Locations.ALL) {
             for (var product : dcProducts) {
@@ -86,31 +88,24 @@ public class InventoryService implements InventoryRepositorySPI {
 
     private record Key(String name, ProductType type) {}
 
-    private static void learn(Location location, Key product) {
+    private void learn(Location location, Key product) {
         var policy = ReorderPolicy.of(location);
-        var entity = StockEntity.findForUpdate(location, product.name(), product.type())
-            .orElseGet(() -> StockEntity.create(location, product.name(), product.type()));
-        entity.learned(entity.estimate().next(entity.periodDemand, policy), policy);
-        entity.periodDemand = 0;
+        var row = stockTable.findOrCreateForUpdate(location, product.name(), product.type());
+        stockTable.closePeriod(row.id(), row.estimate().next(row.periodDemand(), policy), policy);
     }
 
     @Override
     public List<Product> findAll(Location location) {
-        return StockEntity.<StockEntity>list("locationId", location.id()).stream()
-                .map(StockEntity::toDomain)
+        return stockTable.findAll(location).stream()
+                .map(StockRow::toDomain)
                 .toList();
     }
 
     @Override
     public List<LocationStock> findAllLocations() {
-        var inTransit = ShipmentEntity.inTransitByLocationAndProduct();
-        return StockEntity.<StockEntity>listAll().stream()
-                .map(e -> e.toLocationStock(inTransit.getOrDefault(new ShipmentEntity.Key(e.locationId, e.name), 0)))
+        var inTransit = shipments.inTransitByLocationAndProduct();
+        return stockTable.findAll().stream()
+                .map(row -> row.toLocationStock(inTransit.getOrDefault(new ShipmentTable.Key(row.locationId(), row.name()), 0)))
                 .toList();
-    }
-
-    private static Optional<ProductType> dcType(String name) {
-        return StockEntity.<StockEntity>find("locationId = ?1 and name = ?2", Locations.DC.id(), name)
-            .firstResultOptional().map(e -> e.type);
     }
 }

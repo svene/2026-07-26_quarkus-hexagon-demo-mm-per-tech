@@ -379,7 +379,7 @@ stub (the external checkout systems); whether the occupancy is shown in the UI; 
 ([`two-pods_wip.md`](docs/architecture/two-pods_wip.md): the simulation is an external system, so no per-pod timer in
 the app). The learned reorder levels should then differ per store by themselves, since demand differs.
 
-## plain-sql: Replace JPA (Hibernate/Panache) with plain SQL in outbound-postgres (TO ELABORATE)
+## plain-sql: Replace JPA (Hibernate/Panache) with plain SQL in outbound-postgres (DONE)
 
 Added 2026-10-04 at the user's request. The change stays inside `outbound-postgres` (~725 lines: 4 entities, 3 Services)
 plus the test helper `TestInventoryHelper`; core and the SPIs don't change - the hexagon at work. Flyway stays and
@@ -402,8 +402,52 @@ Gains: locking becomes explicit (`SELECT … FOR UPDATE`, possibly `SKIP LOCKED`
 (e.g. `productNameOf` "without loading, so it can be locked afterwards", first-level cache surprises), and the demo
 shows one more persistence style. `@Transactional` keeps working with the Agroal datasource.
 
-To decide: plain JDBC with a small helper (recommended, in line with avoiding heavyweight tools), Jdbi (less
-boilerplate, one more library), or jOOQ (type-safe SQL, but code generation - heavy for 4 tables).
+Decided 2026-10-05: plain JDBC with a small helper.
+
+### Plan (APPROVED and done 2026-10-05)
+
+1. **Dependencies** (`outbound-postgres/pom.xml`): drop `quarkus-hibernate-orm-panache`; add `quarkus-agroal` and
+   `quarkus-narayana-jta` explicitly (today both come in through Hibernate; `@Transactional` and
+   `QuarkusTransaction` need the latter). Agroal enlists its connections in the JTA transaction, so all statements
+   of one `@Transactional` method share one connection and commit together - nothing changes for the callers.
+2. **`Db` helper** (`cross.jdbc.Db`, `@ApplicationScoped`, injects the `AgroalDataSource`, ~50 lines):
+   `query(sql, mapper, params...)` → `List<T>`, `queryOne(...)` → `Optional<T>`, `update(sql, params...)` → row
+   count, `insert(sql, params...)` → id (`INSERT … RETURNING id`). Parameter binding turns enums into `name()` and
+   `Instant` into `OffsetDateTime`; `SQLException` is wrapped in an unchecked exception. One connection per call
+   (inside a transaction it is the transaction's connection).
+3. **Migration `V2__identity_ids.sql`**: every `id` becomes `generated always as identity`, starting above the old
+   sequence's last value + 50 (the pooled optimizer may have handed out ids up to there, and Kafka messages in flight
+   may still refer to them), then the four `*_SEQ` sequences are dropped. A reset still never reuses ids.
+4. **The `*Entity` classes are replaced, one table per step** (flow tests after each step):
+   - `ReplenishmentRequestEntity` and `SupplierOrderEntity` → `ReplenishmentRequestTable` and `SupplierOrderTable`
+     (beans holding the SQL of their table), rows mapped straight to core's `ReplenishmentRequest` /
+     `SupplierOrder` records.
+   - `ShipmentEntity` → `ShipmentTable`; core's `Shipment` has no product `type`, which `receiveShipment` needs, so
+     it maps to a small package-private `ShipmentRow` record (`toDomain()`).
+   - `StockEntity` → `StockTable` + `StockRow` record (id, demand and level columns are adapter internals, not in
+     core's `Product`/`LocationStock`); `levels()`, `estimate()`, `toDomain()`, `toLocationStock()` move to the row.
+   - Writes become explicit, relative where possible (`UPDATE stock SET availableAmount = availableAmount + ? WHERE
+     id = ?`), so no in-memory copy can go stale. Where a loop needs the running value (`allocate` sharing the DC
+     stock), the Service keeps it in a local variable.
+   - Locking: `SELECT … FOR UPDATE` in exactly today's order (DC row, then requests/orders oldest first, then the
+     target row). `productNameOf` stays (the lock order needs the product before the lock) but loses its Hibernate
+     cache comment.
+   - `ResetService`: four `DELETE`s via `Db`.
+5. **Tests**: `TestInventoryHelper` uses `Db` instead of the `EntityManager`; no other test touches JPA (the
+   `TestAuditLogHelper` is Mongo Panache and stays).
+6. **Config/docs**: `quarkus.hibernate-orm.database.generation=validate` and its comment go (the flow tests against
+   the Flyway schema take over that check); the V1 header comment notes that Hibernate is gone; README tech table,
+   `architecture-module-participants.md`, `architecture-flow-kafka-reference.md`, `architecture-flow.md`,
+   `two-pods_wip.md` (schema section) get the new class names and "plain JDBC"; `docs/ai/session-notes.md` baseline.
+7. **Verification**: full `app-server` test suite and e2e (`--retries=0`); then the dev app (data from before V2
+   survives the migration).
+
+Result: 150 app-server tests green, e2e 25/25 (second run; the first after the rebuild failed 14, the known double
+live reload). Deviations: plain absolute writes on locked rows (`shipped`, `status`, `delivered`) instead of relative
+ones - the row lock already rules out a stale value; only the stock amount is changed relatively (`addAvailable`), so
+the DC row snapshot inside one allocation needs no refresh. `request()` reads the new request again at the end, since
+the allocation may ship to it (Hibernate returned the same managed instance). V1 is untouched: editing even its
+comments changes Flyway's checksum and fails existing databases.
 
 ## admin-reset: Admin "Reset demo data" button (DONE)
 

@@ -16,7 +16,7 @@ Complete inventory of all classes participating in the system flows, organized b
 | **inbound-kafka** | `FruitDeliveryReceiver`<br>`VegetablesDeliveryReceiver`<br>`DairyDeliveryReceiver`<br>`BeveragesDeliveryReceiver`<br>`MeatDeliveryReceiver`<br>`BakeryDeliveryReceiver`<br>`NonFoodDeliveryReceiver`<br>`CashpointReceiver`<br>`ShipmentArrivalReceiver` |
 | **inbound-event** | `DeliveryEventReceiver`, `AutoReplenishmentReceiver`, `AutoPurchasingReceiver`, `ShipmentCatchUpReceiver`, `DemandPeriodReceiver` |
 | **core** | `FruitSupplierSPI`/`FruitDelivery`/`FruitsHandler`<br>`VegetablesSupplierSPI`/`VegetableDelivery`/`VegetablesHandler`<br>`DairySupplierSPI`/`DairyDelivery`/`DairyHandler`<br>`BeverageSupplierSPI`/`BeverageDelivery`/`BeveragesHandler`<br>`MeatSupplierSPI`/`MeatDelivery`/`MeatHandler`<br>`BakerySupplierSPI`/`BakeryDelivery`/`BakeryHandler`<br>`NonFoodSupplierSPI`/`NonFoodDelivery`/`NonFoodHandler`<br>`InventoryRepositorySPI`/`InventoryHandler`/`InventoryEvent` (`DeliveredToDc`/`StockDeducted`/`ReplenishmentChanged`/`LevelsRecalculated`/`DcDemandChanged`/`SupplierOrdersChanged`/`InventoryReset`)<br>`Location`/`Replenished`/`Warehouse`/`Store`/`OnlineFc`/`Locations`<br>`ReplenishmentRepositorySPI`/`ReplenishmentHandler`/`StockRequest`/`ReplenishmentRequest`/`RequestOrigin`/`CarrierSPI`/`Shipment`/`ShipmentStatus`<br>`ReorderPolicyHandler`/`ReorderPolicy`/`DemandEstimate`/`LearnedLevels`<br>`SupplierOrderRepositorySPI`/`PurchasingHandler`/`SupplierOrder`/`SupplierOrderStatus`/`SupplierOrderOrigin`<br>`AuditLogSPI`/`AuditLogHandler`/`AuditLogEntry`<br>`ResetRepositorySPI`/`ResetHandler`<br>`ProductsHandler`/`Product`/`ProductStock`/`ProductType`<br>`PurchaseHandler`/`PurchaseItem` |
-| **outbound-postgres** | `InventoryService`<br>`StockEntity`<br>`ReplenishmentService`<br>`ReplenishmentRequestEntity`<br>`ShipmentEntity`<br>`SupplierOrderService`<br>`SupplierOrderEntity`<br>`ResetService` |
+| **outbound-postgres** | `InventoryService`<br>`StockTable`<br>`ReplenishmentService`<br>`ReplenishmentRequestTable`<br>`ShipmentTable`<br>`SupplierOrderService`<br>`SupplierOrderTable`<br>`ResetService`<br>`Db` |
 | **outbound-mongodb** | `AuditLogService`<br>`AuditLogEntryEntity` |
 | **outbound-httpclient** | `FruitSupplierService`<br>`VegetablesSupplierService`<br>`DairySupplierService`<br>`FruitSupplierClient`<br>`VegetablesSupplierClient`<br>`DairySupplierClient` |
 | **outbound-webservice** | `BeverageSupplierService`<br>`MeatSupplierService`<br>`BakerySupplierService`<br>`BeverageOrderService`<br>`MeatOrderService`<br>`BakeryOrderService` |
@@ -245,22 +245,24 @@ Complete inventory of all classes participating in the system flows, organized b
 ## outbound-postgres
 
 **Purpose**: PostgreSQL persistence adapter - implements InventoryRepositorySPI, ReplenishmentRepositorySPI, SupplierOrderRepositorySPI and ResetRepositorySPI
-**Package**: `org.svenehrke.triptychdemo.cross.inventory`, `org.svenehrke.triptychdemo.cross.replenishment`, `org.svenehrke.triptychdemo.cross.purchasing`, `org.svenehrke.triptychdemo.cross.reset`
+**Package**: `org.svenehrke.triptychdemo.cross.inventory`, `org.svenehrke.triptychdemo.cross.replenishment`, `org.svenehrke.triptychdemo.cross.purchasing`, `org.svenehrke.triptychdemo.cross.reset`, `org.svenehrke.triptychdemo.cross.jdbc`
 
 ### Services
-- `InventoryService` - Implements InventoryRepositorySPI using Hibernate/Panache ORM
-  - Manages StockEntity persistence (one row per location and product)
+- `InventoryService` - Implements InventoryRepositorySPI with plain SQL (via `StockTable`)
+  - One `stock` row per location and product
   - Handles stock additions and deductions per location, demand recording and the period close (calls core's pure `DemandEstimate`/`LearnedLevels`)
-- `StockEntity` - Panache entity backing the `stock` table (unique on locationId + name + type; plus periodDemand, avgDemand, demandVar, minLevel, maxLevel - at the DC, too)
-- `ReplenishmentService` - Implements ReplenishmentRepositorySPI: stock transfer (DC −qty, request update, IN_TRANSIT `ShipmentEntity`) in one transaction; locks the DC stock row first, then requests, then the target row (created if missing, so it shows what is in transit); `receiveShipment` locks the shipment, then the target row, adds the quantity and marks it ARRIVED; `requestIfLow` locks the DC row, then the target row, sums in transit + outstanding requests and stores an AUTOMATIC request if below min (unserved); `allocate` shares the DC stock via `FairShare`; every request created adds its quantity to the DC row's periodDemand
-- `ReplenishmentRequestEntity` - Panache entity backing the `replenishment_request` table
-- `ShipmentEntity` - Panache entity backing the `shipment` table (requestId, locationId, productName, type, quantity, status, dispatchedAt, arrivedAt)
+- `StockTable` / `StockRow` - SQL of the `stock` table and its row record (unique on locationId + name + type; plus periodDemand, avgDemand, demandVar, minLevel, maxLevel - at the DC, too); every write returns the row afterwards (`... RETURNING`)
+- `ReplenishmentService` - Implements ReplenishmentRepositorySPI: stock transfer (DC −qty, request update, IN_TRANSIT shipment row) in one transaction; locks the DC stock row first, then requests, then the target row (created if missing, so it shows what is in transit); `receiveShipment` locks the shipment, then the target row, adds the quantity and marks it ARRIVED; `requestIfLow` locks the DC row, then the target row, sums in transit + outstanding requests and stores an AUTOMATIC request if below min (unserved); `allocate` shares the DC stock via `FairShare`; every request created adds its quantity to the DC row's periodDemand
+- `ReplenishmentRequestTable` - SQL of the `replenishment_request` table; rows map straight to core's `ReplenishmentRequest`
+- `ShipmentTable` / `ShipmentRow` - SQL of the `shipment` table and its row record (requestId, locationId, productName, type, quantity, status, dispatchedAt, arrivedAt; core's `Shipment` has no type)
 - `SupplierOrderService` - Implements SupplierOrderRepositorySPI; locks the DC stock row first, then the supplier orders
-- `SupplierOrderEntity` - Panache entity backing the `supplier_order` table
-- `ResetService` - Implements ResetRepositorySPI: bulk `deleteAll` of the four entities in one transaction; sequences untouched, so a new row never reuses an id a message in flight still refers to
+- `SupplierOrderTable` - SQL of the `supplier_order` table; rows map straight to core's `SupplierOrder`
+- `ResetService` - Implements ResetRepositorySPI: bulk delete of the four tables in one transaction; identity columns keep counting, so a new row never reuses an id a message in flight still refers to
 
-**Technology**: Quarkus Panache (ORM), Hibernate, PostgreSQL, Flyway
-**Schema**: Flyway migrations in `src/main/resources/db/migration` (`V1__initial_schema.sql`), applied at startup; Hibernate only validates (`database.generation=validate`) - every entity change needs a new `V<n>__*.sql`
+- `Db` - small JDBC helper (`query`, `queryOne`, `queryInt`, `update`, `insert`) on the Agroal datasource; inside `@Transactional` every call uses the transaction's connection
+
+**Technology**: Plain SQL over JDBC (Agroal datasource, Narayana JTA for `@Transactional`), PostgreSQL, Flyway - no ORM
+**Schema**: Flyway migrations in `src/main/resources/db/migration` (`V1__initial_schema.sql`, `V2__identity_ids.sql`: identity ids instead of the Panache sequences), applied at startup - every schema change needs a new `V<n>__*.sql`; the flow tests run every query against the migrated schema
 **Database**: `stock`, `replenishment_request`, `shipment` and `supplier_order` tables in PostgreSQL
 **Transactional**: Yes (@Transactional on write operations)
 

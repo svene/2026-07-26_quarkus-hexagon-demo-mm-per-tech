@@ -116,7 +116,8 @@ Done (2026-10-04, first triggered by the in-transit transfers: a dev-mode reload
 kept its arrival messages):
 - Flyway migrations: `quarkus-flyway` + `quarkus-flyway-postgresql` in `outbound-postgres`,
   `db/migration/V1__initial_schema.sql`, `migrate-at-start`; `database.generation=validate` in every profile, so an
-  entity change without its migration fails at startup. Flyway takes a database lock, so two pods starting at once
+  entity change without its migration fails at startup (since `plain-sql`, 2026-10-05: no Hibernate any more; the
+  flow tests run every query against the migrated schema instead). Flyway takes a database lock, so two pods starting at once
   migrate only once. Tests clean the schema at every app start (`%test.quarkus.flyway.clean-at-start`); dev mode keeps
   the data across live reloads.
 

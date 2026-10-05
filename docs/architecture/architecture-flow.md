@@ -51,7 +51,7 @@ AdminReceiver.inventoryFragment()   → UiResponse(AdminInventory, {locations, p
 └─ ProductsHandler.listAllLocations()   (one ProductStock per product, with its stock per location)
    └─ InventoryRepositorySPI.findAllLocations()
       └─ InventoryService (outbound-postgres)
-         └─ PostgreSQL (StockEntity.listAll(), table stock)
+         └─ PostgreSQL (StockTable.findAll(), table stock)
    └─ Sorted by name (case-insensitive), then type; sold-out products stay listed
 ```
 

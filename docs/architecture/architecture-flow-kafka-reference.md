@@ -17,19 +17,19 @@ Technical reference for understanding the Kafka-based integration patterns and t
   - `recordDemand(location, quantities)`: Called by PurchaseHandler after every sale, own transaction (lost online sales count too)
   - `closePeriod()`: Called by ReorderPolicyHandler at the end of each demand period - learns avg/min/max per row, the DC's included
   - `findAll(location)`, `findAllLocations()`: Called by product list endpoints and the admin matrix
-  - Storage: `stock` table (StockEntity)
+  - Storage: `stock` table (StockTable)
 - **ReplenishmentService**: Requests of the stores / online FC to the DC, and the transfers serving them
   - `allocate(productName)`: Called by ReplenishmentHandler after each delivery (via the async `DeliveredToDc` event and inbound-event's `DeliveryEventReceiver`) and after automatic requests - shares the DC stock among all pending requests in proportion to what each still needs (`FairShare`)
   - `request`, `fulfil`, `reject`: Called from the location page and head office; each is one transaction with the stock transfer
   - A transfer takes the stock off the DC and records an IN_TRANSIT shipment; `receiveShipment(id)` (called via ShipmentArrivalReceiver) adds it to the location once - a repeated arrival changes nothing; `findInTransit(before)` serves the redispatch catch-up
-  - Storage: `shipment` table (ShipmentEntity)
+  - Storage: `shipment` table (ShipmentTable)
   - `requestIfLow(location, productName)`: Called by ReplenishmentHandler for automatic replenishment (after a sale, after a period close) - position = available + in transit + outstanding requests; creates the request only, `allocate` serves it
-  - Storage: `replenishment_request` table (ReplenishmentRequestEntity)
+  - Storage: `replenishment_request` table (ReplenishmentRequestTable)
 - **SupplierOrderService**: The DC's orders from suppliers, and the deliveries that close them
   - `receiveDelivery(productName, type, quantity)`: Called by InventoryHandler for every Kafka delivery - adds it to the DC and closes the open orders of the product oldest first (deliveries carry no order id), one transaction
   - `open(…)`: Called by the commodity Handlers before an order is sent (the delivery may arrive first); `cancel(id)` if sending failed
   - `openIfLow(productName)`: Called by PurchasingHandler for automatic supplier orders (after a request to the DC, after a period close) - position = available + open orders − pending requests, below min → AUTOMATIC order up to max
-  - Storage: `supplier_order` table (SupplierOrderEntity)
+  - Storage: `supplier_order` table (SupplierOrderTable)
 
 ### MongoDB (outbound-mongodb)
 - **AuditLogService**: Logs all system events

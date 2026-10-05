@@ -1,11 +1,11 @@
 package org.svenehrke.triptychdemo.cross.purchasing;
 
-import org.svenehrke.triptychdemo.cross.inventory.StockEntity;
+import org.svenehrke.triptychdemo.cross.inventory.StockTable;
 import org.svenehrke.triptychdemo.cross.location.Locations;
 import org.svenehrke.triptychdemo.cross.products.ProductType;
-import org.svenehrke.triptychdemo.cross.replenishment.ReplenishmentRequestEntity;
-import io.quarkus.panache.common.Sort;
+import org.svenehrke.triptychdemo.cross.replenishment.ReplenishmentRequestTable;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import java.util.ArrayList;
 import java.util.List;
@@ -18,11 +18,20 @@ import java.util.Optional;
 @ApplicationScoped
 public class SupplierOrderService implements SupplierOrderRepositorySPI {
 
+    @Inject
+    StockTable stockTable;
+
+    @Inject
+    SupplierOrderTable orders;
+
+    @Inject
+    ReplenishmentRequestTable requests;
+
     @Override
     @Transactional
     public SupplierOrder open(String productName, ProductType type, int quantity, SupplierOrderOrigin origin) {
-        StockEntity.findForUpdate(Locations.DC, productName, type);
-        return SupplierOrderEntity.create(productName, type, quantity, origin).toDomain();
+        stockTable.findForUpdate(Locations.DC, productName, type);
+        return orders.create(productName, type, quantity, origin);
     }
 
     /**
@@ -32,50 +41,43 @@ public class SupplierOrderService implements SupplierOrderRepositorySPI {
     @Override
     @Transactional
     public Optional<SupplierOrder> openIfLow(String productName) {
-        var dcStock = StockEntity.findByNameForUpdate(Locations.DC, productName).orElse(null);
+        var dcStock = stockTable.findByNameForUpdate(Locations.DC, productName).orElse(null);
         if (dcStock == null) return Optional.empty();
-        int outstanding = SupplierOrderEntity.outstanding(productName) - ReplenishmentRequestEntity.outstanding(productName);
-        int quantity = dcStock.levels().reorderQuantity(dcStock.availableAmount, outstanding);
+        int outstanding = orders.outstanding(productName) - requests.outstanding(productName);
+        int quantity = dcStock.levels().reorderQuantity(dcStock.availableAmount(), outstanding);
         if (quantity <= 0) return Optional.empty();
-        return Optional.of(SupplierOrderEntity.create(productName, dcStock.type,
-            Math.min(quantity, SupplierOrder.MAX_QUANTITY), SupplierOrderOrigin.AUTOMATIC).toDomain());
+        return Optional.of(orders.create(productName, dcStock.type(),
+            Math.min(quantity, SupplierOrder.MAX_QUANTITY), SupplierOrderOrigin.AUTOMATIC));
     }
 
     /** The order's product is read first without a lock, to keep the lock order: DC stock, then the order. */
     @Override
     @Transactional
     public Optional<SupplierOrder> cancel(long id) {
-        return SupplierOrderEntity.productNameOf(id).flatMap(productName -> {
-            StockEntity.findByNameForUpdate(Locations.DC, productName);
-            return SupplierOrderEntity.findOpenForUpdate(id);
-        }).map(order -> {
-            order.status = SupplierOrderStatus.CANCELLED;
-            return order.toDomain();
-        });
+        return orders.productNameOf(id).flatMap(productName -> {
+            stockTable.findByNameForUpdate(Locations.DC, productName);
+            return orders.findOpenForUpdate(id);
+        }).map(orders::cancelled);
     }
 
     @Override
     @Transactional
     public List<SupplierOrder> receiveDelivery(String productName, ProductType type, int quantity) {
-        var dcStock = StockEntity.findForUpdate(Locations.DC, productName, type)
-            .orElseGet(() -> StockEntity.create(Locations.DC, productName, type));
-        dcStock.availableAmount += quantity;
+        var dcStock = stockTable.findOrCreateForUpdate(Locations.DC, productName, type);
+        stockTable.addAvailable(dcStock.id(), quantity);
         var served = new ArrayList<SupplierOrder>();
         int rest = quantity;
-        for (var order : SupplierOrderEntity.findOpenForUpdate(productName)) {
+        for (var order : orders.findOpenForUpdate(productName)) {
             if (rest == 0) break;
             int share = Math.min(rest, order.outstanding());
-            order.delivered += share;
-            if (order.outstanding() == 0) order.status = SupplierOrderStatus.DELIVERED;
             rest -= share;
-            served.add(order.toDomain());
+            served.add(orders.delivered(order, share));
         }
         return served;
     }
 
     @Override
     public List<SupplierOrder> findOpen() {
-        return SupplierOrderEntity.<SupplierOrderEntity>list("status", Sort.by("id"), SupplierOrderStatus.OPEN)
-            .stream().map(SupplierOrderEntity::toDomain).toList();
+        return orders.findOpen();
     }
 }
