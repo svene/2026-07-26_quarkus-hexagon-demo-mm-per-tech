@@ -14,9 +14,9 @@
   <packaging>jar</packaging>
 
   <name>external-inbound-kafka</name>
-  <description>Stub simulating a point-of-sale system: a scheduler periodically picks a random
-    in-stock product (tracked via inventory-events) and publishes a purchase request to the
-    customer-purchases Kafka topic. Demonstrates that external systems driving the application
+  <description>Stub simulating the checkout systems of the physical stores: per store a simulation of
+    its customers (capacity, tills), and one purchase request per paying customer on the
+    cashpoint-purchases Kafka topic. Demonstrates that external systems driving the application
     communicate via Kafka, not by calling core ports directly.</description>
 
   <dependencies>
@@ -39,6 +39,11 @@
     <dependency>
       <groupId>io.quarkus</groupId>
       <artifactId>quarkus-rest-client-jackson</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
     </dependency>
   </dependencies>
 </project>

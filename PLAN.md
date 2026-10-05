@@ -356,28 +356,227 @@ migrations instead of `drop-and-create`, health probes and the stubs as separate
 implement it for now (2026-10-04). Analysis and suggested order:
 [`docs/architecture/two-pods_wip.md`](docs/architecture/two-pods_wip.md).
 
-## store-capacity: Store sales driven by customers in the store, not a fixed timer (TO ELABORATE)
+## audit-log-page: The audit log on a page of its own (DONE)
+
+Done 2026-10-05 at the user's request. The audit panel left `/admin` (it polled `GET /admin/audit-fragment` every
+3 s, 100 entries). New `AuditLogReceiver`: `GET /audit-log` (static shell `shells/audit-log.html` without hx-sse,
+with a *Refresh* button that reloads `#app`) and `GET /audit-log/page` → `UiRoute.AuditLogPage`,
+`AuditLogPageVM(auditEntries, limit)` with the latest 300 entries, newest first (`audit-log.ts`). Removed:
+`GET /admin/audit-fragment`, `AuditPanelVM`, `UiRoute.AuditPanel`, `auditEntries` in `AdminPageVM`. The landing page
+links `/audit-log` as a fourth entry point. Tests: `AuditLogReceiverTest` (incl. the 300 cap), `audit-log.spec.ts`.
+
+## store-capacity: Store sales driven by customers in the store, not a fixed timer (DONE)
 
 Added 2026-10-04 at the user's request. Today the cashpoint traffic of the physical stores comes from one timer:
 `CashpointStub` (`external-inbound-kafka`, `@Scheduled(every = "10s")`) picks a random store each tick and sells from its
 stock, so every store sells at the same average rate, whatever its size.
 
-Replace that with a **capacity per store**: the maximum number of customers in the store at the same time. The capacity
-drives the purchase frequency at the store's checkout - a bigger store has more customers shopping, so more purchases
-per minute. The three stores become:
+### Decisions (elaborated 2026-10-05)
 
-| Store | Size | Capacity (customers at a time) |
-|---|---|---|
-| (one of Zurich / Bern / Basel) | small | 50 |
-| (one of Zurich / Bern / Basel) | medium | 150 |
-| (one of Zurich / Bern / Basel) | big | 500 |
+- **The tills are the bottleneck.** Each store has a capacity (customers inside at the same time) and a number of
+  tills. Only so many customers per time can pay; while they queue at the tills the store stays full, and a customer
+  who arrives at a full store is turned away (a lost customer, who buys nothing). **One checkout per customer who
+  pays** - no thinning out, no aggregation.
+- **Why not realistic numbers everywhere:** at 1 day = 1 min (`inventory.demand-period`) a store with hundreds of
+  customers and a realistic stay produces thousands of checkouts per demo minute (≈ 32 per customer inside), far
+  beyond what the replenishment (order caps of 2000, lead/transit time) and the live UIs handle. Rejected for that:
+  smaller capacities alone, 1 day = 10 min, sending only every Nth checkout, aggregated checkouts with an initial fill
+  and higher caps. The **till time is the one deliberate exception** to the time scale: it is set in demo time (15 s),
+  which caps the purchase rate. Everything else follows 1 day = 1 min.
+- **Stores** (the capacity column was dropped after the dev run, see Result):
 
-To elaborate before planning: which store gets which size; how customers enter, shop and leave (arrival rate, time in
-the store, occupancy vs. capacity, e.g. "customers waiting outside" when full); how the occupancy turns into purchases
-(one checkout per leaving customer?); whether the capacity is domain data in core (`Store`) or only configuration of the
-stub (the external checkout systems); whether the occupancy is shown in the UI; and the two-pod constraints
-([`two-pods_wip.md`](docs/architecture/two-pods_wip.md): the simulation is an external system, so no per-pod timer in
-the app). The learned reorder levels should then differ per store by themselves, since demand differs.
+  | Store | Capacity | Tills | Max checkouts per demo minute (15 s per customer) |
+  |---|---|---|---|
+  | Zurich | ~~60~~ | 4 | 16 |
+  | Basel | ~~40~~ | 2 | 8 |
+  | Bern | ~~20~~ | 1 | 4 |
+
+  ≈ 28 checkouts/min for the chain (today ≈ 6). Numbers get tuned in the dev app.
+- **Time in the store:** 30-60 real minutes → 1.25-2.5 s at 1 day = 1 min (uniform, i.e. jittered).
+- **Arrivals** follow a rush-hour curve over the demo day, relative to the store's till throughput (from ≈ 0.3× to
+  ≈ 1.5×), so the store fills up and turns customers away at the peak and empties again afterwards.
+- **Only stub configuration.** Capacity and tills are properties of the external checkout systems; core's `Store` and
+  the app don't change (same `cashpoint-purchases` topic, same `CashpointReceiver`). The learned reorder levels differ
+  per store by themselves, since demand differs.
+- **No occupancy in the UI** in this item: the app would need a new inbound (door counters). The stub logs occupancy,
+  till queue, served and lost customers. Follow-up item `store-occupancy` (TO ELABORATE).
+- **Two pods:** the simulation state is the external system's own state (in the stub, in memory) - fine. That the stub
+  runs in every pod is the existing open point "stubs as separate deployments" in
+  [`two-pods_wip.md`](docs/architecture/two-pods_wip.md); this item doesn't make it worse.
+
+### Plan (APPROVED 2026-10-05)
+
+1. **Simulation model** (`external-inbound-kafka`, package `cashpoint`, plain Java, no Quarkus):
+   - `StoreConfig(String storeId, int capacity, int tills)`.
+   - `StoreSimulation` - the state of one store: shoppers (each with the time it finishes shopping), the till queue
+     (FIFO), each till's busy-until time, counters for served and lost customers. One method
+     `int tick(Instant now, Duration dt)` advances the store and returns the number of customers who paid in this
+     tick (= checkouts to send):
+     1. arrivals: Poisson-distributed count with mean `arrivalRate(now) × dt`; each enters if occupancy < capacity,
+        else is counted as lost;
+     2. shoppers whose shopping time is over join the till queue;
+     3. every free till takes the next customer from the queue for one till time; a customer whose till time is over
+        has paid and leaves (frees a place).
+     Occupancy = shoppers + till queue + customers at a till.
+   - `arrivalRate(now)` = till throughput (`tills / till time`) × rush factor; the rush factor is a sine over the
+     demo day between 0.3 and 1.5 (constants in the class).
+   - Randomness through an injected `RandomGenerator`, durations through a `SimulationTiming` record (`day`,
+     `tillTime`); stay = `day × uniform(30, 60) / 1440`, till time = `tillTime ± 20 %` (like the supplier lead time
+     and the carrier transit time).
+2. **`CashpointStub`** keeps its job (read stock via `ProductsApiClient`, build a basket, send a `PurchaseRequest`),
+   but is driven by the simulations:
+   - `@Scheduled(every = "${cashpoint-stub.tick}", delayed = "30s", concurrentExecution = SKIP)`; each tick calls
+     `tick()` on the three `StoreSimulation`s and sends one checkout per paying customer (today's basket logic:
+     2-4 in-stock products, 1-3 units each; nothing in stock → the customer leaves without a purchase, as today).
+   - Every 10 s it logs per store: occupancy / capacity, till queue, served and lost since the last log line.
+   - Store configs come from the config below (`@ConfigMapping(prefix = "cashpoint-stub")`); `STORE_IDS` goes.
+3. **Config** (`app-server/application.properties`, new section "Cashpoint stub", like the other stubs):
+   ```
+   cashpoint-stub.tick=100ms
+   cashpoint-stub.day=1m
+   cashpoint-stub.till-time=15s
+   cashpoint-stub.stores.zurich.capacity=60
+   cashpoint-stub.stores.zurich.tills=4
+   cashpoint-stub.stores.basel.capacity=40
+   cashpoint-stub.stores.basel.tills=2
+   cashpoint-stub.stores.bern.capacity=20
+   cashpoint-stub.stores.bern.tills=1
+   %test.cashpoint-stub.tick=off
+   ```
+   plus `-Dcashpoint-stub.tick=off` in `e2e-playwright/playwright.config.ts`. Today the stub starts selling after
+   30 s in tests and e2e, too, where only the tests should move stock. (`tick=off` like `inventory.demand-period=off`,
+   instead of the separate `enabled` switch mentioned during elaboration - one property fewer.) `cashpoint-stub.day`
+   is its own property, since `inventory.demand-period` is `off` in tests.
+4. **Tests** (new `external-inbound-kafka/src/test`, JUnit 5 + AssertJ from the parent POM): `StoreSimulationTest`
+   with a seeded `RandomGenerator` and a hand-moved clock:
+   - a customer who entered pays exactly once, after shopping time + till time;
+   - occupancy never exceeds capacity; arrivals at a full store count as lost;
+   - with 1 till, paying customers per minute ≤ 60 s / till time (with jitter: a tolerance);
+   - more tills → more paying customers under the same arrivals.
+   The existing `CashpointViaKafkaFlowTest` stays as it is (it publishes its own purchases).
+5. **Docs** (update-architecture-docs skill): `concepts.md` (cashpoint stub section), `README.md` (simulated
+   checkouts), `architecture-module-participants.md` (`CashpointStub`, `StoreSimulation`),
+   `architecture-flow-kafka-reference.md` (producer line), `two-pods_wip.md` (`@Scheduled` every 10 s → tick);
+   `docs/ai/session-notes.md` baseline. New PLAN item `store-occupancy` (TO ELABORATE).
+6. **Verification**: `external-inbound-kafka` unit tests, full app-server suite, e2e (`--retries=0`); then the dev
+   app: watch the stub's log lines over a few demo days (full stores at the peak, lost customers) and check that the
+   learned reorder levels differ per store; tune capacities/tills/till time if the volume is off.
+
+Result 2026-10-05: implemented as planned (staged). `StoreSimulationTest` 6/6, app-server 151, e2e 26/26 (first run).
+Deviations: the snapshot also counts *entered* customers (the test checks entered = paid + still inside); while at it,
+`order_fruits_returns_200_with_empty_body` and the new audit-log order test wait for the Banana delivery at the DC -
+it could land in the next test's freshly reset inventory (seen once).
+
+Dev run (≈ 2 min): the purchase rate is as planned (Zurich ≈ 16/min at its 4-till cap, Basel ≈ 6, Bern ≈ 4; ≈ 26
+for the chain), but **the capacity never binds**: 5-11 customers in Zurich, none turned away. With a stay of only
+1.25-2.5 s almost everyone inside is at the tills, and the queue grows only while arrivals exceed the till rate - for
+≈ 20 s of the 1-min day at 1.5×, i.e. ≈ 3 extra customers in Zurich. Decided (user): **drop the capacity** - only the
+tills drive the purchases; nobody is turned away. Removed from `StoreSimulation`, `CashpointStubConfig`, the config
+and the docs; the "never more than its capacity" test went. `StoreSimulationTest` 5, app-server 151; dev run as before
+(Zurich 10-11 inside, 6 at the tills). Side note: at 15 s per customer one till serves only 4 customers per demo day,
+so the rush-hour curve is hardly visible against the random arrivals. The per-store reorder levels were not checked
+yet (needs a longer dev run).
+
+## dc-seed: The DC starts with stock instead of empty (DONE)
+
+Added 2026-10-05 at the user's request. Today the DC is empty at startup and after the admin reset: the Flyway
+migrations only create the schema, nothing inserts stock, and a product's stock row only appears with its first
+supplier delivery. The automatic stages build on existing rows only (`AutoPurchasingReceiver` re-checks the products
+the DC already carries; the stores request what the DC carries), so after a fresh start or a reset nothing happens
+until someone orders each product by hand - and the store simulation's customers find nothing to buy.
+
+Proposal: seed the DC with every product of the catalog at its cold-start level, so the whole chain runs on its own.
+
+Decided 2026-10-05:
+- **How it enters: as supplier orders** - the seed places one order per product through the commodity Handlers, like
+  the admin order forms; the stock arrives as ordinary supplier deliveries (lead time, audit trail, open supplier
+  orders on `/admin`).
+- **Amount: one fixed number for every product**: 500. When it arrives, the stores and the online FC pull their
+  cold-start max at once (3 × 47 + 68 ≈ 210 per product), which leaves ≈ 290 at the DC - above its cold-start reorder
+  point of 136, so it doesn't reorder right away; and well below the 2000 cap per supplier order.
+- **Catalog in core** (`cross.products.Catalog`); the admin order forms are rendered from it (one list, not two).
+- **When:** after startup and after the admin reset, through one core Handler.
+- **Two pods:** "DC has no stock rows and no open supplier orders", checked and recorded in one transaction under a
+  Postgres advisory lock.
+- **Switch** `inventory.dc-seed.enabled`, off in `%test` and e2e.
+- **Origin `SEED`** next to `MANUAL` and `AUTOMATIC`, visible on `/admin` and in the audit log.
+
+Consequences of going through the suppliers:
+- **Startup timing.** The REST/SOAP supplier stubs run in the same app; placing orders in a `StartupEvent` observer
+  may call them before the HTTP server listens. The startup seed has to run a little later (e.g. a one-off
+  `@Scheduled(delayed = ...)`, like the cashpoint stub's 30 s).
+- **Idempotency gets harder** (two pods, or a restart while seed orders are still open): the check becomes "the DC
+  has no stock rows *and* no open supplier orders", taken under a lock so that two pods can't both pass it.
+
+### Plan (APPROVED 2026-10-05)
+
+1. **Catalog** (core, `cross.products`): `record CatalogProduct(String name, ProductType type)` and
+   `Catalog.PRODUCTS` - the 28 products of today's order forms, in their order (4 per type, 7 types). Only a list:
+   orders of other names stay allowed (the e2e tests order unique product names through the JSON API).
+2. **Origin `SEED`** (`SupplierOrderOrigin`, javadoc "the DC was seeded: it was empty after a start or a reset").
+   Migration **`V3__seed_origin.sql`**: the `supplier_order.origin` check constraint gets `'SEED'` (drop and re-add;
+   V1/V2 stay untouched). `replenishment_request.origin` is not affected.
+3. **SPI** `SupplierOrderRepositorySPI.openSeed(List<CatalogProduct> products, int quantity)` → `List<SupplierOrder>`:
+   in one transaction, `pg_advisory_xact_lock(<constant>)` (there is no row to lock yet), then - only if the DC has
+   no stock row and there is no open supplier order - one `SEED` order per product; else an empty list. Implemented
+   in outbound-postgres (`SupplierOrderService` + a `StockTable`/`SupplierOrderTable` count query each).
+4. **Core**: `PurchasingHandler.seedDc(int quantity)` - `openSeed(Catalog.PRODUCTS, quantity)`, then audit
+   `DC_SEEDED` ("28 products × 500") and `place(order)` for each, the same switch over `ProductType` as the automatic
+   orders. A supplier that is down cancels its own orders (as today); the seed doesn't retry them - the next check
+   finds open orders of the others and does nothing, and those products then come in only by hand. (Acceptable for a
+   demo; noted in the javadoc.)
+5. **Trigger** (inbound-event, new `DcSeedReceiver`, switch `inventory.dc-seed.enabled` + quantity
+   `inventory.dc-seed.quantity=500`), following the user's preference for events over Handler → Handler calls:
+   - `@ObservesAsync InventoryReset` → `seedDc` - right after the admin reset;
+   - `@ObservesAsync LevelsRecalculated` → `seedDc` - covers the startup without a timer of its own: the first period
+     close comes 1 min after the start, when the supplier stubs in the same app are reachable. The check is cheap and
+     idempotent, so running it at every period close is harmless (it seeds only an empty DC).
+   - Failures are audit-logged (`DC_SEED_FAILED`), like the other receivers.
+   Result in dev: seed orders ≈ 1 min after start (right away after a reset), DC stocked ≈ 30 s later (lead time),
+   stores and online FC pull at the next period close and receive it after the carrier's 20 s.
+6. **Admin forms from the catalog**: `AdminPageVM` gets `catalog` (`List<CatalogProductVM>` name + type);
+   `admin.ts` keeps the supplier tabs and form actions but takes each form's products from the catalog by type
+   (`SUPPLIER_BOXES` loses its hard-coded product lists).
+7. **Config**: `inventory.dc-seed.enabled=true`, `inventory.dc-seed.quantity=500`, `%test....enabled=false`;
+   `-Dinventory.dc-seed.enabled=false` in `playwright.config.ts`. (In `%test` and e2e the period close is off anyway,
+   but the reset would seed.)
+8. **Tests**: `SeedFlowTest` (switch on via a test profile or by calling `PurchasingHandler.seedDc` directly, like the
+   other flow tests call the Handlers): an empty DC gets 28 `SEED` orders and, after the deliveries, 500 of each
+   product; a second call orders nothing; a DC with stock or an open order is not seeded. A concurrency test: two
+   parallel `seedDc` calls → 28 orders, not 56. `AdminReceiverTest`: the page view carries the catalog. e2e unchanged
+   (forms show the same products).
+9. **Docs**: `architecture-flow.md` (event section: `DcSeedReceiver`, reset tree), `architecture-module-participants.md`
+   (`Catalog`, `DcSeedReceiver`, `PurchasingHandler.seedDc`, `openSeed`), `architecture-flow-kafka-reference.md`,
+   `two-pods_wip.md` (the advisory lock), new `flows/dc-seed.puml` + `flows/README.md`, `README.md` (the demo starts by
+   itself), session-notes baseline.
+10. **Verification**: app-server suite, e2e (`--retries=0`); dev app after a reset: seed orders on `/admin`, then DC
+    and store stock, and the store simulation selling.
+
+Result 2026-10-05: done (staged). Core 161, external-inbound-kafka 5, app-server 158 (`DcSeedFlowTest` 7), e2e 26/26
+(second run; the first after the rebuild failed 14, the known double live reload).
+The dev check found a wrong assumption in the plan: `DemandPeriodReceiver` fired right at the start (no `delayed`),
+so the seed ran before the HTTP server listened - the REST/SOAP orders were refused and cancelled, the 4 Kafka ones
+went through and then blocked every later seed ("no open order at all"). Two fixes, approved by the user:
+- **Seeding per product** instead of all-or-nothing: `openSeed` orders every catalog product the DC has no stock row
+  and no open order *of*, so a cancelled seed order is ordered again at the next period close (also closes the
+  "supplier down → not retried" gap of plan step 4). Tests: `a_product_the_dc_carries_is_not_seeded`,
+  `a_product_on_order_is_not_seeded`, `a_cancelled_order_is_seeded_again`.
+- **The first period close one period after the start** (`DemandPeriodReceiver`: `delayed =
+  "${inventory.first-period-close-delay}"`, 1m - a property of its own, since `delayed` rejects the `off` of tests/e2e):
+  no supplier call before the HTTP server listens, and no zero-length first period that learned a demand of 0 (an
+  existing distortion).
+Dev run after the fixes (fresh database): no seed at the start, `DC_SEEDED` at t+60 s without `DC_SEED_FAILED`, all
+28 products at 500 in the DC by t+105 s. (That the stores then pull at the next close was not watched in the dev app; the flow tests cover it.)
+- **Startup seed after 5 s** (follow-up, 2026-10-05): the DC stayed at 0 for ~1.5 min after a start, which looked
+  broken. `DcSeedReceiver.onStart` (`StartupEvent` → one-off Vert.x timer, `inventory.dc-seed.startup-delay=5s`, the
+  seed on a worker thread) seeds once the HTTP server listens; the period close keeps its 1 min delay.
+
+## store-occupancy: Show the stores' occupancy in the UI (TO ELABORATE)
+
+Added 2026-10-05 as the follow-up of `store-capacity`. The store simulation (capacity, till queue, lost customers)
+lives in the cashpoint stub, so the app doesn't know it. Showing it would need the external system to report it, e.g.
+door counters publishing a `store-occupancy` Kafka topic, plus a receiver, an event and a section on `/locations`.
+To elaborate: whether it is worth it for the demo, message shape and rate, where it is shown.
 
 ## plain-sql: Replace JPA (Hibernate/Panache) with plain SQL in outbound-postgres (DONE)
 

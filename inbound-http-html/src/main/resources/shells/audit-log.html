@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Supermarket – Audit Log</title>
+    <link rel="stylesheet" href="/css/bulma.min.css">
+    <link rel="stylesheet" href="/css/theme.css">
+    <!-- synchronous, before the first paint: applies the saved dark/light choice without a flash -->
+    <script src="/js/theme.js"></script>
+    <meta name="htmx-config" content='{"noSwap": [204, 304, "5xx"]}'>
+    <script src="/js/htmx.org/4.0.0/htmx.js"></script>
+    <!-- must load right after htmx.js: registers the `hono` extension that renders the { route, vm } responses -->
+    <script src="/js/hono/hx-hono.js"></script>
+</head>
+<body>
+<section class="section">
+<div class="container is-fluid">
+    <div class="level">
+        <h1 class="title level-left">Supermarket – Audit Log</h1>
+        <div class="level-right">
+            <!-- no SSE and no polling: the entries are only reloaded on request -->
+            <button type="button" class="button is-small is-link is-light level-item" id="refresh-audit-log"
+                    hx-get="/audit-log/page" hx-target="#app" hx-swap="innerHTML">Refresh</button>
+            <button type="button" class="button is-small theme-toggle level-item" title="Toggle dark/light theme" aria-label="Toggle dark/light theme"></button>
+        </div>
+    </div>
+    <div id="app" hx-get="/audit-log/page" hx-trigger="load" hx-swap="innerHTML"></div>
+</div>
+</section>
+
+</body>
+</html>

@@ -29,6 +29,7 @@ Technical reference for understanding the Kafka-based integration patterns and t
   - `receiveDelivery(productName, type, quantity)`: Called by InventoryHandler for every Kafka delivery - adds it to the DC and closes the open orders of the product oldest first (deliveries carry no order id), one transaction
   - `open(…)`: Called by the commodity Handlers before an order is sent (the delivery may arrive first); `cancel(id)` if sending failed
   - `openIfLow(productName)`: Called by PurchasingHandler for automatic supplier orders (after a request to the DC, after a period close) - position = available + open orders − pending requests, below min → AUTOMATIC order up to max
+  - `openSeed(products, quantity)`: Called by PurchasingHandler.seedDc (5 s after the start, after the admin reset, at a period close) - one SEED order per catalog product the DC has no stock row and no open order of; a Postgres advisory lock serializes concurrent seeds
   - Storage: `supplier_order` table (SupplierOrderTable)
 
 ### MongoDB (outbound-mongodb)
@@ -157,7 +158,7 @@ Every stub publishes its delivery after the supplier lead time (`supplier-stub.l
 ### Cashpoint Purchase Cycle
 
 **Topic: cashpoint-purchases**
-- **Producer**: External checkout systems (simulated by CashpointStub: a random store, reading its stock from `GET /api/locations/{id}/products`)
+- **Producer**: External checkout systems (simulated by CashpointStub: one purchase per customer who pays at a store's till - per store a `StoreSimulation` with its tills; the basket comes from the store's stock, read from `GET /api/locations/{id}/products`)
 - **Consumer**: CashpointReceiver (in inbound-kafka)
 - **Message**: `{storeId, items: [{productName, quantity}]}`; a missing `storeId` goes to the DLQ, an id that is no store is audit-logged `INVALID` and skipped
 - **Flow**: Cashpoint event → PurchaseHandler.recordStoreSale(store, …) → that store's stock deducted (capped at 0; overselling is logged as `STOCK_DISCREPANCY`, never rejected), the sold quantities recorded as demand
@@ -169,11 +170,10 @@ Every stub publishes its delivery after the supplier lead time (`supplier-stub.l
 
 | Receiver | Route | Method | Flow Type | Kafka Topic Connection | Data Sinks |
 |----------|-------|--------|-----------|------------------------|-----------|
-| (static resource) | / | GET | Landing page: links to /admin, /locations, /shop | - | - |
+| (static resource) | / | GET | Landing page: links to /admin, /locations, /shop, /audit-log | - | - |
 | AdminReceiver | /admin | GET | Static page shell | - | - |
-| AdminReceiver | /admin/page | GET | Query | - | PostgreSQL + MongoDB (read) |
+| AdminReceiver | /admin/page | GET | Query | - | PostgreSQL (read) |
 | AdminReceiver | /admin/inventory-fragment | GET | Query | - | PostgreSQL (read) |
-| AdminReceiver | /admin/audit-fragment | GET | Query | - | MongoDB (read) |
 | AdminReceiver | /admin/requests-fragment | GET | Query | - | PostgreSQL (read) |
 | AdminReceiver | /admin/requests/{id}/fulfil, /reject | POST | Command | - | PostgreSQL + MongoDB |
 | AdminReceiver | /admin/reset | POST | Command (dev: deletes all demo data and the audit log) | - | PostgreSQL + MongoDB |
@@ -189,6 +189,8 @@ Every stub publishes its delivery after the supplier lead time (`supplier-stub.l
 | ShopReceiver | /shop/inventory-fragment | GET | Query | - | PostgreSQL (read) |
 | InventoryEventsReceiver | /inventory/events | GET | SSE stream (inventory changes, for /shop, /admin and /locations) | - | - |
 | ShopReceiver | /shop/checkout | POST | Command | - | PostgreSQL + MongoDB |
+| AuditLogReceiver | /audit-log | GET | Static page shell (Refresh button, no SSE) | - | - |
+| AuditLogReceiver | /audit-log/page | GET | Query (latest 300 entries) | - | MongoDB (read) |
 | LocationReceiver | /locations | GET | Static page shell | - | - |
 | LocationReceiver | /locations/page, /locations/{id}/inventory-fragment | GET | Query | - | PostgreSQL (read) |
 | LocationReceiver | /locations/{id}/requests | POST | Command | - | PostgreSQL + MongoDB |

@@ -59,6 +59,11 @@ public class SupplierOrderTable {
         return setDeliveredAndStatus(order.id(), order.delivered(), SupplierOrderStatus.CANCELLED);
     }
 
+    /** Serializes the transactions that call it (released at commit); for checks that have no row to lock yet. */
+    void advisoryLock(long key) {
+        db.queryOne("select pg_advisory_xact_lock(?)", rs -> true, key);
+    }
+
     List<SupplierOrder> findOpen() {
         return db.query("select " + COLUMNS + " from supplier_order where status = ? order by id",
             SupplierOrderTable::map, SupplierOrderStatus.OPEN);

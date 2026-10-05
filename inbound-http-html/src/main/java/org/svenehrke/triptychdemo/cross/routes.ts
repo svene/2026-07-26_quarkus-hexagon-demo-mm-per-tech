@@ -1,6 +1,7 @@
 import type {UiRoute} from "./generated/vm-types";
 import type {HtmlResult} from "./route-types";
-import {AdminInventory, AdminPage, AdminRequests, AdminSupplierOrders, AuditPanel, OrderErrors} from "./admin";
+import {AdminInventory, AdminPage, AdminRequests, AdminSupplierOrders, OrderErrors} from "./admin";
+import {AuditLogPage} from "./audit-log";
 import {LocationInventory, LocationsPage} from "./location";
 import {ShopProducts, ShopPage} from "./shop";
 
@@ -13,11 +14,11 @@ export const uiRoutes = {
 	AdminInventory: (vm: any) => AdminInventory(vm),
 	AdminRequests: (vm: any) => AdminRequests(vm),
 	AdminSupplierOrders: (vm: any) => AdminSupplierOrders(vm),
-	AuditPanel: (vm: any) => AuditPanel(vm),
 	OrderErrors: (vm: any) => OrderErrors(vm),
 	LocationsPage: (vm: any) => LocationsPage(vm),
 	LocationInventory: (vm: any) => LocationInventory(vm),
 	ShopPage: (vm: any) => ShopPage(vm),
 	ShopProducts: (vm: any) => ShopProducts(vm),
+	AuditLogPage: (vm: any) => AuditLogPage(vm),
 
 } satisfies Record<UiRoute, (vm: any) => HtmlResult>;

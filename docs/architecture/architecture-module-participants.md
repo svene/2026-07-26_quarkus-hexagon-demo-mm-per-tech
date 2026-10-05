@@ -11,10 +11,10 @@ Complete inventory of all classes participating in the system flows, organized b
 
 | Module | Participants |
 |--------|--------------|
-| **inbound-http-html** | `AdminReceiver`<br>`ShopReceiver`<br>`LocationReceiver`<br>`InventoryEventsReceiver`<br>`InventoryEventBroadcaster`<br>`ShopCart`<br>`PageShell` |
+| **inbound-http-html** | `AdminReceiver`<br>`ShopReceiver`<br>`LocationReceiver`<br>`AuditLogReceiver`<br>`InventoryEventsReceiver`<br>`InventoryEventBroadcaster`<br>`ShopCart`<br>`PageShell` |
 | **inbound-http-jsonapi** | `ProductApiReceiver`<br>`LocationApiReceiver`<br>`XxxOrderRequest` (+ `OrderRequest`)/`PurchaseRequest`/`PurchaseRequestItem`/`RequestStructureErrorMessages`<br>`JsonInputErrors`/`StrictJsonReader`/`JsonResponses`<br>`ProductJson` |
 | **inbound-kafka** | `FruitDeliveryReceiver`<br>`VegetablesDeliveryReceiver`<br>`DairyDeliveryReceiver`<br>`BeveragesDeliveryReceiver`<br>`MeatDeliveryReceiver`<br>`BakeryDeliveryReceiver`<br>`NonFoodDeliveryReceiver`<br>`CashpointReceiver`<br>`ShipmentArrivalReceiver` |
-| **inbound-event** | `DeliveryEventReceiver`, `AutoReplenishmentReceiver`, `AutoPurchasingReceiver`, `ShipmentCatchUpReceiver`, `DemandPeriodReceiver` |
+| **inbound-event** | `DeliveryEventReceiver`, `AutoReplenishmentReceiver`, `AutoPurchasingReceiver`, `DcSeedReceiver`, `ShipmentCatchUpReceiver`, `DemandPeriodReceiver` |
 | **core** | `FruitSupplierSPI`/`FruitDelivery`/`FruitsHandler`<br>`VegetablesSupplierSPI`/`VegetableDelivery`/`VegetablesHandler`<br>`DairySupplierSPI`/`DairyDelivery`/`DairyHandler`<br>`BeverageSupplierSPI`/`BeverageDelivery`/`BeveragesHandler`<br>`MeatSupplierSPI`/`MeatDelivery`/`MeatHandler`<br>`BakerySupplierSPI`/`BakeryDelivery`/`BakeryHandler`<br>`NonFoodSupplierSPI`/`NonFoodDelivery`/`NonFoodHandler`<br>`InventoryRepositorySPI`/`InventoryHandler`/`InventoryEvent` (`DeliveredToDc`/`StockDeducted`/`ReplenishmentChanged`/`LevelsRecalculated`/`DcDemandChanged`/`SupplierOrdersChanged`/`InventoryReset`)<br>`Location`/`Replenished`/`Warehouse`/`Store`/`OnlineFc`/`Locations`<br>`ReplenishmentRepositorySPI`/`ReplenishmentHandler`/`StockRequest`/`ReplenishmentRequest`/`RequestOrigin`/`CarrierSPI`/`Shipment`/`ShipmentStatus`<br>`ReorderPolicyHandler`/`ReorderPolicy`/`DemandEstimate`/`LearnedLevels`<br>`SupplierOrderRepositorySPI`/`PurchasingHandler`/`SupplierOrder`/`SupplierOrderStatus`/`SupplierOrderOrigin`<br>`AuditLogSPI`/`AuditLogHandler`/`AuditLogEntry`<br>`ResetRepositorySPI`/`ResetHandler`<br>`ProductsHandler`/`Product`/`ProductStock`/`ProductType`<br>`PurchaseHandler`/`PurchaseItem` |
 | **outbound-postgres** | `InventoryService`<br>`StockTable`<br>`ReplenishmentService`<br>`ReplenishmentRequestTable`<br>`ShipmentTable`<br>`SupplierOrderService`<br>`SupplierOrderTable`<br>`ResetService`<br>`Db` |
 | **outbound-mongodb** | `AuditLogService`<br>`AuditLogEntryEntity` |
@@ -24,7 +24,7 @@ Complete inventory of all classes participating in the system flows, organized b
 | **external-outbound-rest** | `FruitSupplierStub`<br>`VegetablesSupplierStub`<br>`DairySupplierStub` |
 | **external-outbound-soap** | `BeverageSupplierStub`<br>`MeatSupplierStub`<br>`BakerySupplierStub` |
 | **external-outbound-kafka** | `NonFoodSupplierStub`<br>`CarrierStub` |
-| **external-inbound-kafka** | `CashpointStub`<br>`ProductsApiClient` |
+| **external-inbound-kafka** | `CashpointStub`<br>`StoreSimulation`<br>`CashpointStubConfig`<br>`ProductsApiClient` |
 
 ---
 
@@ -37,6 +37,7 @@ Complete inventory of all classes participating in the system flows, organized b
 - `AdminReceiver` - Admin dashboard: product × location matrix, supplier orders (to the DC) and the open ones, pending requests (GET /admin shell, GET /admin/page and fragments incl. /admin/supplier-orders-fragment, POST /admin/order-*, POST /admin/requests/{id}/fulfil|reject, POST /admin/reset - the shell's *Reset demo data* button, `hx-confirm`)
 - `ShopReceiver` - Customer shopping interface, sells the online FC's stock (GET /shop shell, GET /shop/page and fragment, POST /shop/checkout)
 - `LocationReceiver` - One page for all stores and the online FC: stock, requests to the DC (GET /locations shell, GET /locations/page, GET /locations/{id}/inventory-fragment, POST /locations/{id}/requests)
+- `AuditLogReceiver` - The latest 300 audit log entries, newest first, without live updates: the shell's *Refresh* button reloads them (GET /audit-log shell, GET /audit-log/page)
 - `InventoryEventsReceiver` - GET /inventory/events SSE stream (`inventoryChanged`), used by the shop, admin and locations shells
 - `InventoryEventBroadcaster` (package-private) - `@ObservesAsync InventoryEvent` (every kind), re-published as a JDK `Flow.Publisher` that the SSE streams subscribe to
 - `PageShell` (package-private) - fills the `{{key}}` placeholders of a page shell
@@ -105,7 +106,8 @@ Complete inventory of all classes participating in the system flows, organized b
 - `AutoReplenishmentReceiver` - `@ObservesAsync StockDeducted` → `ReplenishmentHandler.replenishIfLow(location, productNames)`; `@ObservesAsync LevelsRecalculated` → `replenishAllIfLow(DC products)` - all locations at once, so a shortfall is shared (fills empty locations at cold start); failures audit-logged (`AUTO_REPLENISHMENT_FAILED`); off with `inventory.auto-replenishment.enabled=false` (`%test`, e2e)
 - `ShipmentCatchUpReceiver` - `@ObservesAsync LevelsRecalculated` → `ReplenishmentHandler.redispatchOverdue(inventory.shipment-redispatch-after)` - sends shipments still in transit after 2 min to the carrier again (a lost dispatch or arrival); failures audit-logged (`REDISPATCH_FAILED`)
 - `AutoPurchasingReceiver` - `@ObservesAsync DcDemandChanged` → `PurchasingHandler.orderIfLow(productName)`; `@ObservesAsync LevelsRecalculated` → `orderIfLow` per DC product (one at a time, so a supplier that is down does not block the others); failures audit-logged (`AUTO_PURCHASING_FAILED`); off with `inventory.auto-purchasing.enabled=false` (`%test`, e2e) - a switch of its own, so a flow test can turn on one stage only
-- `DemandPeriodReceiver` - `@Scheduled(every = "${inventory.demand-period}")` (1 min, `off` in `%test` and e2e) → `ReorderPolicyHandler.closePeriod()`; needs `quarkus-scheduler`
+- `DcSeedReceiver` - `StartupEvent` (one-off Vert.x timer, `inventory.dc-seed.startup-delay` = 5s, on a worker thread), `@ObservesAsync InventoryReset` and `LevelsRecalculated` → `PurchasingHandler.seedDc(inventory.dc-seed.quantity = 500)` - seeds what the DC neither carries nor has on order: everything 5 s after the start (once the HTTP server listens) and after the admin reset; later it re-orders what a supplier that was down could not take; failures audit-logged (`DC_SEED_FAILED`); off with `inventory.dc-seed.enabled=false` (`%test`, e2e)
+- `DemandPeriodReceiver` - `@Scheduled(every = "${inventory.demand-period}", delayed = "${inventory.first-period-close-delay}")` (1 min, `off` in `%test` and e2e; the first close one period after the start - no zero-length period, no supplier call before the HTTP server listens) → `ReorderPolicyHandler.closePeriod()`; needs `quarkus-scheduler`
 
 **Responsibilities**:
 - React to core's domain events, decoupled from the code that fires them (a failing reaction cannot fail, or make the Kafka receiver repeat, the delivery)
@@ -188,6 +190,7 @@ Complete inventory of all classes participating in the system flows, organized b
 - `ProductStock` - Domain record (name, type, byLocation: `LocationStock` per location; availableAt, estimateAt, levelsAt)
 - `Product` - Domain record (name, type, availableAmount)
 - `ProductType` - Enum (FRUIT, VEGETABLE, DAIRY, BEVERAGE, MEAT, BAKERY, NON_FOOD)
+- `Catalog` - `PRODUCTS`: the 28 products the chain lists (`CatalogProduct` name + type, 4 per type) - what the admin order forms offer and what the DC is seeded with; only a list, orders of other names stay allowed
 
 ### cross.purchase
 - `PurchaseOutcome` - Sealed result of checkout (`Completed` | `Rejected`)
@@ -221,8 +224,8 @@ Complete inventory of all classes participating in the system flows, organized b
 - `ReorderPolicyHandler` - closePeriod: `InventoryRepositorySPI.closePeriod()`, audit `PERIOD_CLOSED`, fires `LevelsRecalculated`
 
 ### cross.purchasing
-- `SupplierOrderRepositorySPI` - The DC's supplier orders, each method one transaction with the DC stock row locked first (methods: open - records an order before it is sent, openIfLow - automatic: position = available + open orders − pending requests (the DC's backorders), below min → AUTOMATIC order up to max (≤ 2000), checked and recorded in one locked transaction, cancel, receiveDelivery - DC stock + close open orders oldest first, findOpen)
-- `PurchasingHandler` - Central purchasing (methods: orderIfLow(productName) - via AutoPurchasingReceiver, `openIfLow`, audit `AUTO_SUPPLIER_ORDER_CREATED`, then the commodity Handler's `place` chosen by `ProductType`; listOpen)
+- `SupplierOrderRepositorySPI` - The DC's supplier orders, each method one transaction with the DC stock row locked first (methods: open - records an order before it is sent, openIfLow - automatic: position = available + open orders − pending requests (the DC's backorders), below min → AUTOMATIC order up to max (≤ 2000), checked and recorded in one locked transaction, cancel, receiveDelivery - DC stock + close open orders oldest first, findOpen, openSeed - one SEED order per catalog product the DC has no stock row and no open order of, under a Postgres advisory lock since there is no row to lock yet)
+- `PurchasingHandler` - Central purchasing (methods: orderIfLow(productName) - via AutoPurchasingReceiver, `openIfLow`, audit `AUTO_SUPPLIER_ORDER_CREATED`, then the commodity Handler's `place` chosen by `ProductType`; seedDc(quantity) - via DcSeedReceiver, `openSeed`, audit `DC_SEEDED`, places every order even if one fails (a failed one is cancelled, so the next seed orders it again), rethrows the first failure; listOpen)
 - `SupplierOrder` - Stored order (id, productName, type, quantity, delivered, status, origin, createdAt; outstanding, describe)
 - `SupplierOrderStatus` - Enum (OPEN, DELIVERED, CANCELLED)
 - `SupplierOrderOrigin` - Enum (MANUAL, AUTOMATIC)
@@ -262,7 +265,7 @@ Complete inventory of all classes participating in the system flows, organized b
 - `Db` - small JDBC helper (`query`, `queryOne`, `queryInt`, `update`, `insert`) on the Agroal datasource; inside `@Transactional` every call uses the transaction's connection
 
 **Technology**: Plain SQL over JDBC (Agroal datasource, Narayana JTA for `@Transactional`), PostgreSQL, Flyway - no ORM
-**Schema**: Flyway migrations in `src/main/resources/db/migration` (`V1__initial_schema.sql`, `V2__identity_ids.sql`: identity ids instead of the Panache sequences), applied at startup - every schema change needs a new `V<n>__*.sql`; the flow tests run every query against the migrated schema
+**Schema**: Flyway migrations in `src/main/resources/db/migration` (`V1__initial_schema.sql`, `V2__identity_ids.sql`: identity ids instead of the Panache sequences, `V3__seed_origin.sql`: supplier order origin `SEED`), applied at startup - every schema change needs a new `V<n>__*.sql`; the flow tests run every query against the migrated schema
 **Database**: `stock`, `replenishment_request`, `shipment` and `supplier_order` tables in PostgreSQL
 **Transactional**: Yes (@Transactional on write operations)
 
@@ -428,7 +431,9 @@ Complete inventory of all classes participating in the system flows, organized b
 **Package**: `org.svenehrke.triptychdemo.external.inbound.kafka` (unchanged, see note above)
 
 ### Mock Clients
-- `CashpointStub` - Mock checkout system: each tick a random store sells from its stock (`PurchaseRequest` with `storeId`)
+- `CashpointStub` - Mock checkout systems of the physical stores: `@Scheduled(every = "${cashpoint-stub.tick}")` (100 ms, `off` in `%test` and e2e) advances one `StoreSimulation` per store and sends one `PurchaseRequest` (with `storeId`) per paying customer, from the store's stock; logs occupancy, till queue, entered/paid customers every 10 s
+- `StoreSimulation` - Plain class, one store's customers: arrivals along a rush-hour curve (0.3-1.5 × what the tills serve), 30-60 real minutes of shopping at 1 day = 1 min, a till queue; the tills (`till-time` 15 s ± 20 %, in demo time) cap the purchases. Unit-tested in `StoreSimulationTest`
+- `CashpointStubConfig` - `@ConfigMapping(prefix = "cashpoint-stub")`: tick, day, till-time, per store its tills (Zurich 4, Basel 2, Bern 1)
 - `ProductsApiClient` - REST client for `GET /api/locations/{id}/products`
 
 **Responsibilities**:

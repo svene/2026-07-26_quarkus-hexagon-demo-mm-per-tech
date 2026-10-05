@@ -2,6 +2,7 @@ package org.svenehrke.triptychdemo.cross.purchasing;
 
 import org.svenehrke.triptychdemo.cross.inventory.StockTable;
 import org.svenehrke.triptychdemo.cross.location.Locations;
+import org.svenehrke.triptychdemo.cross.products.CatalogProduct;
 import org.svenehrke.triptychdemo.cross.products.ProductType;
 import org.svenehrke.triptychdemo.cross.replenishment.ReplenishmentRequestTable;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -13,10 +14,14 @@ import java.util.Optional;
 
 /**
  * Every method locks the product's DC stock row first, then its supplier orders - the DC row is what serializes them
- * with the requests of {@code ReplenishmentService}, which lock it first, too.
+ * with the requests of {@code ReplenishmentService}, which lock it first, too. Except {@link #openSeed}: a product the
+ * DC doesn't carry has no row to lock.
  */
 @ApplicationScoped
 public class SupplierOrderService implements SupplierOrderRepositorySPI {
+
+    /** Advisory lock key of {@link #openSeed}: any constant no other code uses. */
+    private static final long SEED_LOCK = 4_711_001L;
 
     @Inject
     StockTable stockTable;
@@ -48,6 +53,20 @@ public class SupplierOrderService implements SupplierOrderRepositorySPI {
         if (quantity <= 0) return Optional.empty();
         return Optional.of(orders.create(productName, dcStock.type(),
             Math.min(quantity, SupplierOrder.MAX_QUANTITY), SupplierOrderOrigin.AUTOMATIC));
+    }
+
+    /**
+     * A product the DC doesn't carry has no stock row to lock, so an advisory lock serializes concurrent seeds (two
+     * pods, or a period close and a reset at the same time): the second one waits, then finds the first one's orders.
+     */
+    @Override
+    @Transactional
+    public List<SupplierOrder> openSeed(List<CatalogProduct> products, int quantity) {
+        orders.advisoryLock(SEED_LOCK);
+        return products.stream()
+            .filter(p -> stockTable.findType(Locations.DC, p.name()).isEmpty() && orders.outstanding(p.name()) == 0)
+            .map(p -> orders.create(p.name(), p.type(), quantity, SupplierOrderOrigin.SEED))
+            .toList();
     }
 
     /** The order's product is read first without a lock, to keep the lock order: DC stock, then the order. */

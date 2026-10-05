@@ -25,20 +25,20 @@ This creates bidirectional flows through Kafka topics, connecting request/respon
 ### AdminReceiver (/admin) - HTML Forms → REST/SOAP/Kafka → Kafka Delivery Topics
 
 `/` is a static landing page (`META-INF/resources/index.html` in inbound-http-html) with one link per audience:
-`/admin`, `/locations` and `/shop`. The pages themselves have no nav and don't link to each other.
+`/admin`, `/locations`, `/shop` and `/audit-log`. The pages themselves have no nav and don't link to each other.
 
-The HTML receivers don't render HTML: `GET /admin`, `GET /locations` and `GET /shop` return a static page shell, and every
+The HTML receivers don't render HTML: `GET /admin`, `GET /locations`, `GET /shop` and `GET /audit-log` return a static page shell, and every
 view endpoint returns a JSON envelope `{route, vm}` (`UiResponse`) that the browser renders with the
 hono/html templates in `hx-hono.js` (see `docs/architecture/browser-templating_wip.md`).
 
 #### GET /admin - Admin Dashboard
 ```
 AdminReceiver.shell()  → static shell (shells/admin.html), whose #app loads GET /admin/page
-AdminReceiver.page()   → UiResponse(AdminPage, {locations, products, pendingRequests, supplierOrders, auditEntries})
+AdminReceiver.page()   → UiResponse(AdminPage, {catalog, locations, products, pendingRequests, supplierOrders})
+├─ Catalog.PRODUCTS  (core: the products the order forms offer, by type)
 ├─ ProductsHandler.listAllLocations()  (as in GET /admin/inventory-fragment)
 ├─ ReplenishmentHandler.listPending()  (as in GET /admin/requests-fragment)
-├─ PurchasingHandler.listOpen()  (as in GET /admin/supplier-orders-fragment)
-└─ AuditLogHandler.recent(limit)  (as in GET /admin/audit-fragment)
+└─ PurchasingHandler.listOpen()  (as in GET /admin/supplier-orders-fragment)
 ```
 
 #### GET /admin/inventory-fragment - Inventory Update
@@ -103,19 +103,11 @@ AdminReceiver.reset()
    ├─ AuditLogSPI.clear()
    │  └─ AuditLogService (outbound-mongodb) → MongoDB: delete every audit entry
    ├─ AuditLogSPI.log("INVENTORY_RESET")
-   └─ Event<InventoryEvent>.fireAsync(InventoryReset)   (refreshes every page; the audit panel by its 3 s poll)
+   └─ Event<InventoryEvent>.fireAsync(InventoryReset)   (refreshes every page except /audit-log, which has no live updates)
+      └─ DcSeedReceiver.onInventoryReset (@ObservesAsync) → seeds the now empty DC (see "Event: seeding the DC")
    → 200 empty body
 ```
 Messages in flight: a late supplier delivery just adds to the DC, a late shipment arrival finds no shipment and is ignored.
-
-#### GET /admin/audit-fragment - Audit Log Update
-```
-AdminReceiver.auditFragment()
-└─ AuditLogHandler.recent(limit)
-   └─ AuditLogSPI.findRecent()
-      └─ AuditLogService (outbound-mongodb)
-         └─ MongoDB (audit_log collection, AuditLogEntryEntity)
-```
 
 #### POST /admin/order-fruits - HTML Form → REST Client → Kafka Delivery Topic
 ```
@@ -363,6 +355,19 @@ LocationReceiver.request(id, productName, quantity)
    → 200 empty body; 409 UiResponse(OrderErrors) if the DC never carried the product ("REQUEST_REJECTED")
 ```
 
+### AuditLogReceiver (/audit-log) - Audit Log Page → MongoDB
+
+#### GET /audit-log - Audit Log
+No SSE and no polling: the shell's *Refresh* button loads `GET /audit-log/page` again into `#app`.
+```
+AuditLogReceiver.shell()  → static shell (shells/audit-log.html), whose #app loads GET /audit-log/page
+AuditLogReceiver.page()   → UiResponse(AuditLogPage, {auditEntries, limit})
+└─ AuditLogHandler.recent(300)
+   └─ AuditLogSPI.findRecent()
+      └─ AuditLogService (outbound-mongodb)
+         └─ MongoDB (audit_log collection, AuditLogEntryEntity, newest first)
+```
+
 ### ProductApiReceiver (/api/products) - JSON API → REST/SOAP/Kafka → Kafka Delivery Topics
 
 #### GET /api/products - Product List (JSON)
@@ -435,6 +440,8 @@ the DC (phase 3). All switches are off in `%test` and in the e2e dev server (`in
 `inventory.auto-replenishment.enabled=false`, `inventory.auto-purchasing.enabled=false`).
 
 #### Timer: end of a demand period (`inventory.demand-period`, 1 min)
+The first close comes one period after the start (`delayed = inventory.first-period-close-delay`, 1 min): a close right at the start would end a period of almost
+no length (learning a demand of 0), and its observers would call the supplier stubs before the HTTP server listens.
 ```
 DemandPeriodReceiver.closePeriod()   (@Scheduled)
 └─ ReorderPolicyHandler.closePeriod()
@@ -451,10 +458,31 @@ DemandPeriodReceiver.closePeriod()   (@Scheduled)
       │        so a DC shortfall is shared among all of them
       ├─ AutoPurchasingReceiver.onLevelsRecalculated (@ObservesAsync)
       │  └─ PurchasingHandler.orderIfLow(productName)   per DC product (as below)
-      └─ ShipmentCatchUpReceiver.onLevelsRecalculated (@ObservesAsync)
-         └─ ReplenishmentHandler.redispatchOverdue(inventory.shipment-redispatch-after = 2m)
-            ├─ ReplenishmentRepositorySPI.findInTransit(now − 2m)
-            └─ per shipment: AuditLogSPI.log("SHIPMENT_REDISPATCHED"), CarrierSPI.dispatch(shipment)
+      ├─ ShipmentCatchUpReceiver.onLevelsRecalculated (@ObservesAsync)
+      │  └─ ReplenishmentHandler.redispatchOverdue(inventory.shipment-redispatch-after = 2m)
+      │     ├─ ReplenishmentRepositorySPI.findInTransit(now − 2m)
+      │     └─ per shipment: AuditLogSPI.log("SHIPMENT_REDISPATCHED"), CarrierSPI.dispatch(shipment)
+      └─ DcSeedReceiver.onLevelsRecalculated (@ObservesAsync) → seeds what the DC neither carries nor has on order (as below)
+```
+
+#### Event: seeding the DC (after the start, after the admin reset, at every period close)
+An empty DC - after a start or the admin reset - would stay empty until someone orders by hand. After the start a
+one-off timer seeds it `inventory.dc-seed.startup-delay` (5 s) later, once the HTTP server listens (the supplier stubs
+run in the same app). The check is per product and idempotent, so running it at every period close is harmless - and it re-orders a product whose seed order a supplier that was down
+could not take. Off with `inventory.dc-seed.enabled=false` (`%test`, e2e).
+```
+DcSeedReceiver.onStart (StartupEvent → Vert.x timer, 5 s, worker thread) / onInventoryReset / onLevelsRecalculated (@ObservesAsync)
+└─ PurchasingHandler.seedDc(inventory.dc-seed.quantity = 500)   (a failure is audit-logged DC_SEED_FAILED)
+   ├─ SupplierOrderRepositorySPI.openSeed(Catalog.PRODUCTS, 500)
+   │  └─ SupplierOrderService (outbound-postgres), one transaction:
+   │     pg_advisory_xact_lock (no row to lock yet: two pods / a reset and a period close wait for each other)
+   │     → per catalog product without a DC stock row and without an open supplier order: INSERT a SEED order
+   │       (all 28 after a start or a reset; usually none later)
+   ├─ AuditLogSPI.log("DC_SEEDED")   (only if orders were recorded)
+   └─ per order: the commodity Handler's place(order), by ProductType (as for automatic orders) - every order is
+      sent even if one fails; a failed one is cancelled, so the next period close orders it again
+      → the stubs deliver after their lead time → receiveDelivery closes the SEED orders; the stores and the online
+        FC pull from the DC at the next period close (cold start)
 ```
 
 #### Event: StockDeducted (after a checkout or a cashpoint sale)

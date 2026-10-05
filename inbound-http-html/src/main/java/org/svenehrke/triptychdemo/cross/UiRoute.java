@@ -10,10 +10,10 @@ public enum UiRoute {
     AdminInventory,
     AdminRequests,
     AdminSupplierOrders,
-    AuditPanel,
     OrderErrors,
     LocationsPage,
     LocationInventory,
     ShopPage,
     ShopProducts,
+    AuditLogPage,
 }

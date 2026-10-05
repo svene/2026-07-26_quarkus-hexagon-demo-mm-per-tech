@@ -59,6 +59,10 @@ class AdminReceiverTest {
         assertThat(response.contentType()).contains("application/json");
         assertThat(response.jsonPath().getString("route")).isEqualTo("AdminPage");
         assertThat(response.jsonPath().getList("vm.products")).isEmpty();
+        // the order forms' products, from the catalog
+        assertThat(response.jsonPath().getList("vm.catalog")).hasSize(28);
+        assertThat(response.jsonPath().getString("vm.catalog[0].name")).isEqualTo("Mango");
+        assertThat(response.jsonPath().getString("vm.catalog[0].type")).isEqualTo("FRUIT");
     }
 
     @Test
@@ -86,6 +90,8 @@ class AdminReceiverTest {
         assertThat(response.asString()).isEmpty();
         assertThat(auditLogHelper.findEventDetails("AdminReceiver: FRUITS_ORDER_RECEIVED"))
             .containsExactly("Banana qty=20");
+        // wait for the delivery (async via Kafka), or it may land in the next test's freshly reset inventory
+        await().atMost(10, SECONDS).until(() -> given().get("/api/locations/dc/products").asString().contains("Banana"));
     }
 
     @Test
@@ -128,41 +134,6 @@ class AdminReceiverTest {
         assertThat(response.statusCode()).isEqualTo(400);
         assertThat(response.jsonPath().getString("route")).isEqualTo("OrderErrors");
         assertThat(response.jsonPath().getList("vm.messages")).contains("must not be blank");
-    }
-
-    @Test
-    void page_view_has_no_audit_entries_when_empty() {
-        var json = given().get("/admin/page").jsonPath();
-
-        assertThat(json.getList("vm.auditEntries")).isEmpty();
-    }
-
-    @Test
-    void audit_fragment_has_no_entries_when_empty() {
-        var response = given().get("/admin/audit-fragment");
-
-        assertThat(response.statusCode()).isEqualTo(200);
-        assertThat(response.contentType()).contains("application/json");
-        assertThat(response.jsonPath().getString("route")).isEqualTo("AuditPanel");
-        assertThat(response.jsonPath().getList("vm.auditEntries")).isEmpty();
-    }
-
-    @Test
-    void admin_page_and_audit_fragment_show_recent_entries_after_an_order() {
-        given()
-            .contentType("application/x-www-form-urlencoded")
-            .formParam("productName", "Banana")
-            .formParam("quantity", 20)
-            .post("/admin/order-fruits");
-
-        await().atMost(5, SECONDS).until(() -> !auditLogHelper.findEventDetails("FruitsHandler: FRUITS_ORDER_PLACED").isEmpty());
-
-        var pageEntries = given().get("/admin/page").jsonPath().getList("vm.auditEntries.event");
-        assertThat(pageEntries).contains("FruitsHandler: FRUITS_ORDER_PLACED");
-
-        var fragment = given().get("/admin/audit-fragment").jsonPath();
-        assertThat(fragment.getList("vm.auditEntries.event")).contains("FruitsHandler: FRUITS_ORDER_PLACED");
-        assertThat(fragment.getList("vm.auditEntries.details", String.class)).anyMatch(d -> d.contains("Banana"));
     }
 
     @Test
@@ -214,7 +185,7 @@ class AdminReceiverTest {
         assertThat(before.getList("vm.products")).hasSize(2);
         assertThat(before.getList("vm.pendingRequests")).hasSize(1);
         assertThat(before.getList("vm.supplierOrders")).hasSize(1);
-        assertThat(before.getList("vm.auditEntries")).isNotEmpty();
+        assertThat(given().get("/audit-log/page").jsonPath().getList("vm.auditEntries")).isNotEmpty();
 
         var response = given().post("/admin/reset");
 
@@ -224,6 +195,7 @@ class AdminReceiverTest {
         assertThat(json.getList("vm.products")).isEmpty();
         assertThat(json.getList("vm.pendingRequests")).isEmpty();
         assertThat(json.getList("vm.supplierOrders")).isEmpty();
-        assertThat(json.getList("vm.auditEntries.event")).containsExactly("ResetHandler: INVENTORY_RESET");
+        assertThat(given().get("/audit-log/page").jsonPath().getList("vm.auditEntries.event"))
+            .containsExactly("ResetHandler: INVENTORY_RESET");
     }
 }

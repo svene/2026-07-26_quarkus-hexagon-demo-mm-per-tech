@@ -6,7 +6,7 @@ import org.svenehrke.triptychdemo.cross.location.Replenished;
 import org.svenehrke.triptychdemo.cross.products.Product;
 import org.svenehrke.triptychdemo.cross.products.ProductType;
 import org.svenehrke.triptychdemo.cross.reorder.ReorderPolicy;
-^import org.svenehrke.triptychdemo.cross.replenishment.ShipmentTable;
+import org.svenehrke.triptychdemo.cross.replenishment.ShipmentTable;
 import io.quarkus.narayana.jta.QuarkusTransaction;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;

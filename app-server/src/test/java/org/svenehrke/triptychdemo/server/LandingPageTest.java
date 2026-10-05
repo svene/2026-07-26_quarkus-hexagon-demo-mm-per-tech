@@ -10,7 +10,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class LandingPageTest {
 
     @Test
-    void the_landing_page_links_the_three_entry_points() {
+    void the_landing_page_links_the_four_entry_points() {
         var response = given().get("/");
 
         assertThat(response.statusCode()).isEqualTo(200);
@@ -18,6 +18,7 @@ class LandingPageTest {
         assertThat(response.asString())
             .contains("<a href=\"/admin\">Admin</a>")
             .contains("<a href=\"/locations\">Locations</a>")
-            .contains("<a href=\"/shop\">Shop</a>");
+            .contains("<a href=\"/shop\">Shop</a>")
+            .contains("<a href=\"/audit-log\">Audit log</a>");
     }
 }

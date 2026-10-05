@@ -22,7 +22,7 @@
     <div class="level">
         <h1 class="title level-left">Supermarket – Admin</h1>
         <div class="level-right">
-            <!-- dev: Flyway keeps the data across restarts; the pages refresh through the SSE stream, the audit log by its poll -->
+            <!-- dev: Flyway keeps the data across restarts; the pages refresh through the SSE stream -->
             <button type="button" class="button is-small is-danger is-light level-item" id="reset-demo-data"
                     hx-post="/admin/reset" hx-swap="none"
                     hx-confirm="Delete all stock, requests, shipments, supplier orders and the audit log?">Reset demo data</button>

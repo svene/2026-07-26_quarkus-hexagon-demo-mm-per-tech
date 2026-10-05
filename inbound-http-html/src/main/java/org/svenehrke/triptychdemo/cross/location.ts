@@ -95,8 +95,11 @@ export const QuantityButtons = (): HtmlResult => html`
 const STATUS_TAGS: Record<string, string> = {PENDING: "is-warning", FULFILLED: "is-success", REJECTED: "is-danger"};
 
 // Also used for supplier orders, which have the same two origins.
+// SEED only occurs for supplier orders (seeding the DC).
 export const OriginTag = (r: {origin: string}): HtmlResult =>
-	r.origin === 'AUTOMATIC' ? html`<span class="tag is-info is-light">auto</span>` : html`<span class="has-text-grey">manual</span>`;
+	r.origin === 'AUTOMATIC' ? html`<span class="tag is-info is-light">auto</span>`
+		: r.origin === 'SEED' ? html`<span class="tag is-success is-light">seed</span>`
+		: html`<span class="has-text-grey">manual</span>`;
 
 const RequestRow = (r: RequestVM): HtmlResult => html`
 	<tr id="request-${r.id}">

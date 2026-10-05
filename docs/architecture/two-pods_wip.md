@@ -15,7 +15,8 @@ events. Kafka is the right answer for one part (section 2) and the wrong one for
 - **Concurrency on shared stock.** All stock changes lock their Postgres rows (`SELECT … FOR UPDATE`, one transaction per
   use case in `outbound-postgres`). That works across processes just as across threads, e.g. two pods calling
   `orderIfLow` at once create one supplier order (`AutoPurchasingFlowTest.concurrent_checks_create_one_supplier_order`
-  tests it with threads).
+  tests it with threads). Seeding the DC has no row to lock yet, so it takes a Postgres advisory lock
+  (`SupplierOrderService.openSeed`, `DcSeedFlowTest.concurrent_seeds_order_once`).
 - **No domain state in memory.** Locations are a fixed seed in core; stock, requests, supplier orders and levels live in
   Postgres, and the audit log in MongoDB. The HTML pages and the JSON API are stateless, with no sessions or auth.
 - **Kafka work is shared.** All inbound channels use the default consumer group (`quarkus.application.name`), so the two
@@ -136,7 +137,8 @@ Still to keep in mind:
 - **Long-lived SSE connections.** The Ingress / load balancer read timeout must exceed the 15 s heartbeat of
   `/inventory/events`. No sticky sessions are needed (section 2 makes every pod send every event).
 - **External systems as their own deployments.** In dev/test the supplier stubs (`external-outbound-*`) and the
-  `CashpointStub` (`external-inbound-kafka`, `@Scheduled` every 10 s) run inside the app. In two pods they would run
+  `CashpointStub` (`external-inbound-kafka`, `@Scheduled` every 100 ms, with its in-memory store simulations) run
+  inside the app. In two pods they would run
   twice (twice the cashpoint traffic, two SOAP/REST endpoints), and the stubs' in-memory delayed deliveries
   (`LeadTime`) would be lost when a pod stops (for the carrier, `ShipmentCatchUpReceiver` re-sends shipments still in
   transit after 2 min). In Kubernetes they would be separate deployments; the app's REST/SOAP

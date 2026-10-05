@@ -32,7 +32,8 @@ Open **http://localhost:8080/admin** in your browser.
 
 There are two HTML pages, aimed at two different kinds of user, plus a JSON API:
 
-- **`/admin`** — supermarket staff: inventory view, supplier ordering forms, audit log
+- **`/admin`** — supermarket staff: inventory view, supplier ordering forms
+- **`/audit-log`** — the latest 300 audit log entries, reloaded with a *Refresh* button
 - **`/shop`** — customers: browse in-stock products and buy a basket of items
 - **`/api/products`** — JSON API for scripts, tests, and other frontends
 
@@ -51,16 +52,23 @@ grouped by the underlying technology of the outbound adapter:
    inventory. No need to refresh — both `/admin` and `/shop` update their
    inventory as soon as it changes (server-sent event, `GET /inventory/events`).
 
+   The DC doesn't start empty: after the start (at the first period close,
+   1 min in) and after *Reset demo data*, the DC orders 500 of every listed
+   product it doesn't carry yet from the suppliers (`inventory.dc-seed.*`), and
+   the stores pull from it, so the demo runs on its own.
+
 2. **Purchase a basket of products** (on `/shop`) — fill in quantities for one
    or more in-stock products and click *Purchase*. The amounts are deducted
    immediately. See the Shop UI section below for details, including the
    dev-only randomize button.
 
 3. **Simulated customer checkouts** — a background `CashpointStub` stands in for
-   customers paying at the register: starting 30 s after the app is ready, it
-   checks out 2–4 random in-stock products every 10 seconds, deducting them
-   from inventory exactly as a real point-of-sale terminal would. Watch the
-   numbers on `/admin` or `/shop` shrink on their own, no refresh needed.
+   the customers of the three stores: starting 30 s after the app is ready,
+   customers enter each store, shop and pay at one of its tills (Zurich 4,
+   Basel 2, Bern 1; 15 s per customer), each paying
+   customer checking out 2–4 random in-stock products, deducted from inventory
+   exactly as a real point-of-sale terminal would. Watch the numbers on
+   `/admin` or `/locations` shrink on their own, no refresh needed.
 
 ### JSON API
 
@@ -78,12 +86,13 @@ Purchase POST body: `{"items":[{"productName":"Mango","quantity":5}]}`.
 ### Admin UI
 
 The admin page at **http://localhost:8080/admin** covers everything above:
-the supplier order forms with the audit log (event, details, timestamp, read
-from MongoDB) below them on the left, and the inventory table on the right — one
-page, no separate audit route. The inventory table updates as soon as the
+the supplier order forms on the left and the inventory table on the right. The
+audit log (event, details, timestamp, read from MongoDB) has its own page at
+**http://localhost:8080/audit-log**: the latest 300 entries, no live updates,
+reloaded with its *Refresh* button. The inventory table updates as soon as the
 inventory changes (same server-sent event as `/shop`), and each row has a
 *Restock* quantity and button that orders more of that product from its
-supplier; the audit log refreshes itself every 3 seconds via htmx polling. So
+supplier. So
 multiple browser tabs (or `/shop` running alongside) stay in sync without a
 manual reload.
 The 7 order forms are grouped into REST / SOAP / Kafka supplier tabs. Each

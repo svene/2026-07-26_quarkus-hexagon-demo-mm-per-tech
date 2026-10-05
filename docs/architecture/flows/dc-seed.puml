@@ -1,0 +1,38 @@
+@startuml dc_seed
+skinparam monochrome true
+skinparam sequenceMessageAlign center
+skinparam backgroundColor #ffffff
+
+participant "ResetHandler /\nReorderPolicyHandler\n(Core)" as source
+participant "DcSeedReceiver\n(inbound-event)" as receiver
+participant "PurchasingHandler\n(Core)" as purchasing
+participant "SupplierOrderService\n(PostgreSQL)" as service
+participant "FruitsHandler / …\n(Core, by ProductType)" as commodity
+participant "FruitSupplierService / …\n(outbound adapter)" as supplier
+participant "AuditLogService\n(MongoDB)" as audit
+database "PostgreSQL\n(stock, supplier_order)" as db
+
+alt after the start
+  receiver -> receiver: StartupEvent → Vert.x timer\n(inventory.dc-seed.startup-delay = 5s, worker thread)
+else after the admin reset
+  source ->> receiver: fireAsync(InventoryReset)
+else after a period close
+  source ->> receiver: fireAsync(LevelsRecalculated)
+end
+receiver -> purchasing: seedDc(500)\n(only if inventory.dc-seed.enabled; a failure is audit-logged)
+purchasing -> service: SupplierOrderRepositorySPI.openSeed(Catalog.PRODUCTS, 500)
+service -> db: one transaction: pg_advisory_xact_lock\n(no row to lock yet - concurrent seeds wait)
+alt catalog products without a DC stock row and without an open order
+  service -> db: INSERT supplier_order (SEED, OPEN, 500) per such product\n(all 28 after a start or a reset)
+  service --> purchasing: the new supplier orders
+  purchasing -> audit: log("DC_SEEDED")
+  loop every order (each sent, even if one fails)
+    purchasing -> commodity: place(supplierOrder)
+    commodity -> supplier: placeOrder(productName, 500)\n(throws → cancel the order;\nthe next seed orders it again)
+  end
+  note over supplier, db: the stubs deliver after their lead time → receiveDelivery closes the SEED orders;\nthe stores and the online FC pull from the DC at the next period close (cold start)
+else every product is carried or on order
+  service --> purchasing: empty → nothing
+end
+
+@enduml

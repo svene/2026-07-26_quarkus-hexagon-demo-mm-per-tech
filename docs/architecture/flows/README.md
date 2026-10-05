@@ -13,11 +13,11 @@ PlantUML sequence diagrams for all primary flows in the supermarket inventory sy
 - **Returns**: `{route: AdminPage, vm}` JSON, rendered in the browser (hono/html)
 - **Participants**: 1 (Admin)
 
-### Admin Audit Log Fragment
-**File**: `admin-get-audit.puml`
-- **Trigger**: GET /admin/audit-fragment
-- **Flow**: Browser → AdminReceiver → AuditLogHandler → AuditLogService → MongoDB
-- **Returns**: Recent audit entries (limited to 100)
+### Audit Log Page
+**File**: `audit-log-page.puml`
+- **Trigger**: GET /audit-log (static shell) → GET /audit-log/page, again on the *Refresh* button (no SSE, no polling)
+- **Flow**: Browser → AuditLogReceiver → AuditLogHandler → AuditLogService → MongoDB
+- **Returns**: `{route: AuditLogPage, vm}` JSON with the latest 300 entries, newest first
 - **Participants**: 1 (Admin)
 
 ### Shop Catalog
@@ -179,6 +179,15 @@ PlantUML sequence diagrams for all primary flows in the supermarket inventory sy
 - **Returns**: nothing (async)
 - **Participants**: none (CDI events)
 - **Databases**: PostgreSQL (`stock`, `replenishment_request`, `supplier_order`), MongoDB (audit log)
+
+### Seeding the DC
+**File**: `dc-seed.puml`
+- **Trigger**: a one-off timer 5 s after the start (`inventory.dc-seed.startup-delay`), `InventoryReset` (after the admin reset) or `LevelsRecalculated` (every period close)
+- **Flow**: DcSeedReceiver → PurchasingHandler.seedDc → SupplierOrderService.openSeed → PostgreSQL; then the commodity Handler's `place` → supplier, like a manual order
+- **Actions**: per catalog product the DC has no stock row and no open supplier order of (under an advisory lock): a SEED order of 500 - all 28 after a start or a reset, later only what a supplier that was down could not take; the deliveries stock the DC, the locations pull at the next period close
+- **Returns**: nothing (async)
+- **Participants**: none (CDI events)
+- **Databases**: PostgreSQL (`stock`, `supplier_order`), MongoDB (audit log)
 
 ## Event-Driven Flow (Kafka Inbound)
 

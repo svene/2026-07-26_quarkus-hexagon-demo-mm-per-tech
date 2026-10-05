@@ -1,5 +1,6 @@
 package org.svenehrke.triptychdemo.cross.purchasing;
 
+import org.svenehrke.triptychdemo.cross.products.CatalogProduct;
 import org.svenehrke.triptychdemo.cross.products.ProductType;
 
 import java.util.List;
@@ -26,6 +27,14 @@ public interface SupplierOrderRepositorySPI {
 	 * was ordered, or the DC has never carried the product.
 	 */
 	Optional<SupplierOrder> openIfLow(String productName);
+
+	/**
+	 * Seeding the DC: records a {@link SupplierOrderOrigin#SEED} order of {@code quantity} for every product the DC has
+	 * no stock row and no open supplier order of - so an order that failed and was cancelled is seeded again by the
+	 * next call. Checking and recording happen in one transaction that concurrent calls (e.g. two pods) wait for, so a
+	 * product is seeded once. Returns the recorded orders (empty: nothing to seed).
+	 */
+	List<SupplierOrder> openSeed(List<CatalogProduct> products, int quantity);
 
 	/** Sending the order failed. Empty if there is no such open order. */
 	Optional<SupplierOrder> cancel(long id);

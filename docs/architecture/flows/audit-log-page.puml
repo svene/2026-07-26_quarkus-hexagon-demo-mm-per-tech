@@ -1,0 +1,26 @@
+@startuml audit_log_page
+skinparam monochrome true
+skinparam sequenceMessageAlign center
+skinparam backgroundColor #ffffff
+
+actor "Admin" as user
+participant "AuditLogReceiver\n(HTTP)" as receiver
+participant "AuditLogHandler\n(Core)" as handler
+participant "AuditLogService\n(MongoDB)" as audit
+database "MongoDB\n(Audit Logs)" as db
+
+note over user, receiver
+  GET /audit-log serves the static shell; its #app loads
+  GET /audit-log/page - and again on each Refresh click
+  (no SSE, no polling)
+end note
+user -> receiver: GET /audit-log/page
+receiver -> handler: recent(limit=300)
+handler -> audit: findRecent(300)
+audit -> db: find({}).sort({timestamp: -1}).limit(300)
+db --> audit: AuditLogEntry[]
+audit --> handler: AuditLogEntry[]
+handler --> receiver: AuditLogEntry[]
+receiver --> user: {route: AuditLogPage, vm} JSON (rendered in the browser)
+
+@enduml

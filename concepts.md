@@ -211,9 +211,13 @@ CashpointStub (scheduler) → cashpoint-purchases (Kafka) → CashpointReceiver 
 ```
 
 `CashpointStub` lives in `external-inbound-kafka`. Like the supplier stubs it is not part of
-the hexagonal architecture — it simulates a point-of-sale system that emits a Kafka message when a
-customer pays at checkout. It calls `GET /api/products` via a MicroProfile REST Client each time the
-scheduler fires to discover which products are in stock, then picks 2–4 of them at random.
+the hexagonal architecture — it simulates the checkout systems of the physical stores and emits a
+Kafka message whenever a customer pays. Per store a `StoreSimulation` models its customers: they
+arrive along a rush-hour curve, shop and queue for one of the store's tills; the tills limit how many
+customers pay per minute, so a bigger store with more tills sells more. For each paying customer the stub calls
+`GET /api/locations/{id}/products` via a MicroProfile REST Client to discover what the store has in
+stock, then picks 2–4 of those products at random. The tills are configuration of the stub
+(`cashpoint-stub.*`), not domain data: the app only sees the purchases.
 
 `CashpointReceiver` in `inbound-kafka` is the actual inbound adapter: it receives the Kafka
 message and calls `PurchaseHandler`, exactly as a Kafka delivery receiver calls `InventoryHandler`.
@@ -292,7 +296,8 @@ There are two HTML pages, each aimed at a different kind of user, sharing the
 same core ports:
 
 - **`/admin`** — supermarket staff: inventory view, supplier ordering forms
-  grouped by technology in tabs, and an audit log view backed by `AuditLogHandler`.
+  grouped by technology in tabs. The audit log, backed by `AuditLogHandler`, has a page of
+  its own (`/audit-log`, reloaded with a Refresh button).
 - **`/shop`** — customers: a cart-style purchase form over `PurchaseHandler`, plus
   a dev-only "Randomize" button (pure client-side JavaScript, no server round
   trip) that fills in random quantities so testers don't have to type values

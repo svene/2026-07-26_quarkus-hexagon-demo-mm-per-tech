@@ -3,8 +3,7 @@ import type {
 	AdminInventoryVM,
 	AdminPageVM,
 	AdminRequestsVM,
-	AuditEntryVM,
-	AuditPanelVM,
+	CatalogProductVM,
 	LevelsVM,
 	LocationVM,
 	OrderErrorsVM,
@@ -16,7 +15,8 @@ import type {
 import type {HtmlResult} from "./route-types";
 import {OriginTag, QuantityButtons} from "./location";
 
-type OrderForm = { label: string, action: string, products: string[] };
+// The products of a form come from the server's catalog (AdminPageVM.catalog), picked by `type`.
+type OrderForm = { label: string, action: string, type: string };
 type SupplierBox = { id: string, title: string, forms: OrderForm[] };
 
 const PRESET_QUANTITIES = [10, 50, 100, 500];
@@ -24,21 +24,21 @@ const PRESET_QUANTITIES = [10, 50, 100, 500];
 const SUPPLIER_BOXES: SupplierBox[] = [
 	{
 		id: "rest", title: "REST suppliers", forms: [
-			{label: "Fruits", action: "/admin/order-fruits", products: ["Mango", "Banana", "Apple", "Orange"]},
-			{label: "Vegetables", action: "/admin/order-vegetables", products: ["Carrot", "Potato", "Tomato", "Cucumber"]},
-			{label: "Dairy", action: "/admin/order-dairy", products: ["Milk", "Cheese", "Yogurt", "Butter"]},
+			{label: "Fruits", action: "/admin/order-fruits", type: "FRUIT"},
+			{label: "Vegetables", action: "/admin/order-vegetables", type: "VEGETABLE"},
+			{label: "Dairy", action: "/admin/order-dairy", type: "DAIRY"},
 		]
 	},
 	{
 		id: "soap", title: "SOAP suppliers", forms: [
-			{label: "Beverages", action: "/admin/order-beverages", products: ["Cola", "Water", "Juice", "Beer"]},
-			{label: "Meat", action: "/admin/order-meat", products: ["Chicken", "Beef", "Pork", "Lamb"]},
-			{label: "Bakery", action: "/admin/order-bakery", products: ["Bread", "Croissant", "Baguette", "Pretzel"]},
+			{label: "Beverages", action: "/admin/order-beverages", type: "BEVERAGE"},
+			{label: "Meat", action: "/admin/order-meat", type: "MEAT"},
+			{label: "Bakery", action: "/admin/order-bakery", type: "BAKERY"},
 		]
 	},
 	{
 		id: "kafka", title: "Kafka supplier", forms: [
-			{label: "Non-food", action: "/admin/order-nonfood", products: ["Detergent", "Soap", "Sponge", "Paper towels"]},
+			{label: "Non-food", action: "/admin/order-nonfood", type: "NON_FOOD"},
 		]
 	},
 ];
@@ -55,8 +55,7 @@ const RESTOCK_ACTIONS: Record<string, string> = {
 };
 
 export const AdminPage = (vm: AdminPageVM): HtmlResult => html`
-	<!-- The supplier forms take only the width they need; the inventory side gets the rest and the audit log the full
-	     width below both. -->
+	<!-- The supplier forms take only the width they need; the inventory side gets the rest. -->
 	<div class="columns">
 		<div class="column is-narrow">
 			<h2 class="title is-4">Restock Inventory</h2>
@@ -68,7 +67,7 @@ export const AdminPage = (vm: AdminPageVM): HtmlResult => html`
 						${SUPPLIER_BOXES.map((box, i) => SupplierTab(box, i === 0))}
 					</ul>
 				</div>
-				${SUPPLIER_BOXES.map(SupplierPanel)}
+				${SUPPLIER_BOXES.map((box, i) => SupplierPanel(box, i, vm.catalog))}
 			</div>
 		</div>
 
@@ -89,8 +88,6 @@ export const AdminPage = (vm: AdminPageVM): HtmlResult => html`
 			</div>
 		</div>
 	</div>
-
-	${AuditPanel({auditEntries: vm.auditEntries})}
 `;
 
 // The product × location matrix, DC column first. Re-fetched on every inventoryChanged event pushed by the shell's
@@ -209,10 +206,10 @@ const SupplierTab = (box: SupplierBox, active: boolean): HtmlResult => html`
 	</li>
 `;
 
-const SupplierPanel = (box: SupplierBox, i: number): HtmlResult => html`
+const SupplierPanel = (box: SupplierBox, i: number, catalog: CatalogProductVM[]): HtmlResult => html`
 	<div id="supplier-panel-${box.id}" role="tabpanel" ${i === 0 ? '' : 'hidden'}
 		hx-live="this.hidden = !q('#supplier-tab-${box.id}').matches('.is-active')">
-		${box.forms.map(OrderFormRow)}
+		${box.forms.map(f => OrderFormRow(f, catalog.filter(p => p.type === f.type).map(p => p.name)))}
 	</div>
 `;
 
@@ -229,12 +226,12 @@ const RadioButton = (name: string, value: string, text: string): HtmlResult => h
 // copies what is typed into that radio's value, so exactly one `quantity` is submitted. The input is readonly -
 // and thereby exempt from validation - unless its radio is checked; focusing it checks the radio.
 // min/max mirror the *Order records' @Min(1) @Max(2000). All of this is UX only - the server validates again.
-const OrderFormRow = (f: OrderForm): HtmlResult => html`
+const OrderFormRow = (f: OrderForm, products: string[]): HtmlResult => html`
 	<form method="post" action="${f.action}" hx-post="${f.action}" hx-target="next .order-error" hx-swap="innerHTML">
 		<div class="field mb-2">
 			<p class="label is-small mb-1">${f.label}</p>
 			<div class="buttons has-addons mb-2">
-				${f.products.map(p => RadioButton('productName', p, p))}
+				${products.map(p => RadioButton('productName', p, p))}
 			</div>
 			<div class="field is-grouped is-align-items-center">
 				<div class="control buttons has-addons is-align-items-center mb-0">
@@ -251,33 +248,6 @@ const OrderFormRow = (f: OrderForm): HtmlResult => html`
 		</div>
 	</form>
 	<p class="help is-danger order-error mb-3"></p>
-`;
-
-export const AuditPanel = (vm: AuditPanelVM): HtmlResult => html`
-	<div id="audit-panel" hx-get="/admin/audit-fragment" hx-trigger="every 3s" hx-swap="outerHTML">
-		<h2 class="title is-4">Audit Log</h2>
-		${vm.auditEntries.length === 0
-			? html`<p class="has-text-grey"><em>No audit log entries yet.</em></p>`
-			: html`
-				<div style="overflow-x:auto">
-					<table class="table is-fullwidth is-narrow" style="white-space:nowrap">
-						<thead>
-						<tr><th>Time</th><th>Event</th><th>Details</th></tr>
-						</thead>
-						<tbody>
-						${vm.auditEntries.map(AuditRow)}
-						</tbody>
-					</table>
-				</div>`}
-	</div>
-`;
-
-const AuditRow = (e: AuditEntryVM): HtmlResult => html`
-	<tr>
-		<td>${e.timestamp}</td>
-		<td>${e.event}</td>
-		<td>${e.details}</td>
-	</tr>
 `;
 
 export const OrderErrors = (vm: OrderErrorsVM): HtmlResult =>

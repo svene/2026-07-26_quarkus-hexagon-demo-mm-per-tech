@@ -1,6 +1,7 @@
 package org.svenehrke.triptychdemo.cross.purchasing;
 
 import org.svenehrke.triptychdemo.cross.auditlog.AuditLogSPI;
+import org.svenehrke.triptychdemo.cross.products.Catalog;
 import org.svenehrke.triptychdemo.feature.bakery.BakeryHandler;
 import org.svenehrke.triptychdemo.feature.beverage.BeveragesHandler;
 import org.svenehrke.triptychdemo.feature.dairy.DairyHandler;
@@ -47,6 +48,27 @@ public class PurchasingHandler {
             auditLog.log("PurchasingHandler: AUTO_SUPPLIER_ORDER_CREATED", order.describe());
             place(order);
         });
+    }
+
+    /**
+     * Seeds the DC: one supplier order of {@code quantity} per {@link Catalog} product it neither carries nor has on
+     * order (see {@link SupplierOrderRepositorySPI#openSeed}). Every order is sent, even if one fails; a failed one is
+     * cancelled by its commodity Handler, so the next seed orders that product again. The first failure is rethrown.
+     */
+    public void seedDc(int quantity) {
+        var orders = supplierOrders.openSeed(Catalog.PRODUCTS, quantity);
+        if (orders.isEmpty()) return;
+        auditLog.log("PurchasingHandler: DC_SEEDED", orders.size() + " products × " + quantity);
+        RuntimeException failure = null;
+        for (var order : orders) {
+            try {
+                place(order);
+            } catch (RuntimeException e) {
+                if (failure == null) failure = e;
+                else failure.addSuppressed(e);
+            }
+        }
+        if (failure != null) throw failure;
     }
 
     public List<SupplierOrder> listOpen() {

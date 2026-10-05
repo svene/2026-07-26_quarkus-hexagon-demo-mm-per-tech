@@ -23,8 +23,9 @@ const AVAILABLE = 2, IN_TRANSIT = 3, AVG = 4, MIN = 5, MAX = 6, DC = 7;
 const cell = (page: Page, locationId: string, productName: string, column: number) =>
   stockRow(page, locationId, productName).getByRole('cell').nth(column);
 
-test('the landing page links admin, locations and shop, none of which shows a nav', async ({ page }) => {
-  for (const [link, heading] of [['Admin', 'Supermarket – Admin'], ['Locations', 'Supermarket – Locations'], ['Shop', 'Supermarket – Shop']]) {
+test('the landing page links admin, locations, shop and the audit log, none of which shows a nav', async ({ page }) => {
+  for (const [link, heading] of [['Admin', 'Supermarket – Admin'], ['Locations', 'Supermarket – Locations'], ['Shop', 'Supermarket – Shop'],
+                                 ['Audit log', 'Supermarket – Audit Log']]) {
     await page.goto('/');
     await page.locator('#entry-points').getByRole('link', { name: link, exact: true }).click();
     await expect(page.getByRole('heading', { name: heading })).toBeVisible();

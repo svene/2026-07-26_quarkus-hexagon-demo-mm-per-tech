@@ -17,8 +17,12 @@ export default defineConfig({
       // Automatic replenishment and supplier orders would race with the tests' own stock changes (e.g. drain the DC
       // after a restock, or refill it).
       + ' -Dinventory.demand-period=off -Dinventory.auto-replenishment.enabled=false -Dinventory.auto-purchasing.enabled=false'
+      // The DC is not seeded: the tests expect an empty inventory after their reset.
+      + ' -Dinventory.dc-seed.enabled=false'
       // Supplier deliveries follow the order right away, and DC shipments arrive right away, as the tests wait for them.
-      + ' -Dsupplier-stub.lead-time=0s -Dcarrier-stub.transit-time=0s',
+      + ' -Dsupplier-stub.lead-time=0s -Dcarrier-stub.transit-time=0s'
+      // No simulated store customers: only the tests move stock.
+      + ' -Dcashpoint-stub.tick=off',
     url: 'http://localhost:8080/admin',
     timeout: 120_000,
     // Reuse a running server locally so you can keep quarkus:dev open in a terminal (start it with the

@@ -45,14 +45,14 @@ async function orderForm(page: Page, action: string) {
   return form;
 }
 
-test('admin page shows heading, supplier tabs, and the audit log panel', async ({ page }) => {
+test('admin page shows heading and supplier tabs, but no audit log', async ({ page }) => {
   await page.goto('/admin');
   await expect(page.getByRole('heading', { name: 'Supermarket – Admin' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Restock Inventory' })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'REST suppliers' })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'SOAP suppliers' })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Kafka supplier' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Audit Log' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Audit Log' })).toHaveCount(0);
 });
 
 test('only the selected supplier tab shows its order forms, REST is selected initially', async ({ page }) => {

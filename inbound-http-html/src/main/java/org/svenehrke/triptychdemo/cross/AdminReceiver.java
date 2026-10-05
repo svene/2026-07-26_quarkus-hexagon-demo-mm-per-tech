@@ -2,6 +2,7 @@ package org.svenehrke.triptychdemo.cross;
 
 import org.svenehrke.triptychdemo.cross.auditlog.AuditLogHandler;
 import org.svenehrke.triptychdemo.cross.location.Locations;
+import org.svenehrke.triptychdemo.cross.products.Catalog;
 import org.svenehrke.triptychdemo.cross.products.ProductsHandler;
 import org.svenehrke.triptychdemo.cross.purchasing.PurchasingHandler;
 import org.svenehrke.triptychdemo.cross.replenishment.ReplenishmentHandler;
@@ -48,8 +49,6 @@ import java.util.Set;
 @Path("/admin")
 public class AdminReceiver {
 
-    private static final int AUDIT_LOG_LIMIT = 100;
-
     @Inject
     ProductsHandler productsHandler;
     @Inject
@@ -86,7 +85,7 @@ public class AdminReceiver {
     @Path("/page")
     @Produces(MediaType.APPLICATION_JSON)
     public UiResponse page() {
-        return UiResponse.of(UiRoute.AdminPage, new AdminPageVM(locations(), products(), pendingRequests(), supplierOrders(), auditEntries()));
+        return UiResponse.of(UiRoute.AdminPage, new AdminPageVM(catalog(), locations(), products(), pendingRequests(), supplierOrders()));
     }
 
     @GET
@@ -132,13 +131,6 @@ public class AdminReceiver {
         // not audit-logged before the reset: the reset clears the log, ResetHandler logs INVENTORY_RESET after it
         resetHandler.reset();
         return orderAccepted();
-    }
-
-    @GET
-    @Path("/audit-fragment")
-    @Produces(MediaType.APPLICATION_JSON)
-    public UiResponse auditFragment() {
-        return UiResponse.of(UiRoute.AuditPanel, new AuditPanelVM(auditEntries()));
     }
 
     @POST
@@ -265,6 +257,10 @@ public class AdminReceiver {
         return Response.ok("", MediaType.TEXT_HTML).build();
     }
 
+    private static List<CatalogProductVM> catalog() {
+        return Catalog.PRODUCTS.stream().map(CatalogProductVM::of).toList();
+    }
+
     private static List<LocationVM> locations() {
         return Locations.ALL.stream().map(LocationVM::of).toList();
     }
@@ -281,9 +277,5 @@ public class AdminReceiver {
 
     private List<SupplierOrderVM> supplierOrders() {
         return purchasingHandler.listOpen().stream().map(SupplierOrderVM::of).toList();
-    }
-
-    private List<AuditEntryVM> auditEntries() {
-        return auditLogHandler.recent(AUDIT_LOG_LIMIT).stream().map(AuditEntryVM::of).toList();
     }
 }
