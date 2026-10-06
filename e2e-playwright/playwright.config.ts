@@ -8,12 +8,15 @@ export default defineConfig({
   globalSetup: require.resolve('./global-setup'),
 
   // Quarkus dev mode starts the app with Dev Services (Postgres, MongoDB, Kafka via Docker).
-  // The build is done in globalSetup; here we only start the server.
   webServer: {
+    // The build runs first, so the dev server starts on the finished classes. Building after the server is up (as
+    // global-setup.ts used to) replaced the classes under it and forced a live reload, and two overlapping reloads broke
+    // the app (ClassCastException, mass timeouts).
     // -Dquarkus.console.enabled=false prevents the interactive dev console from
     // blocking when Playwright spawns the process without a TTY.
     // -Dquarkus.analytics.disabled=true suppresses the first-run analytics prompt.
-    command: 'mvn -pl app-server quarkus:dev -Dnodebug -Dquarkus.console.enabled=false -Dquarkus.analytics.disabled=true'
+    command: 'mvn install -DskipTests -q'
+      + ' && mvn -pl app-server quarkus:dev -Dnodebug -Dquarkus.console.enabled=false -Dquarkus.analytics.disabled=true'
       // Automatic replenishment and supplier orders would race with the tests' own stock changes (e.g. drain the DC
       // after a restock, or refill it).
       + ' -Dinventory.demand-period=off -Dinventory.auto-replenishment.enabled=false -Dinventory.auto-purchasing.enabled=false'
@@ -24,9 +27,11 @@ export default defineConfig({
       // No simulated store customers: only the tests move stock.
       + ' -Dcashpoint-stub.tick=off',
     url: 'http://localhost:8080/admin',
-    timeout: 120_000,
+    // Build + dev server start.
+    timeout: 240_000,
     // Reuse a running server locally so you can keep quarkus:dev open in a terminal (start it with the
-    // -D flags above, or automatic replenishment makes the stock assertions flaky).
+    // -D flags above, or automatic replenishment makes the stock assertions flaky). No build runs then: the dev
+    // server recompiles changed modules itself on the next request, and global-setup.ts absorbs that live reload.
     // In CI (CI=true) always start fresh.
     reuseExistingServer: !process.env.CI,
     cwd: path.join(__dirname, '..'),
@@ -34,8 +39,9 @@ export default defineConfig({
     stderr: 'pipe',
   },
 
-  // One retry absorbs the brief hot-reload window after global-setup rebuilds the JARs.
-  retries: 1,
+  // No retries: with the build done before the server starts there is no reload window left to absorb, and a retry
+  // would hide flaky tests.
+  retries: 0,
 
   use: {
     baseURL: 'http://localhost:8080',

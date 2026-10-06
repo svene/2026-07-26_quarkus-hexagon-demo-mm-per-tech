@@ -737,7 +737,7 @@ transaction; the sequences stay, so ids remain unique), `AuditLogSPI.clear()` (t
 late supplier delivery adds to the DC, a late shipment arrival is ignored. Tests: `AdminReceiverTest` case; the e2e
 test intercepts the POST (a real reset would wipe the data of the spec files running in parallel).
 
-## faster-tests: Shorten the test runs (levers 1 and 3 DONE; levers 2, 4, 5 TO ELABORATE)
+## faster-tests: Shorten the test runs (levers 1, 3, 5 DONE; levers 2, 4 TO ELABORATE)
 
 Added 2026-10-05 at the user's request: the test runs take too long. Measured on 2026-10-05 (`store-occupancy`):
 - **app-server: 3:48 min** for 167 tests (+ build). The 7 slowest classes are exactly the 7 with a `@TestProfile`
@@ -855,6 +855,34 @@ Steps:
    After the fixes: 167/167 green twice, app-server **1:33 / 1:34 min** (was 2:10, before lever 1 3:48);
    `DcSeedFlowTest` + `StoreOccupancyFlowTest` green 5 more times in a row.
 4. Update this item; stage, don't commit. DONE.
+
+### Lever 5: e2e without the live reload (APPROVED and DONE 2026-10-06)
+
+Cause: Playwright starts the `webServer` (`quarkus:dev`) *before* `globalSetup`, whose `mvn install` then replaced the
+classes under the running server - a ≈ 10 s live reload on the first request, absorbed by a warm-up loop. Right after
+a code change two reloads could overlap (`ClassCastException`, mass timeouts, a second run).
+
+Decisions:
+- **Build first, inside the `webServer` command:** `mvn install -DskipTests -q && mvn -pl app-server quarkus:dev …`
+  (same `-D` flags), `timeout` 120 → 240 s. The build is gone from `global-setup.ts` (only a warm-up stays, see below).
+- `retries: 1` → `0`: it only absorbed the reload window; a retry now would hide flaky tests.
+- Rejected: e2e against the packaged jar - Dev Services only exist in dev/test mode, it would need its own
+  docker-compose.
+
+Measured (27 tests, total wall time incl. build and server start, no server on :8080):
+- Before: 57 s (with `--retries=0`).
+- After, first run right after a source change (whitespace in `ShopReceiver`): **39 s**, 27/27 green; second run
+  **34 s**, 27/27 green.
+- **Reused dev server** (`reuseExistingServer`, started by hand, source changed under it): 4/27 failed with
+  `ERR_EMPTY_RESPONSE` / request timeouts - the first test request triggers the dev server's own live reload (13 s).
+  The deleted warm-up used to absorb that.
+
+Reused-server case, decided 2026-10-06 (option a): `global-setup.ts` is back, **warm-up only, no build**. It polls
+`/admin` every 250 ms until it has answered OK for an unbroken 2.5 s. A plain "3 OKs in a row" at 250 ms was not
+enough (3 failures again): Quarkus scans for changes at most every 2 s (`HOT_REPLACEMENT_INTERVAL` in
+`VertxHttpHotReplacementSetup`), so all three OKs could come before the scan that starts the reload. Measured:
+reused server with a changed source **27/27, 33 s** (one reload, absorbed); fresh run **27/27, 39 s** (the warm-up costs
+≈ 2.5 s there).
 
 ## Open questions
 
