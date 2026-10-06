@@ -9,9 +9,8 @@ import org.svenehrke.triptychdemo.cross.purchasing.PurchasingHandler;
 import org.svenehrke.triptychdemo.cross.purchasing.SupplierOrderOrigin;
 import org.svenehrke.triptychdemo.cross.purchasing.SupplierOrderRepositorySPI;
 import io.quarkus.test.junit.QuarkusTest;
-import io.quarkus.test.junit.QuarkusTestProfile;
-import io.quarkus.test.junit.TestProfile;
 import jakarta.inject.Inject;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -32,19 +31,7 @@ import static org.awaitility.Awaitility.await;
  * tests). The seed is switched on, but its only trigger here is the admin reset: the period close is off.
  */
 @QuarkusTest
-@TestProfile(DcSeedFlowTest.DcSeed.class)
 class DcSeedFlowTest {
-
-    /** Also stops CashpointStub, which would otherwise sell from the stores. */
-    public static class DcSeed implements QuarkusTestProfile {
-        @Override
-        public Map<String, String> getConfigOverrides() {
-            return Map.of(
-                "inventory.dc-seed.enabled", "true",
-                "inventory.dc-seed.quantity", "500",
-                "quarkus.scheduler.enabled", "false");
-        }
-    }
 
     @Inject TestInventoryHelper inventoryHelper;
     @Inject TestAuditLogHelper auditHelper;
@@ -54,11 +41,18 @@ class DcSeedFlowTest {
 
     @BeforeEach
     void setUp() {
+        TestConfigOverrides.set("inventory.dc-seed.enabled", "true");
+        TestConfigOverrides.set("inventory.dc-seed.quantity", "500");
         await().atMost(5, SECONDS).until(() -> {
             inventoryHelper.resetInventory();
             auditHelper.clearAuditLog();
             return given().get("/api/locations/dc/products").asString().equals("[]") && auditHelper.isEmpty();
         });
+    }
+
+    @AfterEach
+    void tearDown() {
+        TestConfigOverrides.clear();
     }
 
     @Test

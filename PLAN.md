@@ -737,7 +737,7 @@ transaction; the sequences stay, so ids remain unique), `AuditLogSPI.clear()` (t
 late supplier delivery adds to the DC, a late shipment arrival is ignored. Tests: `AdminReceiverTest` case; the e2e
 test intercepts the POST (a real reset would wipe the data of the spec files running in parallel).
 
-## faster-tests: Shorten the test runs (IN PROGRESS: lever 1)
+## faster-tests: Shorten the test runs (lever 1 DONE; levers 2-5 TO ELABORATE)
 
 Added 2026-10-05 at the user's request: the test runs take too long. Measured on 2026-10-05 (`store-occupancy`):
 - **app-server: 3:48 min** for 167 tests (+ build). The 7 slowest classes are exactly the 7 with a `@TestProfile`
@@ -761,7 +761,7 @@ To elaborate - candidate levers, cheapest first:
 5. **e2e:** avoid the double live reload (start the e2e dev server after the build has settled, or run e2e against a
    packaged jar instead of `quarkus:dev`).
 
-### Lever 1: fewer Quarkus restarts (elaborated and APPROVED 2026-10-06)
+### Lever 1: fewer Quarkus restarts (APPROVED and DONE 2026-10-06)
 
 What the 7 profiles override, and when the app reads it:
 
@@ -798,9 +798,11 @@ Steps:
 1. Spike with `AutoPurchasingFlowTest`: prove that the `Supplier` re-resolves from the runtime-mutated source. DONE
    2026-10-06: passes (5/5) sharing one instance with `SupplierOrderFlowTest`; without the override 2 tests fail, so
    the switch is what takes effect.
-2. Convert the other 4 classes, drop the redundant `scheduler.enabled=false` overrides.
-3. Full app-server suite twice; compare against 3:48.
-4. Update this item with the measurements; docs/`concepts.md` where they mention the profiles.
+2. Convert the other 4 classes, drop the redundant `scheduler.enabled=false` overrides. DONE.
+3. Full app-server suite twice; compare against 3:48. DONE: 167/167 green both times, app-server **2:12 / 2:09 min**
+   (was 3:48). The slowest classes are now the two Kafka probe profiles (33 s + 22 s); the converted ones take 4-6 s.
+4. Update this item with the measurements; docs/`concepts.md` where they mention the profiles. DONE: nothing to
+   change - only the historical `split-inventory_wip.md` mentions the old profiles.
 5. Stage, don't commit.
 
 ## Open questions

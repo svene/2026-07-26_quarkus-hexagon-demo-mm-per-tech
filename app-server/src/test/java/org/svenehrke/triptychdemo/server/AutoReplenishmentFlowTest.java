@@ -10,17 +10,15 @@ import org.svenehrke.triptychdemo.cross.purchase.PurchaseHandler;
 import org.svenehrke.triptychdemo.cross.purchase.PurchaseItem;
 import org.svenehrke.triptychdemo.cross.reorder.ReorderPolicyHandler;
 import io.quarkus.test.junit.QuarkusTest;
-import io.quarkus.test.junit.QuarkusTestProfile;
-import io.quarkus.test.junit.TestProfile;
 import io.restassured.http.ContentType;
 import io.restassured.path.json.JsonPath;
 import jakarta.inject.Inject;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -36,18 +34,7 @@ import static org.awaitility.Awaitility.await;
  * {@link ReorderPolicyHandler} directly, so the tests are deterministic; the timer stays off.
  */
 @QuarkusTest
-@TestProfile(AutoReplenishmentFlowTest.AutoReplenishment.class)
 class AutoReplenishmentFlowTest {
-
-    /** Also stops CashpointStub, which would otherwise sell from the stores this test fills. */
-    public static class AutoReplenishment implements QuarkusTestProfile {
-        @Override
-        public Map<String, String> getConfigOverrides() {
-            return Map.of(
-                "inventory.auto-replenishment.enabled", "true",
-                "quarkus.scheduler.enabled", "false");
-        }
-    }
 
     @Inject TestInventoryHelper inventoryHelper;
     @Inject TestAuditLogHelper auditHelper;
@@ -57,11 +44,17 @@ class AutoReplenishmentFlowTest {
 
     @BeforeEach
     void setUp() {
+        TestConfigOverrides.set("inventory.auto-replenishment.enabled", "true");
         await().atMost(5, SECONDS).until(() -> {
             inventoryHelper.resetInventory();
             auditHelper.clearAuditLog();
             return given().get("/api/locations/dc/products").asString().equals("[]") && auditHelper.isEmpty();
         });
+    }
+
+    @AfterEach
+    void tearDown() {
+        TestConfigOverrides.clear();
     }
 
     @Test

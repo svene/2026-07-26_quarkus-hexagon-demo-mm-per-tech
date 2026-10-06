@@ -10,8 +10,12 @@ import org.eclipse.microprofile.reactive.messaging.Emitter;
 import org.eclipse.microprofile.reactive.messaging.Incoming;
 
 import java.time.Duration;
+import java.util.function.Supplier;
 
-/** The carrier between the DC and the locations: reports a shipment as arrived {@code carrier-stub.transit-time} ± 20% after it was dispatched. */
+/**
+ * The carrier between the DC and the locations: reports a shipment as arrived {@code carrier-stub.transit-time} ± 20%
+ * after it was dispatched. Looked up per shipment, so a test can switch it without its own Quarkus instance.
+ */
 @ApplicationScoped
 public class CarrierStub {
 
@@ -23,11 +27,11 @@ public class CarrierStub {
     LeadTime leadTime;
 
     @ConfigProperty(name = "carrier-stub.transit-time", defaultValue = "0s")
-    Duration transitTime;
+    Supplier<Duration> transitTime;
 
     @Incoming("shipments")
     @Blocking
     public void processShipment(ShipmentMessage shipment) {
-        leadTime.later(transitTime, () -> emitter.send(new ShipmentArrivalMessage(shipment.shipmentId())));
+        leadTime.later(transitTime.get(), () -> emitter.send(new ShipmentArrivalMessage(shipment.shipmentId())));
     }
 }

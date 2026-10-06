@@ -7,14 +7,12 @@ import org.svenehrke.triptychdemo.cross.products.ProductType;
 import org.svenehrke.triptychdemo.cross.replenishment.ReplenishmentHandler;
 import org.svenehrke.triptychdemo.cross.replenishment.StockRequest;
 import io.quarkus.test.junit.QuarkusTest;
-import io.quarkus.test.junit.QuarkusTestProfile;
-import io.quarkus.test.junit.TestProfile;
 import jakarta.inject.Inject;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
-import java.util.Map;
 
 import static io.restassured.RestAssured.given;
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -26,18 +24,7 @@ import static org.awaitility.Awaitility.await;
  * for that long, then the location books them.
  */
 @QuarkusTest
-@TestProfile(ShipmentTransitFlowTest.TransitTime.class)
 class ShipmentTransitFlowTest {
-
-    /** Also stops CashpointStub. */
-    public static class TransitTime implements QuarkusTestProfile {
-        @Override
-        public Map<String, String> getConfigOverrides() {
-            return Map.of(
-                "carrier-stub.transit-time", "2s",
-                "quarkus.scheduler.enabled", "false");
-        }
-    }
 
     @Inject TestInventoryHelper inventoryHelper;
     @Inject TestAuditLogHelper auditHelper;
@@ -46,11 +33,17 @@ class ShipmentTransitFlowTest {
 
     @BeforeEach
     void setUp() {
+        TestConfigOverrides.set("carrier-stub.transit-time", "2s");
         await().atMost(5, SECONDS).until(() -> {
             inventoryHelper.resetInventory();
             auditHelper.clearAuditLog();
             return given().get("/api/locations/dc/products").asString().equals("[]") && auditHelper.isEmpty();
         });
+    }
+
+    @AfterEach
+    void tearDown() {
+        TestConfigOverrides.clear();
     }
 
     @Test

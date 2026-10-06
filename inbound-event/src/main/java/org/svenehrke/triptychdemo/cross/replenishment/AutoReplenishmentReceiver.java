@@ -15,17 +15,19 @@ import jakarta.inject.Inject;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.util.Collection;
+import java.util.function.Supplier;
 
 /**
  * Automatic replenishment of the stores and the online FC: whenever their stock or their reorder levels change, they
  * re-check it against the levels and request from the DC what has fallen below them. Off with
- * {@code inventory.auto-replenishment.enabled=false} (tests, e2e), so stock then only moves on manual requests.
+ * {@code inventory.auto-replenishment.enabled=false} (tests, e2e), so stock then only moves on manual requests. Looked up
+ * per event, so a test can switch it on without its own Quarkus instance.
  */
 @ApplicationScoped
 public class AutoReplenishmentReceiver {
 
     @ConfigProperty(name = "inventory.auto-replenishment.enabled")
-    boolean enabled;
+    Supplier<Boolean> enabled;
     @Inject
     ReplenishmentHandler replenishmentHandler;
     @Inject
@@ -34,7 +36,7 @@ public class AutoReplenishmentReceiver {
     AuditLogHandler auditLog;
 
     void onStockDeducted(@ObservesAsync StockDeducted event) {
-        if (enabled) replenishIfLow(event.location(), event.productNames());
+        if (enabled.get()) replenishIfLow(event.location(), event.productNames());
     }
 
     /**
@@ -42,7 +44,7 @@ public class AutoReplenishmentReceiver {
      * the DC shares a shortfall among them.
      */
     void onLevelsRecalculated(@ObservesAsync LevelsRecalculated event) {
-        if (!enabled) return;
+        if (!enabled.get()) return;
         var dcProducts = productsHandler.listAll(Locations.DC).stream().map(Product::name).toList();
         try {
             replenishmentHandler.replenishAllIfLow(dcProducts);

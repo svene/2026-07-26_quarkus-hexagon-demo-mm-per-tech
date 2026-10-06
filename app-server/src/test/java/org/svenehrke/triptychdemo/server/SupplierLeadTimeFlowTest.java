@@ -6,14 +6,12 @@ import org.svenehrke.triptychdemo.feature.fruit.FruitsHandler;
 import org.svenehrke.triptychdemo.feature.nonfood.NonFoodHandler;
 import org.svenehrke.triptychdemo.feature.nonfood.NonFoodOrder;
 import io.quarkus.test.junit.QuarkusTest;
-import io.quarkus.test.junit.QuarkusTestProfile;
-import io.quarkus.test.junit.TestProfile;
 import jakarta.inject.Inject;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
-import java.util.Map;
 
 import static io.restassured.RestAssured.given;
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -25,18 +23,7 @@ import static org.awaitility.Awaitility.await;
  * it returns right away and the order stays open until the delivery arrives.
  */
 @QuarkusTest
-@TestProfile(SupplierLeadTimeFlowTest.LeadTime.class)
 class SupplierLeadTimeFlowTest {
-
-    /** Also stops CashpointStub. */
-    public static class LeadTime implements QuarkusTestProfile {
-        @Override
-        public Map<String, String> getConfigOverrides() {
-            return Map.of(
-                "supplier-stub.lead-time", "2s",
-                "quarkus.scheduler.enabled", "false");
-        }
-    }
 
     @Inject TestInventoryHelper inventoryHelper;
     @Inject TestAuditLogHelper auditHelper;
@@ -45,11 +32,17 @@ class SupplierLeadTimeFlowTest {
 
     @BeforeEach
     void setUp() {
+        TestConfigOverrides.set("supplier-stub.lead-time", "2s");
         await().atMost(5, SECONDS).until(() -> {
             inventoryHelper.resetInventory();
             auditHelper.clearAuditLog();
             return given().get("/api/locations/dc/products").asString().equals("[]") && auditHelper.isEmpty();
         });
+    }
+
+    @AfterEach
+    void tearDown() {
+        TestConfigOverrides.clear();
     }
 
     @Test
