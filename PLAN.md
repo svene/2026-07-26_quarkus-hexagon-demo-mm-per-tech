@@ -104,7 +104,7 @@ Split the monolithic `architecture.puml` into 4 focused diagrams by technology:
 
 Each diagram significantly reduces visual complexity compared to the original by focusing on one technology concern at a time. All diagrams keep core in the middle; left-to-right flow through core is not yet fully clean (left-to-right refactoring deferred to `diagram-left-to-right`).
 
-## diagram-left-to-right: Diagram left-to-right flow improvement (NOT STARTED)
+## diagram-left-to-right: Diagram left-to-right flow improvement (DISCARDED)
 
 Reorganize all architecture diagrams (main + 4 focused ones) to ensure **strict left-to-right dependency flow through core**:
 - External sources / inbound → **Core** → outbound adapters → external systems
@@ -112,6 +112,8 @@ Reorganize all architecture diagrams (main + 4 focused ones) to ensure **strict 
 - Visual clarity: where does data/requests come in, where do they go out
 
 This is deferred because PlantUML's auto-layout makes it challenging to enforce; a manual coordinate-based approach or a different diagram tool might be needed for full control.
+
+Discarded 2026-10-05: not worth the effort for the demo.
 
 ## html-json-separation: Clean separation: HTML interface vs JSON API (DONE)
 
@@ -149,7 +151,7 @@ Replaced the 3 s polling on `/shop` with a server push. Design and the decisions
   SPI: the `inbound_adapters_do_not_use_spis` ArchUnit rule forbids that, and notifications flow
   core → inbound adapter anyway. In-process only (single instance).
 
-## split-inventory: Locations: central DC, 3 stores, online dark store (PLAN)
+## split-inventory: Locations: central DC, 3 stores, online dark store (DONE)
 
 Replace the single inventory with one stock per location: a central DC that receives all supplier
 deliveries, 3 physical stores (deducted by cashpoint sales) and an online fulfilment centre (deducted
@@ -353,7 +355,7 @@ events should go through a Kafka topic the app sends to itself (former item `kaf
 for the cross-pod SSE fan-out, but not for the work-triggering events (that needs a transactional outbox, so catch up at
 the period close instead). Two pods also need a single-instance period close, idempotent Kafka consumers, schema
 migrations instead of `drop-and-create`, health probes and the stubs as separate deployments. The user decided not to
-implement it for now (2026-10-04). Analysis and suggested order:
+implement it for now (2026-10-04; confirmed 2026-10-05 - keep the analysis up to date as features are added). Analysis and suggested order:
 [`docs/architecture/two-pods_wip.md`](docs/architecture/two-pods_wip.md).
 
 ## audit-log-page: The audit log on a page of its own (DONE)
@@ -477,6 +479,10 @@ and the docs; the "never more than its capacity" test went. `StoreSimulationTest
 so the rush-hour curve is hardly visible against the random arrivals. The per-store reorder levels were not checked
 yet (needs a longer dev run).
 
+**Capacity reinstated** (2026-10-05, with `store-occupancy`): without it nobody is turned away, so opening a till
+could not raise sales. Now with a rush peak of 2.5× (was 1.5×) and capacities that fit the compressed time scale
+(Zurich 16, Basel 10, Bern 6) - see `store-occupancy`.
+
 ## dc-seed: The DC starts with stock instead of empty (DONE)
 
 Added 2026-10-05 at the user's request. Today the DC is empty at startup and after the admin reset: the Flyway
@@ -571,12 +577,85 @@ Dev run after the fixes (fresh database): no seed at the start, `DC_SEEDED` at t
   broken. `DcSeedReceiver.onStart` (`StartupEvent` → one-off Vert.x timer, `inventory.dc-seed.startup-delay=5s`, the
   seed on a worker thread) seeds once the HTTP server listens; the period close keeps its 1 min delay.
 
-## store-occupancy: Show the stores' occupancy in the UI (TO ELABORATE)
+## store-occupancy: Show the stores' occupancy in the UI, add/remove tills (DONE)
 
 Added 2026-10-05 as the follow-up of `store-capacity`. The store simulation (capacity, till queue, lost customers)
 lives in the cashpoint stub, so the app doesn't know it. Showing it would need the external system to report it, e.g.
 door counters publishing a `store-occupancy` Kafka topic, plus a receiver, an event and a section on `/locations`.
-To elaborate: whether it is worth it for the demo, message shape and rate, where it is shown.
+To elaborate: whether it is worth it for the demo, message shape and rate, where it is shown. Next item: to be started in
+a new session (decided 2026-10-05).
+
+Elaborated 2026-10-05. Worth it mainly for what it teaches: every Kafka inbound so far is an *event* (process once);
+occupancy is a *state snapshot* (only the latest counts). Keyed by store, it suits a compacted topic, and storing it is
+idempotent (newer overwrites, stale is ignored), so it needs no inbox, not even with two pods. It is also the first data
+the app shows without acting on it, and it makes the till bottleneck of `store-capacity` visible. The user added:
+**+/- buttons per store to open or close a till**, to watch the effect on the queue.
+
+Decisions: compaction only mentioned in the docs (no topic config); shown on `/locations` only; current values only, no
+history; the till change goes through the app (option A: UI → core → outbound port → checkout system), not from the
+browser straight to the stub.
+
+### Plan (APPROVED 2026-10-05)
+
+1. **Message** (topic `store-occupancy`, Kafka key = storeId): `{storeId, measuredAt, inside, queuing, tills,
+   tillsBusy}` - current values only, so a redelivered or reordered message is harmless. The stub sends one per store
+   every 5 s, and one right after a till change.
+2. **Stub** (`external-inbound-kafka`):
+   - `StoreSimulation.setTills(n)`: opening adds a free till; closing removes a free till, or - if all are busy - the
+     next one that becomes free (the customer at it finishes paying). The arrival rate stays tied to the *configured*
+     tills, otherwise opening a till would also bring more customers and the queue would not shrink.
+   - `CashpointStub`: `occupancy-out` channel (key = storeId); a till change is queued (concurrent map) and applied by
+     the next tick, since the simulation is not thread-safe.
+   - `CashpointTillsStub`: `PUT /cashpoint-stub/stores/{id}/tills` `{"tills": n}` → 204; unknown store 404; n outside
+     1..8 → 400.
+3. **Core** (`cross.occupancy`):
+   - `StoreOccupancy(Store, measuredAt, inside, queuing, tills, tillsBusy)` with `parse()` / sealed
+     `ParsedStoreOccupancy` (counts ≥ 0, tills 1..`TillCount.MAX_TILLS`).
+   - `TillCount(Store, tills)` with `parse()` / `ParsedTillCount` (1..8).
+   - `OccupancyHandler`: `record(StoreOccupancy)` (fires `OccupancyChanged(store)` if it was newer), `current()`,
+     `setTills(TillCount)` → `boolean` (false + audit log if the checkout system refused or was unreachable).
+   - `OccupancyRepositorySPI` (`saveIfNewer`, `findAll`), `CheckoutSystemSPI` (`setTills`).
+4. **Outbound**: `outbound-postgres` `StoreOccupancyTable` + `OccupancyService`, migration `V4__store_occupancy.sql`
+   (one row per store; upsert `on conflict … do update … where excluded.measuredAt > store_occupancy.measuredAt`).
+   `outbound-httpclient` `CheckoutSystemClient` + `CheckoutSystemService` (rest client `checkout-system`). The
+   admin reset does not touch the occupancy: it is the external system's state.
+5. **Inbound**: `inbound-kafka` `StoreOccupancyReceiver` + deserializer: same dead-letter handling as
+   `CashpointReceiver`; no audit entry per message (36 per minute), only invalid ones.
+6. **UI** (`/locations`): per store card a line "N inside · **N queuing for a till** · tills busy/total" with − / +
+   buttons (`POST /locations/{id}/tills`, form field `tills`); "No occupancy data" without a snapshot, greyed out when the
+   snapshot is older than 30 s. Refreshed on a per-store SSE event `occupancyChanged-{storeId}` on the existing
+   `/inventory/events` stream; the inventory fragment is not re-rendered.
+7. **Tests**: `StoreSimulationTest` (open/close a till, closing a busy till), flow test via Kafka (valid, stale ignored,
+   invalid, unknown store), `LocationReceiverTest`-style tests for the fragment and the till POST (app → REST → stub),
+   e2e: "No occupancy data" on `/locations`.
+8. **Docs**: update-architecture-docs (topic, receiver, SPIs, Services, endpoints), compaction mentioned in
+   `architecture-flow-kafka-reference.md`, `two-pods_wip.md` (snapshot consumer needs no inbox; the till REST call
+   reaches one pod's stub), `concepts.md`, `README.md`, `docs/ai/session-notes.md`.
+
+Implemented as planned (staged): `StoreSimulationTest` 10, app-server 167, e2e 27/27. With the capacity follow-up: `StoreSimulationTest` 14, app-server 167, e2e 27/27 (second run; the first after the change mass-failed, the known double live reload). Not yet watched in the dev app. Deviations: the occupancy
+message channel is `store-occupancy-out`; the flow test first waits until the receiver consumes (a probe report,
+harmless since only the latest counts) - right after the start the consumer is not yet assigned and skips what is
+published before (`auto.offset.reset=latest`).
+
+### Follow-up: capacity back, so that tills matter (APPROVED 2026-10-05)
+
+The user expected more tills to bring more sales. They didn't: without a capacity nobody is turned away, every customer
+who enters pays sooner or later, so over a demo day the sales equal the arrivals and more tills only shorten the queue.
+Decided (user): reinstate the store capacity - a full store turns new customers away (lost sales), and opening tills is
+the only means against it. The old capacities (60/40/20 at a peak of 1.5×) never bound; a simulation of the model
+(20 demo days) chose a peak of **2.5×** and capacities **Zurich 16, Basel 10, Bern 6** (small, since a stay is only
+1.25-2.5 s - most customers inside are queuing or paying):
+
+| Store (tills) | Capacity | Configured tills: paid / turned away per demo minute | +1 till | +2 tills |
+|---|---|---|---|---|
+| Zurich (4) | 16 | 15.4 / 7.3 | 19.4 / 3.5 | 21.4 / 0.8 |
+| Basel (2) | 10 | 7.7 / 3.9 | 11.2 / 0.5 | 11.7 / 0.1 |
+| Bern (1) | 6 | 3.8 / 1.5 | 5.5 / 0.1 | 5.5 / 0.1 |
+
+The arrivals stay tied to the configured tills (the store's demand). The report gets `capacity` and `turnedAway`
+(customers turned away in the last demo day - a current value, not a delta, so the snapshot stays idempotent), via
+`V5__store_occupancy_capacity.sql` (V4 is already applied in the dev database). The line on `/locations`: "14 / 16
+inside" (+ "full") · queuing · tills busy/open · − / + · "N turned away (last minute)".
 
 ## plain-sql: Replace JPA (Hibernate/Panache) with plain SQL in outbound-postgres (DONE)
 
@@ -658,7 +737,30 @@ transaction; the sequences stay, so ids remain unique), `AuditLogSPI.clear()` (t
 late supplier delivery adds to the DC, a late shipment arrival is ignored. Tests: `AdminReceiverTest` case; the e2e
 test intercepts the POST (a real reset would wipe the data of the spec files running in parallel).
 
+## faster-tests: Shorten the test runs (TO ELABORATE)
+
+Added 2026-10-05 at the user's request: the test runs take too long. Measured on 2026-10-05 (`store-occupancy`):
+- **app-server: 3:48 min** for 167 tests (+ build). The 7 slowest classes are exactly the 7 with a `@TestProfile`
+  (`KafkaTransientFailureTest` 32 s, `KafkaMalformedMessageTest` 21 s, `SupplierLeadTimeFlowTest` 21 s,
+  `AutoReplenishmentFlowTest` 20 s, `DcSeedFlowTest` 18 s, `AutoPurchasingFlowTest` 18 s, `ShipmentTransitFlowTest`
+  17 s) - each profile restarts Quarkus (Kafka/Postgres/Mongo dev services, Flyway clean). Together ≈ 2.5 min of the
+  run; the other 26 classes share one app.
+- **e2e: ≈ 50 s** for 27 tests, plus the dev-server start; the first run after a code change can mass-fail (double live
+  reload, see memory) and costs a second run.
+- Many flow tests wait on Kafka round trips with `await().atMost(10, SECONDS)`.
+
+To elaborate - candidate levers, cheapest first:
+1. **Fewer Quarkus restarts:** merge profiles that only differ in config values that could be switched at runtime
+   (e.g. the period timer / lead time / transit time via a test-only setter or a config the test reads), or group the
+   profiled classes so ones with the same profile share an app.
+2. **Run only what a change touches** during development (`-Dtest=…`, a fast "unit + affected flow tests" set) and the
+   full suite before staging; the stub's plain unit tests already run in < 1 s.
+3. **Shorter waits:** Awaitility poll interval / Kafka consumer `fetch.max.wait.ms` and `auto.commit` settings in
+   `%test`, consumer group rebalance delay (`group.initial.rebalance.delay.ms` of the dev-services broker).
+4. **Parallelism:** surefire forks per profile, or e2e workers - limited by the shared databases.
+5. **e2e:** avoid the double live reload (start the e2e dev server after the build has settled, or run e2e against a
+   packaged jar instead of `quarkus:dev`).
+
 ## Open questions
 
 - Authentication/authorization is out of scope for this POC, but the separate routes (`/admin`, `/shop`) make it easy to add later.
-- `diagram-left-to-right` may need a different tool or manual layout if PlantUML cannot enforce the strict left-to-right constraint.

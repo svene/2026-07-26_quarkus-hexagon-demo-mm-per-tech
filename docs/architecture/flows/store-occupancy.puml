@@ -1,0 +1,46 @@
+@startuml store_occupancy
+skinparam monochrome true
+skinparam sequenceMessageAlign center
+skinparam backgroundColor #ffffff
+
+actor "Store manager\n(/locations)" as browser
+actor "External\nCheckout System" as external
+participant "Kafka Topic:\nstore-occupancy" as kafka
+participant "StoreOccupancyReceiver\n(Kafka)" as receiver
+participant "OccupancyHandler\n(Core)" as handler
+participant "OccupancyService\n(PostgreSQL)" as service
+database "PostgreSQL\n(store_occupancy)" as db
+participant "InventoryEventsReceiver\n(SSE)" as sse
+participant "LocationReceiver\n(HTML)" as location
+
+browser -> sse: GET /inventory/events (open)
+
+note over external, kafka
+  Every 5 s per store, and right after a till change.
+  Key = storeId: a snapshot, only the latest per store
+  counts (suits a compacted topic).
+end note
+external -> kafka: publish {storeId, measuredAt,\ninside, queuing, tills, tillsBusy}
+kafka -> receiver: consume (@Incoming)
+alt missing field
+  receiver -> kafka: DLQ (store-occupancy-dlq)
+else not a store / out of range
+  receiver -> receiver: AuditLogHandler.log("INVALID"), skip
+else valid (not audit-logged)
+  receiver -> handler: record(occupancy)
+  handler -> service: saveIfNewer(occupancy)
+  service -> db: INSERT … ON CONFLICT (storeId) DO UPDATE\nWHERE excluded.measuredAt > store_occupancy.measuredAt
+  db --> service: 1 row (newer) / 0 rows (older or repeated)
+  service --> handler: stored?
+  opt stored
+    handler -> sse: fireAsync(OccupancyChanged(store))\nvia InventoryEventBroadcaster
+    sse -> browser: event: occupancyChanged-{storeId}
+    browser -> location: GET /locations/{storeId}/occupancy-fragment
+    location -> handler: current()
+    handler -> service: findAll()
+    service -> db: SELECT
+    location --> browser: {route: StoreOccupancy, vm}\n(morphed into the store's line)
+  end
+end
+
+@enduml

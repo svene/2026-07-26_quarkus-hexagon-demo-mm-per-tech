@@ -13,18 +13,18 @@ Complete inventory of all classes participating in the system flows, organized b
 |--------|--------------|
 | **inbound-http-html** | `AdminReceiver`<br>`ShopReceiver`<br>`LocationReceiver`<br>`AuditLogReceiver`<br>`InventoryEventsReceiver`<br>`InventoryEventBroadcaster`<br>`ShopCart`<br>`PageShell` |
 | **inbound-http-jsonapi** | `ProductApiReceiver`<br>`LocationApiReceiver`<br>`XxxOrderRequest` (+ `OrderRequest`)/`PurchaseRequest`/`PurchaseRequestItem`/`RequestStructureErrorMessages`<br>`JsonInputErrors`/`StrictJsonReader`/`JsonResponses`<br>`ProductJson` |
-| **inbound-kafka** | `FruitDeliveryReceiver`<br>`VegetablesDeliveryReceiver`<br>`DairyDeliveryReceiver`<br>`BeveragesDeliveryReceiver`<br>`MeatDeliveryReceiver`<br>`BakeryDeliveryReceiver`<br>`NonFoodDeliveryReceiver`<br>`CashpointReceiver`<br>`ShipmentArrivalReceiver` |
+| **inbound-kafka** | `FruitDeliveryReceiver`<br>`VegetablesDeliveryReceiver`<br>`DairyDeliveryReceiver`<br>`BeveragesDeliveryReceiver`<br>`MeatDeliveryReceiver`<br>`BakeryDeliveryReceiver`<br>`NonFoodDeliveryReceiver`<br>`CashpointReceiver`<br>`ShipmentArrivalReceiver`<br>`StoreOccupancyReceiver` |
 | **inbound-event** | `DeliveryEventReceiver`, `AutoReplenishmentReceiver`, `AutoPurchasingReceiver`, `DcSeedReceiver`, `ShipmentCatchUpReceiver`, `DemandPeriodReceiver` |
-| **core** | `FruitSupplierSPI`/`FruitDelivery`/`FruitsHandler`<br>`VegetablesSupplierSPI`/`VegetableDelivery`/`VegetablesHandler`<br>`DairySupplierSPI`/`DairyDelivery`/`DairyHandler`<br>`BeverageSupplierSPI`/`BeverageDelivery`/`BeveragesHandler`<br>`MeatSupplierSPI`/`MeatDelivery`/`MeatHandler`<br>`BakerySupplierSPI`/`BakeryDelivery`/`BakeryHandler`<br>`NonFoodSupplierSPI`/`NonFoodDelivery`/`NonFoodHandler`<br>`InventoryRepositorySPI`/`InventoryHandler`/`InventoryEvent` (`DeliveredToDc`/`StockDeducted`/`ReplenishmentChanged`/`LevelsRecalculated`/`DcDemandChanged`/`SupplierOrdersChanged`/`InventoryReset`)<br>`Location`/`Replenished`/`Warehouse`/`Store`/`OnlineFc`/`Locations`<br>`ReplenishmentRepositorySPI`/`ReplenishmentHandler`/`StockRequest`/`ReplenishmentRequest`/`RequestOrigin`/`CarrierSPI`/`Shipment`/`ShipmentStatus`<br>`ReorderPolicyHandler`/`ReorderPolicy`/`DemandEstimate`/`LearnedLevels`<br>`SupplierOrderRepositorySPI`/`PurchasingHandler`/`SupplierOrder`/`SupplierOrderStatus`/`SupplierOrderOrigin`<br>`AuditLogSPI`/`AuditLogHandler`/`AuditLogEntry`<br>`ResetRepositorySPI`/`ResetHandler`<br>`ProductsHandler`/`Product`/`ProductStock`/`ProductType`<br>`PurchaseHandler`/`PurchaseItem` |
-| **outbound-postgres** | `InventoryService`<br>`StockTable`<br>`ReplenishmentService`<br>`ReplenishmentRequestTable`<br>`ShipmentTable`<br>`SupplierOrderService`<br>`SupplierOrderTable`<br>`ResetService`<br>`Db` |
+| **core** | `FruitSupplierSPI`/`FruitDelivery`/`FruitsHandler`<br>`VegetablesSupplierSPI`/`VegetableDelivery`/`VegetablesHandler`<br>`DairySupplierSPI`/`DairyDelivery`/`DairyHandler`<br>`BeverageSupplierSPI`/`BeverageDelivery`/`BeveragesHandler`<br>`MeatSupplierSPI`/`MeatDelivery`/`MeatHandler`<br>`BakerySupplierSPI`/`BakeryDelivery`/`BakeryHandler`<br>`NonFoodSupplierSPI`/`NonFoodDelivery`/`NonFoodHandler`<br>`InventoryRepositorySPI`/`InventoryHandler`/`InventoryEvent` (`DeliveredToDc`/`StockDeducted`/`ReplenishmentChanged`/`LevelsRecalculated`/`DcDemandChanged`/`SupplierOrdersChanged`/`InventoryReset`)<br>`Location`/`Replenished`/`Warehouse`/`Store`/`OnlineFc`/`Locations`<br>`ReplenishmentRepositorySPI`/`ReplenishmentHandler`/`StockRequest`/`ReplenishmentRequest`/`RequestOrigin`/`CarrierSPI`/`Shipment`/`ShipmentStatus`<br>`ReorderPolicyHandler`/`ReorderPolicy`/`DemandEstimate`/`LearnedLevels`<br>`SupplierOrderRepositorySPI`/`PurchasingHandler`/`SupplierOrder`/`SupplierOrderStatus`/`SupplierOrderOrigin`<br>`AuditLogSPI`/`AuditLogHandler`/`AuditLogEntry`<br>`ResetRepositorySPI`/`ResetHandler`<br>`OccupancyRepositorySPI`/`CheckoutSystemSPI`/`OccupancyHandler`/`StoreOccupancy`/`TillCount`/`OccupancyChanged`<br>`ProductsHandler`/`Product`/`ProductStock`/`ProductType`<br>`PurchaseHandler`/`PurchaseItem` |
+| **outbound-postgres** | `InventoryService`<br>`StockTable`<br>`ReplenishmentService`<br>`ReplenishmentRequestTable`<br>`ShipmentTable`<br>`SupplierOrderService`<br>`SupplierOrderTable`<br>`OccupancyService`<br>`StoreOccupancyTable`<br>`ResetService`<br>`Db` |
 | **outbound-mongodb** | `AuditLogService`<br>`AuditLogEntryEntity` |
-| **outbound-httpclient** | `FruitSupplierService`<br>`VegetablesSupplierService`<br>`DairySupplierService`<br>`FruitSupplierClient`<br>`VegetablesSupplierClient`<br>`DairySupplierClient` |
+| **outbound-httpclient** | `FruitSupplierService`<br>`VegetablesSupplierService`<br>`DairySupplierService`<br>`CheckoutSystemService`<br>`FruitSupplierClient`<br>`VegetablesSupplierClient`<br>`DairySupplierClient`<br>`CheckoutSystemClient` |
 | **outbound-webservice** | `BeverageSupplierService`<br>`MeatSupplierService`<br>`BakerySupplierService`<br>`BeverageOrderService`<br>`MeatOrderService`<br>`BakeryOrderService` |
 | **outbound-kafka** | `NonFoodSupplierService`<br>`CarrierService` |
 | **external-outbound-rest** | `FruitSupplierStub`<br>`VegetablesSupplierStub`<br>`DairySupplierStub` |
 | **external-outbound-soap** | `BeverageSupplierStub`<br>`MeatSupplierStub`<br>`BakerySupplierStub` |
 | **external-outbound-kafka** | `NonFoodSupplierStub`<br>`CarrierStub` |
-| **external-inbound-kafka** | `CashpointStub`<br>`StoreSimulation`<br>`CashpointStubConfig`<br>`ProductsApiClient` |
+| **external-inbound-kafka** | `CashpointStub`<br>`StoreSimulation`<br>`CashpointTillsStub`<br>`CashpointStubConfig`<br>`ProductsApiClient` |
 
 ---
 
@@ -36,7 +36,7 @@ Complete inventory of all classes participating in the system flows, organized b
 ### Receivers
 - `AdminReceiver` - Admin dashboard: product × location matrix, supplier orders (to the DC) and the open ones, pending requests (GET /admin shell, GET /admin/page and fragments incl. /admin/supplier-orders-fragment, POST /admin/order-*, POST /admin/requests/{id}/fulfil|reject, POST /admin/reset - the shell's *Reset demo data* button, `hx-confirm`)
 - `ShopReceiver` - Customer shopping interface, sells the online FC's stock (GET /shop shell, GET /shop/page and fragment, POST /shop/checkout)
-- `LocationReceiver` - One page for all stores and the online FC: stock, requests to the DC (GET /locations shell, GET /locations/page, GET /locations/{id}/inventory-fragment, POST /locations/{id}/requests)
+- `LocationReceiver` - One page for all stores and the online FC: stock, requests to the DC, per store its occupancy and opening/closing its tills (GET /locations shell, GET /locations/page, GET /locations/{id}/inventory-fragment, POST /locations/{id}/requests, GET /locations/{id}/occupancy-fragment, POST /locations/{id}/tills)
 - `AuditLogReceiver` - The latest 300 audit log entries, newest first, without live updates: the shell's *Refresh* button reloads them (GET /audit-log shell, GET /audit-log/page)
 - `InventoryEventsReceiver` - GET /inventory/events SSE stream (`inventoryChanged`), used by the shop, admin and locations shells
 - `InventoryEventBroadcaster` (package-private) - `@ObservesAsync InventoryEvent` (every kind), re-published as a JDK `Flow.Publisher` that the SSE streams subscribe to
@@ -134,6 +134,7 @@ Complete inventory of all classes participating in the system flows, organized b
 ### Other Event Receivers
 - `CashpointReceiver` (`cross.cashpoint`) - Consumes from `cashpoint-purchases` topic (customer purchases from a store's checkout; `storeId` missing → DLQ, not a store → audit-logged INVALID); also in this package: `PurchaseMessage`, `PurchaseMessageItem`, `PurchaseMessageDeserializer`
 - `ShipmentArrivalReceiver` (`cross.replenishment`) - Consumes from `shipment-arrivals` topic (the carrier reports a DC shipment as arrived) → `ReplenishmentHandler.receiveShipment(shipmentId)`; a repeated arrival is booked once; null payload / missing `shipmentId` → DLQ; also `ShipmentArrivalMessage`, `ShipmentArrivalMessageDeserializer`
+- `StoreOccupancyReceiver` (`cross.occupancy`) - Consumes from `store-occupancy` topic (a store's occupancy snapshot, keyed by store) → `OccupancyHandler.record`; a missing field → DLQ, not a store / out of range → audit-logged INVALID; valid reports are not audit-logged; also `OccupancyMessage`, `OccupancyMessageDeserializer`
 
 **Responsibilities**:
 - Listen to incoming Kafka messages via @Incoming annotation
@@ -230,6 +231,14 @@ Complete inventory of all classes participating in the system flows, organized b
 - `SupplierOrderStatus` - Enum (OPEN, DELIVERED, CANCELLED)
 - `SupplierOrderOrigin` - Enum (MANUAL, AUTOMATIC)
 
+### cross.occupancy
+- `StoreOccupancy` - What a store's checkout system reports (store, measuredAt, inside, capacity, queuing, tills 1..8, tillsBusy, turnedAway in the last demo day); `parse()` / sealed `ParsedStoreOccupancy`. A snapshot: only the latest per store counts
+- `TillCount` - How many tills a store should have open (1..`MAX_TILLS` = 8); `parse()` / sealed `ParsedTillCount`
+- `OccupancyRepositorySPI` - The latest report per store (methods: saveIfNewer - false if an as new or newer one is stored, findAll)
+- `CheckoutSystemSPI` - The stores' checkout systems, which own the tills (method: setTills - throws if refused or unreachable)
+- `OccupancyHandler` - (methods: record - via StoreOccupancyReceiver, `saveIfNewer`, fires `OccupancyChanged` if stored, not audit-logged; current; setTills - via LocationReceiver, audit `TILLS_CHANGED` / `TILLS_CHANGE_FAILED`, returns false on failure)
+- `OccupancyChanged` - CDI event (`fireAsync`), not an `InventoryEvent`: only the live updates of `/locations` observe it
+
 ### cross.reset
 - `ResetRepositorySPI` - Deletes the stock of every location, every replenishment request, shipment and supplier order in one transaction; the id sequences stay (method: deleteAll)
 - `ResetHandler` - Resets the demo, needed since Flyway keeps the data across restarts (method: reset - via AdminReceiver: deleteAll, `AuditLogSPI.clear`, audit `INVENTORY_RESET`, fires `InventoryReset`). Messages in flight are harmless: a late supplier delivery adds to the DC, a late shipment arrival finds no shipment and is ignored
@@ -260,13 +269,15 @@ Complete inventory of all classes participating in the system flows, organized b
 - `ShipmentTable` / `ShipmentRow` - SQL of the `shipment` table and its row record (requestId, locationId, productName, type, quantity, status, dispatchedAt, arrivedAt; core's `Shipment` has no type)
 - `SupplierOrderService` - Implements SupplierOrderRepositorySPI; locks the DC stock row first, then the supplier orders
 - `SupplierOrderTable` - SQL of the `supplier_order` table; rows map straight to core's `SupplierOrder`
+- `OccupancyService` - Implements OccupancyRepositorySPI (via `StoreOccupancyTable`)
+- `StoreOccupancyTable` - SQL of the `store_occupancy` table (one row per store); `upsertIfNewer` is one `insert … on conflict … do update … where excluded.measuredAt > store_occupancy.measuredAt`, so no lock is needed; not deleted by the reset
 - `ResetService` - Implements ResetRepositorySPI: bulk delete of the four tables in one transaction; identity columns keep counting, so a new row never reuses an id a message in flight still refers to
 
 - `Db` - small JDBC helper (`query`, `queryOne`, `queryInt`, `update`, `insert`) on the Agroal datasource; inside `@Transactional` every call uses the transaction's connection
 
 **Technology**: Plain SQL over JDBC (Agroal datasource, Narayana JTA for `@Transactional`), PostgreSQL, Flyway - no ORM
-**Schema**: Flyway migrations in `src/main/resources/db/migration` (`V1__initial_schema.sql`, `V2__identity_ids.sql`: identity ids instead of the Panache sequences, `V3__seed_origin.sql`: supplier order origin `SEED`), applied at startup - every schema change needs a new `V<n>__*.sql`; the flow tests run every query against the migrated schema
-**Database**: `stock`, `replenishment_request`, `shipment` and `supplier_order` tables in PostgreSQL
+**Schema**: Flyway migrations in `src/main/resources/db/migration` (`V1__initial_schema.sql`, `V2__identity_ids.sql`: identity ids instead of the Panache sequences, `V3__seed_origin.sql`: supplier order origin `SEED`, `V4__store_occupancy.sql`, `V5__store_occupancy_capacity.sql`), applied at startup - every schema change needs a new `V<n>__*.sql`; the flow tests run every query against the migrated schema
+**Database**: `stock`, `replenishment_request`, `shipment`, `supplier_order` and `store_occupancy` tables in PostgreSQL
 **Transactional**: Yes (@Transactional on write operations)
 
 ---
@@ -294,17 +305,19 @@ Complete inventory of all classes participating in the system flows, organized b
 ## outbound-httpclient
 
 **Purpose**: REST HTTP client adapter - implements REST-based Supplier SPIs
-**Package**: `org.svenehrke.triptychdemo.feature.<commodity>` (fruit, dairy, vegetable)
+**Package**: `org.svenehrke.triptychdemo.feature.<commodity>` (fruit, dairy, vegetable); `cross.occupancy` for the checkout systems
 
 ### Services (by product category)
 - `FruitSupplierService` - Implements FruitSupplierSPI using REST client
 - `VegetablesSupplierService` - Implements VegetablesSupplierSPI using REST client
 - `DairySupplierService` - Implements DairySupplierSPI using REST client
+- `CheckoutSystemService` - Implements CheckoutSystemSPI: `PUT /cashpoint-stub/stores/{id}/tills` (`checkout-system` client)
 
 ### REST Clients (auto-generated from service interfaces)
 - `FruitSupplierClient` - REST client proxy for fruit supplier
 - `VegetablesSupplierClient` - REST client proxy for vegetable supplier
 - `DairySupplierClient` - REST client proxy for dairy supplier
+- `CheckoutSystemClient` - REST client proxy for the stores' checkout systems (tills)
 
 **Technology**: Quarkus REST Client (MicroProfile), HTTP/REST
 **Configuration**: Endpoints configured in application.properties
@@ -431,9 +444,10 @@ Complete inventory of all classes participating in the system flows, organized b
 **Package**: `org.svenehrke.triptychdemo.external.inbound.kafka` (unchanged, see note above)
 
 ### Mock Clients
-- `CashpointStub` - Mock checkout systems of the physical stores: `@Scheduled(every = "${cashpoint-stub.tick}")` (100 ms, `off` in `%test` and e2e) advances one `StoreSimulation` per store and sends one `PurchaseRequest` (with `storeId`) per paying customer, from the store's stock; logs occupancy, till queue, entered/paid customers every 10 s
-- `StoreSimulation` - Plain class, one store's customers: arrivals along a rush-hour curve (0.3-1.5 × what the tills serve), 30-60 real minutes of shopping at 1 day = 1 min, a till queue; the tills (`till-time` 15 s ± 20 %, in demo time) cap the purchases. Unit-tested in `StoreSimulationTest`
-- `CashpointStubConfig` - `@ConfigMapping(prefix = "cashpoint-stub")`: tick, day, till-time, per store its tills (Zurich 4, Basel 2, Bern 1)
+- `CashpointStub` - Mock checkout systems of the physical stores: `@Scheduled(every = "${cashpoint-stub.tick}")` (100 ms, `off` in `%test` and e2e) advances one `StoreSimulation` per store and sends one `PurchaseRequest` (with `storeId`) per paying customer, from the store's stock; logs occupancy, till queue, entered/paid customers every 10 s; every 5 s per store (and right after a till change) an `OccupancyMessage` on `store-occupancy` (key = storeId); till changes from `CashpointTillsStub` are queued and applied by the next tick
+- `StoreSimulation` - Plain class, one store's customers: arrivals along a rush-hour curve (0.3-2.5 × what the configured tills serve), 30-60 real minutes of shopping at 1 day = 1 min, a till queue; the tills (`till-time` 15 s ± 20 %, in demo time) cap the purchases; a full store (`capacity`) turns new customers away (counted per demo day). `setTills` opens/closes tills (a busy till closes once its customer has paid); the arrivals stay scaled to the configured tills, so more tills let more of them in - fewer turned away, more sales. Unit-tested in `StoreSimulationTest`
+- `CashpointTillsStub` - `PUT /cashpoint-stub/stores/{storeId}/tills` `{"tills": n}`: 204; 400 outside 1..8; 404 unknown store. Called by the app's `CheckoutSystemService`
+- `CashpointStubConfig` - `@ConfigMapping(prefix = "cashpoint-stub")`: tick, day, till-time, per store its capacity and tills (Zurich 16/4, Basel 10/2, Bern 6/1)
 - `ProductsApiClient` - REST client for `GET /api/locations/{id}/products`
 
 **Responsibilities**:
@@ -491,19 +505,19 @@ Complete inventory of all classes participating in the system flows, organized b
 |--------|--------------|------|
 | inbound-http-html | 4 | HTTP HTML Receivers |
 | inbound-http-jsonapi | 3 | HTTP JSON API Receivers + request records |
-| inbound-kafka | 9 + 5 | Kafka Receivers + cashpoint / shipment-arrival message types |
+| inbound-kafka | 10 + 7 | Kafka Receivers + cashpoint / shipment-arrival / occupancy message types |
 | inbound-event | 5 | CDI event / scheduled Receivers |
-| core | 15 Handlers, 11 SPI interfaces, 32 domain records/enum/sealed interfaces/events | Feature (7 packages) + Cross (8 packages) |
+| core | 16 Handlers, 13 SPI interfaces, 37 domain records/enum/sealed interfaces/events | Feature (7 packages) + Cross (9 packages) |
 | outbound-postgres | 7 | Services (InventoryService, ReplenishmentService, SupplierOrderService) + Entities (StockEntity, ReplenishmentRequestEntity, ShipmentEntity, SupplierOrderEntity) |
 | outbound-mongodb | 2 | Service (AuditLogService) + Entity (AuditLogEntryEntity) |
-| outbound-httpclient | 3 | Services + 3 REST Clients |
+| outbound-httpclient | 4 | Services + 4 REST Clients |
 | outbound-webservice | 3 | Services + 3 SOAP Clients |
 | outbound-kafka | 2 | Services (NonFoodSupplierService, CarrierService) |
 | external-outbound-rest | 3 | Supplier Stubs |
 | external-outbound-soap | 3 | Supplier Stubs |
 | external-outbound-kafka | 2 | Supplier Stub, Carrier Stub |
-| external-inbound-kafka | 2 | Mock Event Sources |
-| **Total** | **~103 classes** | **across 15 Maven modules (child modules of the root POM, app-server included)** |
+| external-inbound-kafka | 3 | Mock Event Sources + till endpoint |
+| **Total** | **~115 classes** | **across 15 Maven modules (child modules of the root POM, app-server included)** |
 
 ---
 

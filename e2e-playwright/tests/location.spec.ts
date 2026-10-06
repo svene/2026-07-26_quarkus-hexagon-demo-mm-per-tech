@@ -38,6 +38,15 @@ test('the locations page shows every store and the online FC as sections, in ord
   await expect(page.locator('#app section h2')).toHaveText(['Store Zurich', 'Store Bern', 'Store Basel', 'Online FC']);
 });
 
+// The e2e server's cashpoint stub is off, so no store reports; the dev database may still hold an older report.
+test('every store has an occupancy line, the online FC none', async ({ page }) => {
+  await page.goto('/locations');
+  for (const store of ['zurich', 'bern', 'basel']) {
+    await expect(page.locator(`#occupancy-${store}`)).toContainText(/No occupancy reported yet|inside/);
+  }
+  await expect(page.locator('#occupancy-online')).toHaveCount(0);
+});
+
 test('a store lists what the DC carries and gets a request served live, without a reload', async ({ page }) => {
   const name = `Quince-${RUN_ID}`;
   await page.goto('/locations');

@@ -16,7 +16,9 @@ events. Kafka is the right answer for one part (section 2) and the wrong one for
   use case in `outbound-postgres`). That works across processes just as across threads, e.g. two pods calling
   `orderIfLow` at once create one supplier order (`AutoPurchasingFlowTest.concurrent_checks_create_one_supplier_order`
   tests it with threads). Seeding the DC has no row to lock yet, so it takes a Postgres advisory lock
-  (`SupplierOrderService.openSeed`, `DcSeedFlowTest.concurrent_seeds_order_once`).
+  (`SupplierOrderService.openSeed`, `DcSeedFlowTest.concurrent_seeds_order_once`). So the startup seed
+  (`DcSeedReceiver.onStart`, a one-off timer 5 s after the start) may run in every pod, unlike the period close
+  (section 1): the second pod - or a pod restarted in a rolling update - finds the first one's orders and seeds nothing.
 - **No domain state in memory.** Locations are a fixed seed in core; stock, requests, supplier orders and levels live in
   Postgres, and the audit log in MongoDB. The HTML pages and the JSON API are stateless, with no sessions or auth.
 - **Kafka work is shared.** All inbound channels use the default consumer group (`quarkus.application.name`), so the two
@@ -101,7 +103,8 @@ UI-only events (`ReplenishmentChanged`, `SupplierOrdersChanged`) only feed secti
   cashpoint's receipt id) and a `processed_message` table (the "inbox"), written in the same transaction as the stock
   change; a known id is skipped. For the demo's own stubs, the stubs generate the id.
   Already idempotent: the carrier's `shipment-arrivals` (in-transit transfers) - the shipment row is the inbox, only
-  an `IN_TRANSIT` shipment can arrive.
+  an `IN_TRANSIT` shipment can arrive. And `store-occupancy`: its messages are snapshots, stored only if newer than the
+  stored one (one upsert, `StoreOccupancyTable.upsertIfNewer`), so a redelivered report changes nothing.
 - **Partitions (should do).** With Dev Services every topic has one partition, so only one pod consumes a topic and the
   other one idles (fine for failover, no parallelism). For parallel processing: several partitions per topic, with the
   product name as the message key, so all messages for one product stay in order.
@@ -139,7 +142,8 @@ Still to keep in mind:
 - **External systems as their own deployments.** In dev/test the supplier stubs (`external-outbound-*`) and the
   `CashpointStub` (`external-inbound-kafka`, `@Scheduled` every 100 ms, with its in-memory store simulations) run
   inside the app. In two pods they would run
-  twice (twice the cashpoint traffic, two SOAP/REST endpoints), and the stubs' in-memory delayed deliveries
+  twice (twice the cashpoint traffic, two SOAP/REST endpoints, two occupancy reports per store with different numbers,
+  and a till change via `PUT /cashpoint-stub/stores/{id}/tills` would reach the simulation of one pod only), and the stubs' in-memory delayed deliveries
   (`LeadTime`) would be lost when a pod stops (for the carrier, `ShipmentCatchUpReceiver` re-sends shipments still in
   transit after 2 min). In Kubernetes they would be separate deployments; the app's REST/SOAP
   client URLs (`%dev` / `%test` point to `localhost`) then come from config.

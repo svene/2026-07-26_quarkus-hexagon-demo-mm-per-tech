@@ -189,7 +189,23 @@ PlantUML sequence diagrams for all primary flows in the supermarket inventory sy
 - **Participants**: none (CDI events)
 - **Databases**: PostgreSQL (`stock`, `supplier_order`), MongoDB (audit log)
 
+### Opening / Closing Tills
+**File**: `location-tills.puml`
+- **Trigger**: POST /locations/{id}/tills (− / + on a store's occupancy line)
+- **Flow**: LocationReceiver → `TillCount.parse()` → OccupancyHandler → CheckoutSystemService → `PUT /cashpoint-stub/stores/{id}/tills` (the stores' checkout system, external) → applied by the stub's next tick, reported on `store-occupancy` right away
+- **Returns**: 200 empty body; 400 (outside 1..8) / 502 (checkout system refused or unreachable) `{route: OrderErrors, vm}`
+- **Participants**: 1 (Store manager)
+- **Databases**: MongoDB (audit log); the new tills reach PostgreSQL with the next occupancy report
+
 ## Event-Driven Flow (Kafka Inbound)
+
+### Store Occupancy
+**File**: `store-occupancy.puml`
+- **Trigger**: External checkout system publishes to `store-occupancy` (every 5 s per store, key = storeId)
+- **Technology**: Kafka snapshot → StoreOccupancyReceiver → OccupancyHandler → PostgreSQL (upsert if newer) → `OccupancyChanged` → SSE `occupancyChanged-{storeId}` → GET /locations/{id}/occupancy-fragment
+- **Flow**: a state snapshot, not an event - an older or repeated report changes nothing (no inbox needed); valid reports are not audit-logged
+- **Participants**: External checkout system (producer), StoreOccupancyReceiver (consumer), Store manager (page)
+- **Databases**: PostgreSQL (`store_occupancy`), MongoDB (invalid reports only)
 
 ### Cashpoint Purchase Event
 **File**: `cashpoint-purchase-event.puml`

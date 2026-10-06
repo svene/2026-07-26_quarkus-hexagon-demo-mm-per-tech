@@ -15,9 +15,10 @@
 
   <name>external-inbound-kafka</name>
   <description>Stub simulating the checkout systems of the physical stores: per store a simulation of
-    its customers (capacity, tills), and one purchase request per paying customer on the
-    cashpoint-purchases Kafka topic. Demonstrates that external systems driving the application
-    communicate via Kafka, not by calling core ports directly.</description>
+    its customers (tills), one purchase request per paying customer on the cashpoint-purchases Kafka
+    topic, and the stores' occupancy on the store-occupancy topic. Demonstrates that external systems
+    driving the application communicate via Kafka, not by calling core ports directly. Opening or
+    closing a till is a REST call from the app's outbound-httpclient (CashpointTillsStub).</description>
 
   <dependencies>
     <dependency>
@@ -39,6 +40,11 @@
     <dependency>
       <groupId>io.quarkus</groupId>
       <artifactId>quarkus-rest-client-jackson</artifactId>
+    </dependency>
+    <dependency>
+      <!-- the checkout systems' till endpoint (CashpointTillsStub), called by the app's outbound-httpclient -->
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-rest-jackson</artifactId>
     </dependency>
 
     <dependency>

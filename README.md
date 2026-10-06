@@ -70,6 +70,15 @@ grouped by the underlying technology of the outbound adapter:
    exactly as a real point-of-sale terminal would. Watch the numbers on
    `/admin` or `/locations` shrink on their own, no refresh needed.
 
+4. **Store occupancy and tills** (on `/locations`) — each store's line shows
+   how many customers are inside (of its capacity), how many queue for a till,
+   how many tills are busy and how many customers were turned away in the last
+   demo minute, as the checkout systems report it every 5 s (Kafka topic
+   `store-occupancy`). At the rush hour the queue grows until the store is
+   full, and new customers turn away - lost sales. Open a till with *+* and
+   more of them get in: fewer turned away, more sales (and the store's stock
+   falls faster).
+
 ### JSON API
 
 A JSON API is also available at `/api/products` for scripting or testing:

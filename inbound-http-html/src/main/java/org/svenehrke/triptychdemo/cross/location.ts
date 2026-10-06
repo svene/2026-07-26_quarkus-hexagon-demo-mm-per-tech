@@ -1,15 +1,20 @@
 import {html} from "hono/html";
-import type {LocationInventoryVM, LocationProductRowVM, LocationsPageVM, RequestVM} from "./generated/vm-types";
+import type {LocationInventoryVM, LocationProductRowVM, LocationsPageVM, RequestVM, StoreOccupancyVM} from "./generated/vm-types";
 import type {HtmlResult} from "./route-types";
 
 // One section per store / the online FC, each refreshed on its own; the section id makes /locations#bern a link to Bern.
 export const LocationsPage = (vm: LocationsPageVM): HtmlResult => html`
-	${vm.locations.map(LocationSection)}
+	${vm.locations.map(l => LocationSection(l, vm.occupancy.find(o => o.storeId === l.locationId)))}
 `;
 
-const LocationSection = (vm: LocationInventoryVM): HtmlResult => html`
+// The online FC has no occupancy (no customers inside).
+const LocationSection = (vm: LocationInventoryVM, occupancy: StoreOccupancyVM | undefined): HtmlResult => html`
 	<section class="block mb-6" id="location-${vm.locationId}">
 		<h2 class="title is-3">${vm.locationName}</h2>
+		${occupancy ? html`
+			<div id="occupancy-${vm.locationId}" hx-get="/locations/${vm.locationId}/occupancy-fragment" hx-trigger="occupancyChanged-${vm.locationId} from:body" hx-sync="this:replace" hx-swap="innerMorph">
+				${StoreOccupancy(occupancy)}
+			</div>` : ''}
 		<div hx-get="/locations/${vm.locationId}/inventory-fragment" hx-trigger="inventoryChanged from:body" hx-sync="this:replace" hx-swap="innerMorph">
 			${LocationInventory(vm)}
 		</div>
@@ -51,6 +56,30 @@ export const LocationInventory = (vm: LocationInventoryVM): HtmlResult => html`
 		</div>
 	</div>
 `;
+
+// What the store's checkout system reports (door counters, tills), refreshed on each report. − / + send the reported
+// number of tills ± 1; the checkout system reports again right after the change. A closed till that is busy closes
+// once its customer has paid. A full store turns new customers away (lost sales): more tills let them in.
+export const StoreOccupancy = (vm: StoreOccupancyVM): HtmlResult => {
+	const r = vm.report;
+	if (!r) return html`<p class="has-text-grey mb-4"><em>No occupancy reported yet.</em></p>`;
+	return html`
+		<div class="level is-mobile is-justify-content-flex-start mb-4 ${r.stale ? 'has-text-grey' : ''}">
+			<div class="level-item is-flex-grow-0 mr-5"><span title="Customers inside / capacity"><strong class="occupancy-inside">${r.inside} / ${r.capacity}</strong> inside</span>${r.full ? html`<span class="tag is-danger ml-2">full</span>` : ''}</div>
+			<div class="level-item is-flex-grow-0 mr-5"><span class="tag is-medium ${r.queuing > 0 ? 'is-warning' : 'is-light'}"><strong class="occupancy-queuing mr-1">${r.queuing}</strong> queuing for a till</span></div>
+			<div class="level-item is-flex-grow-0 mr-3"><span title="Busy tills / open tills">tills <strong class="occupancy-tills">${r.tillsBusy} / ${r.tills}</strong> busy</span></div>
+			<form class="level-item is-flex-grow-0 mr-3" hx-post="/locations/${vm.storeId}/tills" hx-target="next .tills-error" hx-swap="innerHTML">
+				<div class="buttons has-addons are-small mb-0">
+					<button class="button mb-0" type="submit" name="tills" value="${r.tills - 1}" title="Close a till" aria-label="Close a till" ${r.tills <= 1 ? 'disabled' : ''}>−</button>
+					<button class="button mb-0" type="submit" name="tills" value="${r.tills + 1}" title="Open a till" aria-label="Open a till" ${r.tills >= vm.maxTills ? 'disabled' : ''}>+</button>
+				</div>
+			</form>
+			<div class="level-item is-flex-grow-0 mr-5"><span class="${r.turnedAway > 0 ? 'has-text-danger' : 'has-text-grey'}" title="Customers who found the store full in the last demo day (1 min): lost sales"><strong class="occupancy-turned-away">${r.turnedAway}</strong> turned away (last minute)</span></div>
+			<div class="level-item is-flex-grow-0 has-text-danger is-size-7 tills-error"></div>
+			<div class="level-item is-flex-grow-0 is-size-7 has-text-grey" title="Time of the checkout system's latest report">${r.stale ? `as of ${r.measuredAt}, no newer report` : r.measuredAt}</div>
+		</div>
+	`;
+};
 
 // Available against the learned levels: red below min (an automatic request is due), grey above max (overstocked).
 // Without levels (no row for the product yet), only an empty shelf is red.

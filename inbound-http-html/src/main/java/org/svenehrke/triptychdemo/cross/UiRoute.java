@@ -13,6 +13,7 @@ public enum UiRoute {
     OrderErrors,
     LocationsPage,
     LocationInventory,
+    StoreOccupancy,
     ShopPage,
     ShopProducts,
     AuditLogPage,

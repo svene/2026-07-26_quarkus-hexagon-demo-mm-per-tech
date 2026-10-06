@@ -13,7 +13,8 @@ import java.time.Duration;
 
 /**
  * Inventory change notifications for every page that shows the inventory ({@code /shop}, {@code /admin},
- * {@code /locations/{id}}): each {@code InventoryEvent} core fires becomes an {@code inventoryChanged} event.
+ * {@code /locations/{id}}): each {@code InventoryEvent} core fires becomes an {@code inventoryChanged} event. Each
+ * {@code OccupancyChanged} becomes an {@code occupancyChanged-<storeId>} event (only {@code /locations} listens).
  */
 @Path("/inventory")
 public class InventoryEventsReceiver {
@@ -27,7 +28,8 @@ public class InventoryEventsReceiver {
     /**
      * SSE stream for the page shells: an {@code inventoryChanged} event per inventory change, on which a page
      * re-fetches its inventory fragment. One is also sent on (re)connect, so changes made while the
-     * browser was disconnected aren't missed.
+     * browser was disconnected aren't missed. {@code occupancyChanged-<storeId>} events are not sent on connect: a store
+     * reports every few seconds anyway.
      */
     @GET
     @Path("/events")
@@ -37,6 +39,8 @@ public class InventoryEventsReceiver {
         return Multi.createBy().merging().streams(
             Multi.createFrom().item(changed),
             Multi.createFrom().publisher(inventoryEvents.events()).map(event -> changed),
+            Multi.createFrom().publisher(inventoryEvents.occupancyEvents())
+                .map(event -> sse.newEventBuilder().name("occupancyChanged-" + event.store().id()).data("").build()),
             Multi.createFrom().ticks().every(HEARTBEAT).map(tick -> sse.newEventBuilder().comment("heartbeat").build())
         );
     }

@@ -1,0 +1,35 @@
+@startuml location_tills
+skinparam monochrome true
+skinparam sequenceMessageAlign center
+skinparam backgroundColor #ffffff
+
+actor "Store manager\n(/locations)" as browser
+participant "LocationReceiver\n(HTML)" as receiver
+participant "OccupancyHandler\n(Core)" as handler
+participant "CheckoutSystemService\n(REST client)" as service
+participant "CashpointTillsStub\n(External)" as stub
+participant "CashpointStub\n(External)" as sim
+participant "Kafka Topic:\nstore-occupancy" as kafka
+participant "AuditLogService\n(MongoDB)" as audit
+
+browser -> receiver: POST /locations/{id}/tills\ntills = reported ± 1 (− / + button)
+receiver -> audit: log("TILLS_RECEIVED")
+receiver -> receiver: TillCount.parse(store, tills)
+alt outside 1..8
+  receiver --> browser: 400 {route: OrderErrors, vm}
+else valid
+  receiver -> handler: setTills(tillCount)
+  handler -> service: setTills(tillCount)
+  service -> stub: PUT /cashpoint-stub/stores/{id}/tills {"tills": n}
+  stub -> sim: requestTills(storeId, n) (queued)
+  stub --> service: 204
+  handler -> audit: log("TILLS_CHANGED")\n(or "TILLS_CHANGE_FAILED" → 502)
+  receiver --> browser: 200 empty body
+  note over sim
+    Next tick (100 ms): StoreSimulation.setTills(n) -
+    a busy till closes once its customer has paid.
+  end note
+  sim -> kafka: report occupancy right away\n(see store-occupancy.puml)
+end
+
+@enduml

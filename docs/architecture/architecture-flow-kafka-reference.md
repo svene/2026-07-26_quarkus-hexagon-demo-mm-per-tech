@@ -31,6 +31,10 @@ Technical reference for understanding the Kafka-based integration patterns and t
   - `openIfLow(productName)`: Called by PurchasingHandler for automatic supplier orders (after a request to the DC, after a period close) - position = available + open orders − pending requests, below min → AUTOMATIC order up to max
   - `openSeed(products, quantity)`: Called by PurchasingHandler.seedDc (5 s after the start, after the admin reset, at a period close) - one SEED order per catalog product the DC has no stock row and no open order of; a Postgres advisory lock serializes concurrent seeds
   - Storage: `supplier_order` table (SupplierOrderTable)
+- **OccupancyService**: The latest occupancy each store's checkout system reported
+  - `saveIfNewer(occupancy)`: Called by OccupancyHandler for every `store-occupancy` message - one upsert (`on conflict … do update … where excluded.measuredAt > store_occupancy.measuredAt`), so an older or repeated report changes nothing and needs no lock
+  - `findAll()`: Called by the `/locations` page and its occupancy fragments
+  - Storage: `store_occupancy` table (StoreOccupancyTable, migration V4) - one row per store; not touched by the admin reset (the external system's state)
 
 ### MongoDB (outbound-mongodb)
 - **AuditLogService**: Logs all system events
@@ -46,6 +50,8 @@ Technical reference for understanding the Kafka-based integration patterns and t
 - **DairySupplierService** → DairySupplierClient
 
 All endpoint: `placeOrder(productName, quantity)`
+
+- **CheckoutSystemService** → CheckoutSystemClient (`checkout-system`): `setTills(store, tills)` → `PUT /cashpoint-stub/stores/{storeId}/tills` `{"tills": n}` (CashpointTillsStub; 204, 400 outside 1..8, 404 unknown store). Called by OccupancyHandler.setTills from `POST /locations/{id}/tills`
 
 ### SOAP Web Services (outbound-webservice)
 - **BeverageSupplierService** → BeverageOrderService (SOAP)
@@ -158,13 +164,26 @@ Every stub publishes its delivery after the supplier lead time (`supplier-stub.l
 ### Cashpoint Purchase Cycle
 
 **Topic: cashpoint-purchases**
-- **Producer**: External checkout systems (simulated by CashpointStub: one purchase per customer who pays at a store's till - per store a `StoreSimulation` with its tills; the basket comes from the store's stock, read from `GET /api/locations/{id}/products`)
+- **Producer**: External checkout systems (simulated by CashpointStub: one purchase per customer who pays at a store's till - per store a `StoreSimulation` with its capacity and tills - a full store turns new customers away; the basket comes from the store's stock, read from `GET /api/locations/{id}/products`)
 - **Consumer**: CashpointReceiver (in inbound-kafka)
 - **Message**: `{storeId, items: [{productName, quantity}]}`; a missing `storeId` goes to the DLQ, an id that is no store is audit-logged `INVALID` and skipped
 - **Flow**: Cashpoint event → PurchaseHandler.recordStoreSale(store, …) → that store's stock deducted (capped at 0; overselling is logged as `STOCK_DISCREPANCY`, never rejected), the sold quantities recorded as demand
 - **Config**: 
   - Incoming: `mp.messaging.incoming.cashpoint-purchases.topic=cashpoint-purchases`
   - Outgoing (for testing): `mp.messaging.outgoing.cashpoint-purchases-out.topic=cashpoint-purchases`
+
+### Store Occupancy (state snapshots)
+
+**Topic: store-occupancy** (Kafka key: storeId)
+- **Producer**: External checkout systems (simulated by CashpointStub: every 5 s per store, and right after a till change; `StoreSimulation.report`)
+- **Consumer**: StoreOccupancyReceiver (in inbound-kafka)
+- **Message**: `{storeId, measuredAt, inside, capacity, queuing, tills, tillsBusy, turnedAway}` - current values only (`turnedAway`: at the full store in the last demo day, not since the last report). A missing field goes to the DLQ; an id that is no store, or values out of range, are audit-logged `INVALID` and skipped. Valid messages are not audit-logged (36 per minute)
+- **Flow**: Occupancy report → OccupancyHandler.record → OccupancyService.saveIfNewer → if newer, `OccupancyChanged` (CDI, async) → SSE `occupancyChanged-<storeId>` on `/inventory/events` → that store's line on `/locations` re-fetches
+- **A snapshot, not an event**: unlike every other topic here, only the latest message per store counts. Storing it is idempotent (an older or redelivered report is not newer), so it needs no inbox, not even with two pods. Keyed by store, the topic suits **log compaction** (`cleanup.policy=compact`: Kafka keeps at least the latest message per key) - not configured in this demo, where the dev-services topic keeps everything for its short life
+- **Config**:
+  - Incoming: `mp.messaging.incoming.store-occupancy.topic=store-occupancy`
+  - Outgoing (stub): `mp.messaging.outgoing.store-occupancy-out.topic=store-occupancy`
+  - Outgoing (for testing): `mp.messaging.outgoing.testing-store-occupancy-out.topic=store-occupancy`
 
 ## Summary of All Endpoints (Including Indirect Kafka Flows)
 
@@ -187,13 +206,15 @@ Every stub publishes its delivery after the supplier lead time (`supplier-stub.l
 | ShopReceiver | /shop | GET | Static page shell | - | - |
 | ShopReceiver | /shop/page | GET | Query | - | PostgreSQL (read) |
 | ShopReceiver | /shop/inventory-fragment | GET | Query | - | PostgreSQL (read) |
-| InventoryEventsReceiver | /inventory/events | GET | SSE stream (inventory changes, for /shop, /admin and /locations) | - | - |
+| InventoryEventsReceiver | /inventory/events | GET | SSE stream (inventory changes, for /shop, /admin and /locations; `occupancyChanged-<storeId>` for /locations) | - | - |
 | ShopReceiver | /shop/checkout | POST | Command | - | PostgreSQL + MongoDB |
 | AuditLogReceiver | /audit-log | GET | Static page shell (Refresh button, no SSE) | - | - |
 | AuditLogReceiver | /audit-log/page | GET | Query (latest 300 entries) | - | MongoDB (read) |
 | LocationReceiver | /locations | GET | Static page shell | - | - |
 | LocationReceiver | /locations/page, /locations/{id}/inventory-fragment | GET | Query | - | PostgreSQL (read) |
 | LocationReceiver | /locations/{id}/requests | POST | Command | - | PostgreSQL + MongoDB |
+| LocationReceiver | /locations/{id}/occupancy-fragment | GET | Query (stores only) | (fed by **← store-occupancy**) | PostgreSQL (read) |
+| LocationReceiver | /locations/{id}/tills | POST | Command (stores only: open/close tills) | REST → checkout system, which reports on **store-occupancy** | MongoDB |
 | ProductApiReceiver | /api/products | GET | Query | - | PostgreSQL (read) |
 | ProductApiReceiver | /api/products/order-fruits | POST | Command | **→ fruit-deliveries** (stub publishes) | PostgreSQL + MongoDB |
 | ProductApiReceiver | /api/products/order-vegetables | POST | Command | **→ vegetables-deliveries** (stub publishes) | PostgreSQL + MongoDB |
@@ -213,3 +234,4 @@ Every stub publishes its delivery after the supplier lead time (`supplier-stub.l
 | NonFoodDeliveryReceiver | **← nonfood-deliveries** | Event | Delivery | Consumes: **nonfood-deliveries** | PostgreSQL + MongoDB |
 | CashpointReceiver | **← cashpoint-purchases** | Event | Purchase | Consumes: **cashpoint-purchases** | PostgreSQL + MongoDB |
 | ShipmentArrivalReceiver | **← shipment-arrivals** | Event | Arrival | Consumes: **shipment-arrivals** | PostgreSQL + MongoDB |
+| StoreOccupancyReceiver | **← store-occupancy** | Event | Snapshot | Consumes: **store-occupancy** | PostgreSQL (MongoDB only if invalid) |

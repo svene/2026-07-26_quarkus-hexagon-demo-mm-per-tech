@@ -290,6 +290,9 @@ InventoryEventsReceiver.events()   → text/event-stream, never ends
 │     ├─ ReplenishmentChanged   ← ReplenishmentHandler               (every request, fulfil, reject, automatic request; fulfilPending per location served; shipment arrival)
 │     ├─ LevelsRecalculated     ← ReorderPolicyHandler.closePeriod() (end of every demand period)
 │     └─ InventoryReset         ← ResetHandler.reset()               (POST /admin/reset)
+├─ InventoryEventBroadcaster.occupancyEvents()   (fed by @ObservesAsync OccupancyChanged)
+│  └─ event: occupancyChanged-{storeId} per OccupancyChanged ← OccupancyHandler.record()   (a newer report stored;
+│     only that store's line on /locations re-fetches; none on connect - a store reports every 5 s anyway)
 └─ ": heartbeat" comment every 15 s
 ```
 
@@ -320,8 +323,9 @@ One page with a section per store and the online FC, in `Locations.REPLENISHED` 
 #### GET /locations - Locations Page
 ```
 LocationReceiver.shell()  → static shell (shells/locations.html), whose #app loads GET /locations/page
-LocationReceiver.page()   → UiResponse(LocationsPage, {locations: [inventory per location]})
-                            (ProductsHandler.listAllLocations() once, each inventory as in the fragment below)
+LocationReceiver.page()   → UiResponse(LocationsPage, {locations: [inventory per location], occupancy: [per store]})
+                            (ProductsHandler.listAllLocations() and OccupancyHandler.current() once, each part as in the
+                            fragments below)
 ```
 
 #### GET /locations/{id}/inventory-fragment - Stock and Requests
@@ -353,6 +357,33 @@ LocationReceiver.request(id, productName, quantity)
    ├─ Event<InventoryEvent>.fireAsync(ReplenishmentChanged(location))
    └─ Event<InventoryEvent>.fireAsync(DcDemandChanged(productName))   (see AutoPurchasingReceiver below)
    → 200 empty body; 409 UiResponse(OrderErrors) if the DC never carried the product ("REQUEST_REJECTED")
+```
+
+#### GET /locations/{id}/occupancy-fragment - A Store's Occupancy
+Stores only (the online FC has no customers inside). Fetched on that store's `occupancyChanged-{id}` event and morphed
+into its line: inside / capacity ("full") · queuing for a till · tills busy / open, with − / + buttons · turned away in
+the last demo minute; greyed out if the report is older than 30 s.
+```
+LocationReceiver.occupancyFragment(id)   → UiResponse(StoreOccupancy, {storeId, report (null: none yet), maxTills})
+└─ OccupancyHandler.current()
+   └─ OccupancyRepositorySPI.findAll()
+      └─ OccupancyService (outbound-postgres) → PostgreSQL (store_occupancy)
+```
+
+#### POST /locations/{id}/tills - Open or Close Tills
+The buttons send the reported number of tills ± 1. The tills belong to the store's checkout system (external), so the
+app asks it; the new number shows up with the checkout system's next report, which it sends right after the change.
+```
+LocationReceiver.tills(id, tills)
+├─ AuditLogHandler.log("TILLS_RECEIVED")
+├─ TillCount.parse(store, tills)   → 400 UiResponse(OrderErrors) outside 1..8
+└─ OccupancyHandler.setTills(tillCount)
+   ├─ CheckoutSystemSPI.setTills(tillCount)
+   │  └─ CheckoutSystemService (outbound-httpclient) → PUT /cashpoint-stub/stores/{id}/tills
+   │     └─ CashpointTillsStub (external-inbound-kafka) → CashpointStub: applied by the next tick, then reported
+   │        on store-occupancy (see "Kafka: store-occupancy" below); a busy till closes once its customer has paid
+   └─ AuditLogSPI.log("TILLS_CHANGED") / ("TILLS_CHANGE_FAILED")
+   → 200 empty body; 502 UiResponse(OrderErrors) if the checkout system refused or was unreachable
 ```
 
 ### AuditLogReceiver (/audit-log) - Audit Log Page → MongoDB
@@ -529,6 +560,19 @@ ShipmentArrivalReceiver.receive(message)   (inbound-kafka)
    │     (shipment FOR UPDATE if IN_TRANSIT, then location row; available += quantity, shipment ARRIVED)
    ├─ AuditLogSPI.log("SHIPMENT_ARRIVED") / ("SHIPMENT_ARRIVAL_IGNORED")   unknown or arrived already
    └─ Event<InventoryEvent>.fireAsync(ReplenishmentChanged(location))   if booked
+```
+
+#### Kafka: store-occupancy (a store's checkout system reports its occupancy)
+```
+CashpointStub (external-inbound-kafka; every 5 s per store and right after a till change; key = storeId)
+→ store-occupancy →
+StoreOccupancyReceiver.receive(message)   (inbound-kafka; no audit entry for a valid report)
+├─ null payload / a missing field → DLQ (store-occupancy-dlq)
+├─ storeId no store, or StoreOccupancy.parse() invalid → AuditLogHandler.log("INVALID"), skipped
+└─ OccupancyHandler.record(occupancy)
+   ├─ OccupancyRepositorySPI.saveIfNewer(occupancy)
+   │  └─ OccupancyService (outbound-postgres) → PostgreSQL: one upsert, only if newer than the stored report
+   └─ Event<OccupancyChanged>.fireAsync(OccupancyChanged(store))   if stored (see GET /inventory/events)
 ```
 
 ## Note: Kafka Delivery Receivers

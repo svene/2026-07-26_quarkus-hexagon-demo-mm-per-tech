@@ -22,6 +22,9 @@ public interface CashpointStubConfig {
     Map<String, Store> stores();
 
     interface Store {
+        /** Customers inside at most; who arrives at a full store turns away. */
+        int capacity();
+
         int tills();
     }
 }

@@ -214,13 +214,32 @@ CashpointStub (scheduler) → cashpoint-purchases (Kafka) → CashpointReceiver 
 the hexagonal architecture — it simulates the checkout systems of the physical stores and emits a
 Kafka message whenever a customer pays. Per store a `StoreSimulation` models its customers: they
 arrive along a rush-hour curve, shop and queue for one of the store's tills; the tills limit how many
-customers pay per minute, so a bigger store with more tills sells more. For each paying customer the stub calls
+customers pay per minute, so a bigger store with more tills sells more. At the rush hour more customers arrive
+than the tills serve, the queue grows until the store is full (its capacity), and who arrives then turns
+away - a lost sale. For each paying customer the stub calls
 `GET /api/locations/{id}/products` via a MicroProfile REST Client to discover what the store has in
-stock, then picks 2–4 of those products at random. The tills are configuration of the stub
-(`cashpoint-stub.*`), not domain data: the app only sees the purchases.
+stock, then picks 2–4 of those products at random. Capacity and tills are configuration of the stub
+(`cashpoint-stub.*`), not domain data: the app sees the purchases, and the occupancy reports below.
 
 `CashpointReceiver` in `inbound-kafka` is the actual inbound adapter: it receives the Kafka
 message and calls `PurchaseHandler`, exactly as a Kafka delivery receiver calls `InventoryHandler`.
+
+## Store occupancy: a snapshot topic, and tills behind an outbound port
+
+The same checkout systems also report each store's occupancy (customers inside and the capacity, queuing
+for a till, busy/open tills, turned away in the last demo day) on the `store-occupancy` topic, every 5 s per store, keyed by store id. Unlike every
+other topic, these messages are **state snapshots, not events**: only the latest per store counts.
+`OccupancyHandler.record` stores a report only if it is newer than the stored one (one upsert), so a
+redelivered or overtaken message changes nothing - no inbox needed, not even with two pods. A keyed
+snapshot topic is what Kafka's log compaction (`cleanup.policy=compact`) is made for; the demo does not
+configure it. The app shows the occupancy on `/locations` but doesn't act on it.
+
+Opening a till is the store's only means against turning customers away: the demand stays the same, but
+more of it gets served before the store fills up. The tills belong to the external checkout systems, so opening or closing one on `/locations` goes
+through the hexagon like any other outbound call: `LocationReceiver` → `OccupancyHandler.setTills` →
+`CheckoutSystemSPI` → `CheckoutSystemService` (REST client) → the stub's `PUT
+/cashpoint-stub/stores/{id}/tills`. The page learns the result the way it learns everything about the
+stores - from the next occupancy report, which the stub sends right after the change.
 
 `PurchaseHandler` is also reachable directly via the REST endpoint (`/api/products/purchase`), which
 bypasses Kafka entirely and is what tests and tooling use to drive a purchase synchronously.

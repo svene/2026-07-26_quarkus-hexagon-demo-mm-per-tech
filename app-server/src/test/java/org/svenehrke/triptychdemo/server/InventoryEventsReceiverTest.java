@@ -3,6 +3,8 @@ package org.svenehrke.triptychdemo.server;
 import org.svenehrke.triptychdemo.cross.inventory.InventoryRepositorySPI;
 
 import org.svenehrke.triptychdemo.cross.location.Locations;
+import org.svenehrke.triptychdemo.cross.occupancy.OccupancyHandler;
+import org.svenehrke.triptychdemo.cross.occupancy.StoreOccupancy;
 import org.svenehrke.triptychdemo.cross.products.ProductType;
 import io.quarkus.test.common.http.TestHTTPResource;
 import io.quarkus.test.junit.QuarkusTest;
@@ -14,6 +16,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Instant;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
@@ -28,6 +31,8 @@ class InventoryEventsReceiverTest {
     @Inject TestInventoryHelper inventoryHelper;
     @Inject
     InventoryRepositorySPI inventory;
+    @Inject
+    OccupancyHandler occupancyHandler;
     @TestHTTPResource("/inventory/events")
     URI eventsUri;
 
@@ -83,6 +88,24 @@ class InventoryEventsReceiverTest {
                 .then().statusCode(200);
 
             assertThat(nextEvent(lines)).isEqualTo("inventoryChanged");
+            response.cancel(true);
+        }
+    }
+
+    /** A newer occupancy report becomes an event named after its store: only that store's line re-fetches. */
+    @Test
+    void events_stream_sends_occupancy_changed_per_store() throws Exception {
+        BlockingQueue<String> lines = new LinkedBlockingQueue<>();
+        try (var client = HttpClient.newHttpClient()) {
+            var request = HttpRequest.newBuilder(eventsUri).header("Accept", "text/event-stream").build();
+            var response = client.sendAsync(request, HttpResponse.BodyHandlers.ofLines())
+                .thenApply(r -> { r.body().forEach(lines::add); return r; });
+
+            assertThat(nextEvent(lines)).isEqualTo("inventoryChanged"); // on connect
+
+            occupancyHandler.record(new StoreOccupancy(Locations.ZURICH, Instant.now(), 12, 16, 3, 4, 4, 0));
+
+            assertThat(nextEvent(lines)).isEqualTo("occupancyChanged-zurich");
             response.cancel(true);
         }
     }
