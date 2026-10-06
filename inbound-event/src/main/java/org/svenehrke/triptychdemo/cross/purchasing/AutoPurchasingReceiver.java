@@ -13,16 +13,19 @@ import jakarta.enterprise.event.ObservesAsync;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
+import java.util.function.Supplier;
+
 /**
  * Automatic supplier orders of the DC: whenever its inventory position or its reorder levels change, it re-checks the
  * position against the levels and orders what has fallen below them. Off with
- * {@code inventory.auto-purchasing.enabled=false} (tests, e2e), so supplier orders are then only placed by hand.
+ * {@code inventory.auto-purchasing.enabled=false} (tests, e2e), so supplier orders are then only placed by hand. Looked
+ * up per event, so a test can switch it on without its own Quarkus instance.
  */
 @ApplicationScoped
 public class AutoPurchasingReceiver {
 
     @ConfigProperty(name = "inventory.auto-purchasing.enabled")
-    boolean enabled;
+    Supplier<Boolean> enabled;
     @Inject
     PurchasingHandler purchasingHandler;
     @Inject
@@ -31,12 +34,12 @@ public class AutoPurchasingReceiver {
     AuditLogHandler auditLog;
 
     void onDcDemandChanged(@ObservesAsync DcDemandChanged event) {
-        if (enabled) orderIfLow(event.productName());
+        if (enabled.get()) orderIfLow(event.productName());
     }
 
     /** New DC levels take effect even if no store or the online FC requests anything. */
     void onLevelsRecalculated(@ObservesAsync LevelsRecalculated event) {
-        if (!enabled) return;
+        if (!enabled.get()) return;
         productsHandler.listAll(Locations.DC).stream().map(Product::name).forEach(this::orderIfLow);
     }
 

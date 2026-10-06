@@ -11,14 +11,12 @@ import org.svenehrke.triptychdemo.cross.reorder.ReorderPolicyHandler;
 import org.svenehrke.triptychdemo.cross.replenishment.ReplenishmentHandler;
 import org.svenehrke.triptychdemo.cross.replenishment.StockRequest;
 import io.quarkus.test.junit.QuarkusTest;
-import io.quarkus.test.junit.QuarkusTestProfile;
-import io.quarkus.test.junit.TestProfile;
 import jakarta.inject.Inject;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
-import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -36,18 +34,7 @@ import static org.awaitility.Awaitility.await;
  * Cold-start DC levels (avg 60, var 60, L 2, R 3): min 136, max 316.
  */
 @QuarkusTest
-@TestProfile(AutoPurchasingFlowTest.AutoPurchasing.class)
 class AutoPurchasingFlowTest {
-
-    /** Also stops CashpointStub, which would otherwise sell from the stores. */
-    public static class AutoPurchasing implements QuarkusTestProfile {
-        @Override
-        public Map<String, String> getConfigOverrides() {
-            return Map.of(
-                "inventory.auto-purchasing.enabled", "true",
-                "quarkus.scheduler.enabled", "false");
-        }
-    }
 
     @Inject TestInventoryHelper inventoryHelper;
     @Inject TestAuditLogHelper auditHelper;
@@ -59,11 +46,17 @@ class AutoPurchasingFlowTest {
 
     @BeforeEach
     void setUp() {
+        TestConfigOverrides.set("inventory.auto-purchasing.enabled", "true");
         await().atMost(5, SECONDS).until(() -> {
             inventoryHelper.resetInventory();
             auditHelper.clearAuditLog();
             return given().get("/api/locations/dc/products").asString().equals("[]") && auditHelper.isEmpty();
         });
+    }
+
+    @AfterEach
+    void tearDown() {
+        TestConfigOverrides.clear();
     }
 
     @Test

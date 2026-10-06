@@ -737,7 +737,7 @@ transaction; the sequences stay, so ids remain unique), `AuditLogSPI.clear()` (t
 late supplier delivery adds to the DC, a late shipment arrival is ignored. Tests: `AdminReceiverTest` case; the e2e
 test intercepts the POST (a real reset would wipe the data of the spec files running in parallel).
 
-## faster-tests: Shorten the test runs (TO ELABORATE)
+## faster-tests: Shorten the test runs (IN PROGRESS: lever 1)
 
 Added 2026-10-05 at the user's request: the test runs take too long. Measured on 2026-10-05 (`store-occupancy`):
 - **app-server: 3:48 min** for 167 tests (+ build). The 7 slowest classes are exactly the 7 with a `@TestProfile`
@@ -760,6 +760,48 @@ To elaborate - candidate levers, cheapest first:
 4. **Parallelism:** surefire forks per profile, or e2e workers - limited by the shared databases.
 5. **e2e:** avoid the double live reload (start the e2e dev server after the build has settled, or run e2e against a
    packaged jar instead of `quarkus:dev`).
+
+### Lever 1: fewer Quarkus restarts (elaborated and APPROVED 2026-10-06)
+
+What the 7 profiles override, and when the app reads it:
+
+| Test class | Override | Read |
+|---|---|---|
+| `AutoPurchasingFlowTest` | `inventory.auto-purchasing.enabled=true` | per event |
+| `AutoReplenishmentFlowTest` | `inventory.auto-replenishment.enabled=true` | per event |
+| `DcSeedFlowTest` | `inventory.dc-seed.enabled=true`, `.quantity=500` | per event (the startup seed stays off) |
+| `SupplierLeadTimeFlowTest` | `supplier-stub.lead-time=2s` | per delivery (`LeadTime`, 3 copies) |
+| `ShipmentTransitFlowTest` | `carrier-stub.transit-time=2s` | per shipment (`CarrierStub`) |
+| `KafkaMalformedMessageTest` | 4 channels remapped to `probe-*` topics | at startup |
+| `KafkaTransientFailureTest` | 2 channels remapped to `transient-*`, stops channels for the rest of the instance | at startup |
+
+The first five also set `quarkus.scheduler.enabled=false`, which is redundant: `%test` already has
+`cashpoint-stub.tick=off` and `inventory.demand-period=off`, and the 26 unprofiled classes run with the scheduler on.
+
+Decisions:
+- **The five runtime-read settings become runtime-switchable** via MicroProfile Config's dynamic lookup: the main code
+  injects `@ConfigProperty(...) Supplier<T>` instead of `T` (`AutoPurchasingReceiver`, `AutoReplenishmentReceiver`,
+  `DcSeedReceiver` enabled + quantity, the 3 `LeadTime` copies, `CarrierStub`). A standard config idiom, not a
+  test-only setter; production behaves the same. Fallback if Quarkus doesn't re-resolve per `get()`: one small
+  switches bean in main code.
+- **Test side (app-server only):** a `TestConfigOverrides` `ConfigSource` with a static mutable map and an ordinal
+  above `application.properties`, registered via `src/test/resources/META-INF/services`. The 5 classes drop
+  `@TestProfile` and set their overrides in `@BeforeEach` / clear them in `@AfterEach`, so all other tests keep the
+  `%test` defaults.
+- **The two Kafka profiles stay** (topic bindings are startup-time). Merging them into one profile would save one
+  restart but needs a fixed class order, because the transient test stops `fruit-`/`vegetables-deliveries` for the
+  rest of the instance - fragile; possible later step.
+- Risk: async events left over from a previous test arriving while a switch is on. The existing `setUp()`s already
+  wait until the reset went through; the full suite is run twice to check for flakiness.
+
+Steps:
+1. Spike with `AutoPurchasingFlowTest`: prove that the `Supplier` re-resolves from the runtime-mutated source. DONE
+   2026-10-06: passes (5/5) sharing one instance with `SupplierOrderFlowTest`; without the override 2 tests fail, so
+   the switch is what takes effect.
+2. Convert the other 4 classes, drop the redundant `scheduler.enabled=false` overrides.
+3. Full app-server suite twice; compare against 3:48.
+4. Update this item with the measurements; docs/`concepts.md` where they mention the profiles.
+5. Stage, don't commit.
 
 ## Open questions
 
