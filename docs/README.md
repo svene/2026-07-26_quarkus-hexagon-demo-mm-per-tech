@@ -48,6 +48,14 @@ Complete architecture documentation for the supermarket inventory system. All fi
 - Reference examples (currently: fruit only) plus known trade-offs and rollout status
 - **Audience**: Developers adding or reviewing validation on any inbound boundary
 
+### Programming Model: Virtual Threads vs. Mutiny
+
+**`architecture/virtual-threads-vs-mutiny.md`** (convention guide, mostly project-independent)
+- When a modern Quarkus app uses blocking code on virtual threads and when Mutiny (`Uni`/`Multi`)
+- What gets simpler, what stays Mutiny, how a large Mutiny-based system migrates, and the pitfalls
+- What it means for this demo
+- **Audience**: Developers and architects choosing or reviewing a threading/programming model
+
 ### Flow Sequence Diagrams
 
 **`architecture/flows/` directory**

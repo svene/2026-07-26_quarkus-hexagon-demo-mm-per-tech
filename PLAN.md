@@ -737,7 +737,10 @@ transaction; the sequences stay, so ids remain unique), `AuditLogSPI.clear()` (t
 late supplier delivery adds to the DC, a late shipment arrival is ignored. Tests: `AdminReceiverTest` case; the e2e
 test intercepts the POST (a real reset would wipe the data of the spec files running in parallel).
 
-## faster-tests: Shorten the test runs (levers 1, 2, 3, 5 DONE; lever 4 TO ELABORATE)
+## faster-tests: Shorten the test runs (levers 1, 2, 3, 5 DONE; lever 4 DEFERRED)
+
+Lever 4 (parallelism) deferred on 2026-10-06 at the user's request: come back to it when the tests become a bottleneck
+again.
 
 Added 2026-10-05 at the user's request: the test runs take too long. Measured on 2026-10-05 (`store-occupancy`):
 - **app-server: 3:48 min** for 167 tests (+ build). The 7 slowest classes are exactly the 7 with a `@TestProfile`
@@ -900,6 +903,62 @@ enough (3 failures again): Quarkus scans for changes at most every 2 s (`HOT_REP
 `VertxHttpHotReplacementSetup`), so all three OKs could come before the scan that starts the reload. Measured:
 reused server with a changed source **27/27, 33 s** (one reload, absorbed); fresh run **27/27, 39 s** (the warm-up costs
 ≈ 2.5 s there).
+
+## virtual-threads: Replace Mutiny with virtual threads? (ELABORATED 2026-10-06, conversion TO PLAN)
+
+Added 2026-10-06 at the user's request: elaborate whether replacing Mutiny with virtual threads simplifies the code,
+and whether it is a good idea or not. Analysis first, no code until a plan is approved.
+
+**Direction (user, 2026-10-06):** the demo's programming model must conform to a modern Quarkus app: not Mutiny for
+everything, and no blocked platform threads, even in the demo. Background, migration guidance for large Mutiny code
+bases, and the per-part mapping for this demo: [`docs/architecture/virtual-threads-vs-mutiny.md`](docs/architecture/virtual-threads-vs-mutiny.md).
+This supersedes option A below: next step is a conversion plan (`@RunOnVirtualThread` on REST/`@Scheduled`, Kafka
+receivers with max concurrency 1, SSE/`DeadLetterOrFailStop`/`LeadTime` unchanged) to be approved before code.
+Precondition done 2026-10-06: Java 25 (`maven.compiler.release` 25, `.sdkmanrc`; Quarkus 3.33 can't build Java 27).
+
+### Findings (2026-10-06)
+
+**The code is already imperative.** No Handler, SPI or Service returns `Uni`/`Multi`; every Kafka `@Incoming` receiver
+and stub is `@Blocking` (worker thread, one message at a time, in order); the REST/SSE receivers with plain return types
+already run on Quarkus' worker pool; JDBC (`outbound-postgres`), MongoDB Panache (classic, blocking) and CXF are all
+blocking. So there is no reactive pipeline that virtual threads could turn back into straight-line code. Mutiny can't
+leave the classpath either: `quarkus-rest` and `quarkus-messaging` are built on it.
+
+What is left of Mutiny in our code, use by use:
+
+| Where | What Mutiny does | Without Mutiny | Verdict |
+|---|---|---|---|
+| `InventoryEventsReceiver` (`GET /inventory/events`) | merges 3 `Flow.Publisher`s + a heartbeat into one SSE `Multi`; holds no thread while idle | `SseEventSink` + a loop on a virtual thread: own subscriber/queue, heartbeat timer, close/cleanup on disconnect | keep - `Multi` is the idiomatic Quarkus SSE type and shorter |
+| `DeadLetterOrFailStop` | `handle(...)` returns `Uni<Void>` | impossible - the signature is SmallRye's `KafkaFailureHandler` SPI; we only pass the delegates' `Uni` through | keep (not ours to change) |
+| `LeadTime` (3 copies) | `Infrastructure.getDefaultWorkerPool().schedule(...)` - "Mutiny" only by name, it's Quarkus' worker pool on Vert.x timers | `Thread.startVirtualThread(() -> { sleep(delay); action.run(); })` - also drops the 1 ms Vert.x workaround | possible, but pending deliveries would then survive an app stop / dev live reload (the worker pool's timers die with Vert.x), firing into closed emitters - would need own tracking + shutdown. Not simpler overall |
+
+**Virtual threads where there's no Mutiny today** (the actual "switch"):
+- Kafka receivers: `@RunOnVirtualThread` on `@Incoming` processes messages **concurrently and unordered** (default max
+  concurrency 1024 per method, see the Quarkus "Virtual Thread support with Reactive Messaging" guide). That breaks what
+  the receivers rely on: in-order processing per channel, the fail-stop of `DeadLetterOrFailStop` (offset not committed,
+  next messages not processed), and ordered occupancy reports. Capping max-concurrency to 1 brings order back but then
+  gains nothing over `@Blocking`. **Clear no.**
+- REST receivers: `@RunOnVirtualThread` would work (same code, other thread type), but simplifies nothing. Benefit only
+  under many concurrent blocking requests - not this demo's bottleneck (that's tills/stock, see the flow view).
+- Pinning: our main code has no `synchronized`; Postgres driver 42.7.x uses locks. The JVM fix for `synchronized`
+  pinning (JEP 491) needs a Java 24+ runtime: local JDK is 25, but `maven.compiler.release` is 21 - only relevant if
+  ever adopted.
+- Tests: unordered Kafka processing would make the flow tests (and `KafkaTransientFailureTest`'s fail-stop
+  assertions) nondeterministic.
+
+### Conclusion
+
+Replacing Mutiny with virtual threads **does not simplify** this code base (Mutiny is in 3 small spots, two of them
+mandated by Quarkus/SmallRye APIs) and is **not a good idea** for the Kafka side (loses ordering and fail-stop). Virtual
+threads would only pay off as a throughput measure under high concurrent blocking load, which the demo doesn't have.
+
+### Options (user to decide)
+
+- **A (recommended): close as "not worth it"**, no code change. Optionally fix `LeadTime`'s javadoc ("Mutiny's worker
+  pool" → "Quarkus' worker pool") so the code doesn't suggest a Mutiny dependency that isn't really there.
+- **B: showcase only** - `@RunOnVirtualThread` on one REST receiver as a demo point, documented as "no functional
+  change". Small, but adds a second threading model to explain.
+- **C: `LeadTime` on virtual threads** - rejected above (shutdown/reload handling makes it longer, not shorter).
 
 ## Open questions
 

@@ -13,7 +13,7 @@ together.
 
 ### Prerequisites
 
-- Java 21+
+- Java 25 (pinned in `.sdkmanrc`: `sdk env` switches to it; Quarkus 3.33 cannot build Java 27 bytecode)
 - Maven 3.9+
 - Docker or Podman running (Quarkus Dev Services starts containers automatically)
 
