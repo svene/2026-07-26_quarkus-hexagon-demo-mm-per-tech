@@ -1,6 +1,8 @@
 package org.svenehrke.triptychdemo.devsupport;
 
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.methods;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noMethods;
 import static org.svenehrke.triptychdemo.devsupport.TriptychArchitecture.triptychArchitecture;
 
 import com.tngtech.archunit.ArchConfiguration;
@@ -8,12 +10,14 @@ import com.tngtech.archunit.base.DescribedPredicate;
 import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.domain.JavaConstructorCall;
+import com.tngtech.archunit.core.domain.JavaMethod;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.regex.Pattern;
 
 /**
@@ -37,6 +41,7 @@ class ArchitectureTest {
 	private static final String PKG_EXTERNAL = PKG_ROOT + ".external";
 	private static final String GROUP_ID_REPO_PATH = "/org/svenehrke/";
 	private static final Pattern INBOUND_MODULE_PATH = Pattern.compile("/inbound-[^/]+/");
+	private static final String RUN_ON_VIRTUAL_THREAD = "io.smallrye.common.annotation.RunOnVirtualThread";
 
 	/**
 	 * Skips opening third-party library JARs (Quarkus, Jakarta, Kafka clients, ...) during the scan.
@@ -132,6 +137,57 @@ class ArchitectureTest {
 		noClasses().that(RESIDE_IN_INBOUND_MODULE)
 			.should().dependOnClassesThat().haveSimpleNameEndingWith("SPI")
 			.because("inbound adapters must go through a Handler, not bypass it via an outbound port")
+			.check(importedClasses);
+	}
+
+	/**
+	 * Every entry point that may block runs on a virtual thread, so a wait (JDBC, MongoDB, a supplier call) never holds
+	 * a platform thread (see docs/architecture/virtual-threads-in-this-project.md). Without the annotation Quarkus would
+	 * silently fall back to a platform worker thread. Methods returning {@code Uni}/{@code Multi} (the SSE stream) are
+	 * exempt: they run on the event loop and hold no thread while waiting. So are interfaces: REST client interfaces
+	 * carry {@code @POST} too, but are outbound. Names, not classes: the scan doesn't open third-party JARs.
+	 */
+	@Test
+	void entry_points_run_on_virtual_threads() {
+		List<String> entryPointAnnotations = List.of(
+			"jakarta.ws.rs.GET", "jakarta.ws.rs.POST", "jakarta.ws.rs.PUT", "jakarta.ws.rs.DELETE", "jakarta.ws.rs.PATCH",
+			"org.eclipse.microprofile.reactive.messaging.Incoming", "io.quarkus.scheduler.Scheduled");
+		List<String> streamTypes = List.of("io.smallrye.mutiny.Uni", "io.smallrye.mutiny.Multi");
+		DescribedPredicate<JavaMethod> blockingEntryPoint = DescribedPredicate.describe(
+			"are REST, Kafka or scheduler entry points not returning Uni/Multi",
+			method -> !method.getOwner().isInterface()
+				&& entryPointAnnotations.stream().anyMatch(method::isAnnotatedWith)
+				&& !streamTypes.contains(method.getRawReturnType().getName())
+		);
+		methods().that(blockingEntryPoint)
+			.should().beAnnotatedWith(RUN_ON_VIRTUAL_THREAD)
+			.orShould().beDeclaredInClassesThat().areAnnotatedWith(RUN_ON_VIRTUAL_THREAD)
+			.because("a blocking entry point must not hold a platform thread while it waits")
+			.check(importedClasses);
+	}
+
+	/** {@code @Blocking} means a platform worker thread; {@code @RunOnVirtualThread} replaces it. */
+	@Test
+	void nothing_runs_on_platform_worker_threads() {
+		noMethods()
+			.should().beAnnotatedWith("io.smallrye.reactive.messaging.annotations.Blocking")
+			.orShould().beAnnotatedWith("io.smallrye.common.annotation.Blocking")
+			.because("blocking code runs on virtual threads (@RunOnVirtualThread)")
+			.check(importedClasses);
+	}
+
+	/**
+	 * Core fires its async events only through {@code AsyncEvents}: a direct {@code Event.fireAsync(event)} would
+	 * deliver them on CDI's default executor, a platform worker thread, where the observers would block it.
+	 */
+	@Test
+	void async_events_are_fired_only_through_async_events() {
+		noClasses().that().doNotHaveSimpleName("AsyncEvents")
+			.should().callMethodWhere(DescribedPredicate.describe(
+				"Event.fireAsync",
+				call -> call.getTargetOwner().getName().equals("jakarta.enterprise.event.Event")
+					&& call.getName().equals("fireAsync")))
+			.because("AsyncEvents delivers them on the @EventExecutor (virtual threads)")
 			.check(importedClasses);
 	}
 

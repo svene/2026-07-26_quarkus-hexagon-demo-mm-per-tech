@@ -1,6 +1,6 @@
 package org.svenehrke.triptychdemo.external.outbound.kafka.carrier;
 
-import io.smallrye.reactive.messaging.annotations.Blocking;
+import io.smallrye.common.annotation.RunOnVirtualThread;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.svenehrke.triptychdemo.external.outbound.kafka.LeadTime;
@@ -30,7 +30,7 @@ public class CarrierStub {
     Supplier<Duration> transitTime;
 
     @Incoming("shipments")
-    @Blocking
+    @RunOnVirtualThread
     public void processShipment(ShipmentMessage shipment) {
         leadTime.later(transitTime.get(), () -> emitter.send(new ShipmentArrivalMessage(shipment.shipmentId())));
     }

@@ -4,8 +4,8 @@ import org.svenehrke.triptychdemo.cross.auditlog.AuditLogSPI;
 import org.svenehrke.triptychdemo.cross.inventory.InventoryEvent;
 import org.svenehrke.triptychdemo.cross.inventory.InventoryRepositorySPI;
 import org.svenehrke.triptychdemo.cross.inventory.LevelsRecalculated;
+import org.svenehrke.triptychdemo.cross.events.AsyncEvents;
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.enterprise.event.Event;
 import jakarta.inject.Inject;
 
 /** Learning the reorder levels: at the end of each demand period (a demo "day"). */
@@ -17,7 +17,7 @@ public class ReorderPolicyHandler {
     @Inject
     AuditLogSPI auditLog;
     @Inject
-    Event<InventoryEvent> inventoryEvents;
+    AsyncEvents inventoryEvents;
 
     /**
      * Folds the period's demand into every stock row's estimate (the DC's included) and recalculates its levels (see
@@ -27,6 +27,6 @@ public class ReorderPolicyHandler {
     public void closePeriod() {
         int rows = inventoryRepository.closePeriod();
         auditLog.log("ReorderPolicyHandler: PERIOD_CLOSED", rows + " rows");
-        inventoryEvents.fireAsync(new LevelsRecalculated());
+        inventoryEvents.fire(new LevelsRecalculated());
     }
 }

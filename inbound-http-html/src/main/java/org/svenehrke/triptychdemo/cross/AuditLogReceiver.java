@@ -2,6 +2,7 @@ package org.svenehrke.triptychdemo.cross;
 
 import org.svenehrke.triptychdemo.cross.auditlog.AuditLogHandler;
 
+import io.smallrye.common.annotation.RunOnVirtualThread;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
@@ -10,6 +11,7 @@ import jakarta.ws.rs.core.MediaType;
 import java.util.Map;
 
 /** The latest audit log entries; no live updates - the page reloads them on its Refresh button. */
+@RunOnVirtualThread
 @Path("/audit-log")
 public class AuditLogReceiver {
 

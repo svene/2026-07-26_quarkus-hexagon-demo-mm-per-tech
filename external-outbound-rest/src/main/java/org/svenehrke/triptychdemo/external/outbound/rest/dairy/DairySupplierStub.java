@@ -1,5 +1,6 @@
 package org.svenehrke.triptychdemo.external.outbound.rest.dairy;
 
+import io.smallrye.common.annotation.RunOnVirtualThread;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.svenehrke.triptychdemo.external.outbound.rest.LeadTime;
@@ -11,6 +12,7 @@ import org.eclipse.microprofile.reactive.messaging.Channel;
 import org.eclipse.microprofile.reactive.messaging.Emitter;
 
 @ApplicationScoped
+@RunOnVirtualThread
 @Path("/dairy-orders")
 public class DairySupplierStub {
 

@@ -11,8 +11,8 @@ import org.svenehrke.triptychdemo.feature.fruit.FruitDelivery;
 import org.svenehrke.triptychdemo.feature.meat.MeatDelivery;
 import org.svenehrke.triptychdemo.feature.nonfood.NonFoodDelivery;
 import org.svenehrke.triptychdemo.feature.vegetable.VegetableDelivery;
+import org.svenehrke.triptychdemo.cross.events.AsyncEvents;
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.enterprise.event.Event;
 import jakarta.inject.Inject;
 
 /**
@@ -28,48 +28,48 @@ public class InventoryHandler {
     @Inject
     AuditLogSPI auditLog;
     @Inject
-    Event<InventoryEvent> inventoryEvents;
+    AsyncEvents inventoryEvents;
 
     public void updateFruitAmount(FruitDelivery fruitDelivery) {
         receive(fruitDelivery.productName(), ProductType.FRUIT, fruitDelivery.quantity());
         auditLog.log("InventoryHandler: FRUIT_INVENTORY_UPDATED", "dc: " + fruitDelivery.productName() + " +" + fruitDelivery.quantity());
-        inventoryEvents.fireAsync(new DeliveredToDc(fruitDelivery.productName()));
+        inventoryEvents.fire(new DeliveredToDc(fruitDelivery.productName()));
     }
 
     public void updateVegetableAmount(VegetableDelivery vegetableDelivery) {
         receive(vegetableDelivery.productName(), ProductType.VEGETABLE, vegetableDelivery.quantity());
         auditLog.log("InventoryHandler: VEGETABLE_INVENTORY_UPDATED", "dc: " + vegetableDelivery.productName() + " +" + vegetableDelivery.quantity());
-        inventoryEvents.fireAsync(new DeliveredToDc(vegetableDelivery.productName()));
+        inventoryEvents.fire(new DeliveredToDc(vegetableDelivery.productName()));
     }
 
     public void updateDairyAmount(DairyDelivery dairyDelivery) {
         receive(dairyDelivery.productName(), ProductType.DAIRY, dairyDelivery.quantity());
         auditLog.log("InventoryHandler: DAIRY_INVENTORY_UPDATED", "dc: " + dairyDelivery.productName() + " +" + dairyDelivery.quantity());
-        inventoryEvents.fireAsync(new DeliveredToDc(dairyDelivery.productName()));
+        inventoryEvents.fire(new DeliveredToDc(dairyDelivery.productName()));
     }
 
     public void updateBeverageAmount(BeverageDelivery beverageDelivery) {
         receive(beverageDelivery.productName(), ProductType.BEVERAGE, beverageDelivery.quantity());
         auditLog.log("InventoryHandler: BEVERAGE_INVENTORY_UPDATED", "dc: " + beverageDelivery.productName() + " +" + beverageDelivery.quantity());
-        inventoryEvents.fireAsync(new DeliveredToDc(beverageDelivery.productName()));
+        inventoryEvents.fire(new DeliveredToDc(beverageDelivery.productName()));
     }
 
     public void updateMeatAmount(MeatDelivery meatDelivery) {
         receive(meatDelivery.productName(), ProductType.MEAT, meatDelivery.quantity());
         auditLog.log("InventoryHandler: MEAT_INVENTORY_UPDATED", "dc: " + meatDelivery.productName() + " +" + meatDelivery.quantity());
-        inventoryEvents.fireAsync(new DeliveredToDc(meatDelivery.productName()));
+        inventoryEvents.fire(new DeliveredToDc(meatDelivery.productName()));
     }
 
     public void updateBakeryAmount(BakeryDelivery bakeryDelivery) {
         receive(bakeryDelivery.productName(), ProductType.BAKERY, bakeryDelivery.quantity());
         auditLog.log("InventoryHandler: BAKERY_INVENTORY_UPDATED", "dc: " + bakeryDelivery.productName() + " +" + bakeryDelivery.quantity());
-        inventoryEvents.fireAsync(new DeliveredToDc(bakeryDelivery.productName()));
+        inventoryEvents.fire(new DeliveredToDc(bakeryDelivery.productName()));
     }
 
     public void updateNonFoodAmount(NonFoodDelivery nonFoodDelivery) {
         receive(nonFoodDelivery.productName(), ProductType.NON_FOOD, nonFoodDelivery.quantity());
         auditLog.log("InventoryHandler: NON_FOOD_INVENTORY_UPDATED", "dc: " + nonFoodDelivery.productName() + " +" + nonFoodDelivery.quantity());
-        inventoryEvents.fireAsync(new DeliveredToDc(nonFoodDelivery.productName()));
+        inventoryEvents.fire(new DeliveredToDc(nonFoodDelivery.productName()));
     }
 
     private void receive(String productName, ProductType type, int quantity) {

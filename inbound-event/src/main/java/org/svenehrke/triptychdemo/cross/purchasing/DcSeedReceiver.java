@@ -6,6 +6,7 @@ import org.svenehrke.triptychdemo.cross.inventory.LevelsRecalculated;
 
 import io.quarkus.logging.Log;
 import io.quarkus.runtime.StartupEvent;
+import io.quarkus.virtual.threads.VirtualThreads;
 import io.vertx.core.Vertx;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
@@ -14,6 +15,7 @@ import jakarta.inject.Inject;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.time.Duration;
+import java.util.concurrent.ExecutorService;
 import java.util.function.Supplier;
 
 /**
@@ -39,14 +41,14 @@ public class DcSeedReceiver {
     AuditLogHandler auditLog;
     @Inject
     Vertx vertx;
+    @Inject
+    @VirtualThreads
+    ExecutorService virtualThreads;
 
-    /** A one-off timer; the seed blocks (JDBC, supplier calls), so it runs on a worker thread, not the event loop. */
+    /** A one-off timer; the seed blocks (JDBC, supplier calls), so it runs on a virtual thread, not the event loop. */
     void onStart(@Observes StartupEvent event) {
         if (!enabled.get()) return;
-        vertx.setTimer(startupDelay.toMillis(), id -> vertx.executeBlocking(() -> {
-            seed();
-            return null;
-        }));
+        vertx.setTimer(startupDelay.toMillis(), id -> virtualThreads.execute(this::seed));
     }
 
     void onInventoryReset(@ObservesAsync InventoryReset event) {

@@ -14,8 +14,8 @@ Complete inventory of all classes participating in the system flows, organized b
 | **inbound-http-html** | `AdminReceiver`<br>`ShopReceiver`<br>`LocationReceiver`<br>`AuditLogReceiver`<br>`InventoryEventsReceiver`<br>`InventoryEventBroadcaster`<br>`ShopCart`<br>`PageShell` |
 | **inbound-http-jsonapi** | `ProductApiReceiver`<br>`LocationApiReceiver`<br>`XxxOrderRequest` (+ `OrderRequest`)/`PurchaseRequest`/`PurchaseRequestItem`/`RequestStructureErrorMessages`<br>`JsonInputErrors`/`StrictJsonReader`/`JsonResponses`<br>`ProductJson` |
 | **inbound-kafka** | `FruitDeliveryReceiver`<br>`VegetablesDeliveryReceiver`<br>`DairyDeliveryReceiver`<br>`BeveragesDeliveryReceiver`<br>`MeatDeliveryReceiver`<br>`BakeryDeliveryReceiver`<br>`NonFoodDeliveryReceiver`<br>`CashpointReceiver`<br>`ShipmentArrivalReceiver`<br>`StoreOccupancyReceiver` |
-| **inbound-event** | `DeliveryEventReceiver`, `AutoReplenishmentReceiver`, `AutoPurchasingReceiver`, `DcSeedReceiver`, `ShipmentCatchUpReceiver`, `DemandPeriodReceiver` |
-| **core** | `FruitSupplierSPI`/`FruitDelivery`/`FruitsHandler`<br>`VegetablesSupplierSPI`/`VegetableDelivery`/`VegetablesHandler`<br>`DairySupplierSPI`/`DairyDelivery`/`DairyHandler`<br>`BeverageSupplierSPI`/`BeverageDelivery`/`BeveragesHandler`<br>`MeatSupplierSPI`/`MeatDelivery`/`MeatHandler`<br>`BakerySupplierSPI`/`BakeryDelivery`/`BakeryHandler`<br>`NonFoodSupplierSPI`/`NonFoodDelivery`/`NonFoodHandler`<br>`InventoryRepositorySPI`/`InventoryHandler`/`InventoryEvent` (`DeliveredToDc`/`StockDeducted`/`ReplenishmentChanged`/`LevelsRecalculated`/`DcDemandChanged`/`SupplierOrdersChanged`/`InventoryReset`)<br>`Location`/`Replenished`/`Warehouse`/`Store`/`OnlineFc`/`Locations`<br>`ReplenishmentRepositorySPI`/`ReplenishmentHandler`/`StockRequest`/`ReplenishmentRequest`/`RequestOrigin`/`CarrierSPI`/`Shipment`/`ShipmentStatus`<br>`ReorderPolicyHandler`/`ReorderPolicy`/`DemandEstimate`/`LearnedLevels`<br>`SupplierOrderRepositorySPI`/`PurchasingHandler`/`SupplierOrder`/`SupplierOrderStatus`/`SupplierOrderOrigin`<br>`AuditLogSPI`/`AuditLogHandler`/`AuditLogEntry`<br>`ResetRepositorySPI`/`ResetHandler`<br>`OccupancyRepositorySPI`/`CheckoutSystemSPI`/`OccupancyHandler`/`StoreOccupancy`/`TillCount`/`OccupancyChanged`<br>`ProductsHandler`/`Product`/`ProductStock`/`ProductType`<br>`PurchaseHandler`/`PurchaseItem` |
+| **inbound-event** | `DeliveryEventReceiver`, `AutoReplenishmentReceiver`, `AutoPurchasingReceiver`, `DcSeedReceiver`, `ShipmentCatchUpReceiver`, `DemandPeriodReceiver`, `EventExecutorProducer` |
+| **core** | `FruitSupplierSPI`/`FruitDelivery`/`FruitsHandler`<br>`VegetablesSupplierSPI`/`VegetableDelivery`/`VegetablesHandler`<br>`DairySupplierSPI`/`DairyDelivery`/`DairyHandler`<br>`BeverageSupplierSPI`/`BeverageDelivery`/`BeveragesHandler`<br>`MeatSupplierSPI`/`MeatDelivery`/`MeatHandler`<br>`BakerySupplierSPI`/`BakeryDelivery`/`BakeryHandler`<br>`NonFoodSupplierSPI`/`NonFoodDelivery`/`NonFoodHandler`<br>`InventoryRepositorySPI`/`InventoryHandler`/`InventoryEvent` (`DeliveredToDc`/`StockDeducted`/`ReplenishmentChanged`/`LevelsRecalculated`/`DcDemandChanged`/`SupplierOrdersChanged`/`InventoryReset`)<br>`Location`/`Replenished`/`Warehouse`/`Store`/`OnlineFc`/`Locations`<br>`ReplenishmentRepositorySPI`/`ReplenishmentHandler`/`StockRequest`/`ReplenishmentRequest`/`RequestOrigin`/`CarrierSPI`/`Shipment`/`ShipmentStatus`<br>`ReorderPolicyHandler`/`ReorderPolicy`/`DemandEstimate`/`LearnedLevels`<br>`SupplierOrderRepositorySPI`/`PurchasingHandler`/`SupplierOrder`/`SupplierOrderStatus`/`SupplierOrderOrigin`<br>`AuditLogSPI`/`AuditLogHandler`/`AuditLogEntry`<br>`ResetRepositorySPI`/`ResetHandler`<br>`OccupancyRepositorySPI`/`CheckoutSystemSPI`/`OccupancyHandler`/`StoreOccupancy`/`TillCount`/`OccupancyChanged`<br>`ProductsHandler`/`Product`/`ProductStock`/`ProductType`<br>`PurchaseHandler`/`PurchaseItem`<br>`AsyncEvents`/`EventExecutor` |
 | **outbound-postgres** | `InventoryService`<br>`StockTable`<br>`ReplenishmentService`<br>`ReplenishmentRequestTable`<br>`ShipmentTable`<br>`SupplierOrderService`<br>`SupplierOrderTable`<br>`OccupancyService`<br>`StoreOccupancyTable`<br>`ResetService`<br>`Db` |
 | **outbound-mongodb** | `AuditLogService`<br>`AuditLogEntryEntity` |
 | **outbound-httpclient** | `FruitSupplierService`<br>`VegetablesSupplierService`<br>`DairySupplierService`<br>`CheckoutSystemService`<br>`FruitSupplierClient`<br>`VegetablesSupplierClient`<br>`DairySupplierClient`<br>`CheckoutSystemClient` |
@@ -98,22 +98,25 @@ Complete inventory of all classes participating in the system flows, organized b
 
 ## inbound-event
 
-**Purpose**: Inbound adapter for domain events that core fires as CDI async events (`Event.fireAsync`) - in-process, like `inbound-kafka` is for messages
-**Package**: `org.svenehrke.triptychdemo.cross.inventory`, `org.svenehrke.triptychdemo.cross.replenishment`, `org.svenehrke.triptychdemo.cross.reorder`, `org.svenehrke.triptychdemo.cross.purchasing`
+**Purpose**: Inbound adapter for domain events that core fires as CDI async events (`AsyncEvents`, i.e. `Event.fireAsync` on a virtual thread) - in-process, like `inbound-kafka` is for messages
+**Package**: `org.svenehrke.triptychdemo.cross.inventory`, `org.svenehrke.triptychdemo.cross.replenishment`, `org.svenehrke.triptychdemo.cross.reorder`, `org.svenehrke.triptychdemo.cross.purchasing`, `org.svenehrke.triptychdemo.cross.events`
 
 ### Receivers
 - `DeliveryEventReceiver` - `@ObservesAsync DeliveredToDc` → `ReplenishmentHandler.fulfilPending(productName)`; audit-logs a failure (`FULFIL_PENDING_FAILED`) instead of letting it vanish, the requests then stay pending
 - `AutoReplenishmentReceiver` - `@ObservesAsync StockDeducted` → `ReplenishmentHandler.replenishIfLow(location, productNames)`; `@ObservesAsync LevelsRecalculated` → `replenishAllIfLow(DC products)` - all locations at once, so a shortfall is shared (fills empty locations at cold start); failures audit-logged (`AUTO_REPLENISHMENT_FAILED`); off with `inventory.auto-replenishment.enabled=false` (`%test`, e2e)
 - `ShipmentCatchUpReceiver` - `@ObservesAsync LevelsRecalculated` → `ReplenishmentHandler.redispatchOverdue(inventory.shipment-redispatch-after)` - sends shipments still in transit after 2 min to the carrier again (a lost dispatch or arrival); failures audit-logged (`REDISPATCH_FAILED`)
 - `AutoPurchasingReceiver` - `@ObservesAsync DcDemandChanged` → `PurchasingHandler.orderIfLow(productName)`; `@ObservesAsync LevelsRecalculated` → `orderIfLow` per DC product (one at a time, so a supplier that is down does not block the others); failures audit-logged (`AUTO_PURCHASING_FAILED`); off with `inventory.auto-purchasing.enabled=false` (`%test`, e2e) - a switch of its own, so a flow test can turn on one stage only
-- `DcSeedReceiver` - `StartupEvent` (one-off Vert.x timer, `inventory.dc-seed.startup-delay` = 5s, on a worker thread), `@ObservesAsync InventoryReset` and `LevelsRecalculated` → `PurchasingHandler.seedDc(inventory.dc-seed.quantity = 500)` - seeds what the DC neither carries nor has on order: everything 5 s after the start (once the HTTP server listens) and after the admin reset; later it re-orders what a supplier that was down could not take; failures audit-logged (`DC_SEED_FAILED`); off with `inventory.dc-seed.enabled=false` (`%test`, e2e)
+- `DcSeedReceiver` - `StartupEvent` (one-off Vert.x timer, `inventory.dc-seed.startup-delay` = 5s, then on a virtual thread), `@ObservesAsync InventoryReset` and `LevelsRecalculated` → `PurchasingHandler.seedDc(inventory.dc-seed.quantity = 500)` - seeds what the DC neither carries nor has on order: everything 5 s after the start (once the HTTP server listens) and after the admin reset; later it re-orders what a supplier that was down could not take; failures audit-logged (`DC_SEED_FAILED`); off with `inventory.dc-seed.enabled=false` (`%test`, e2e)
 - `DemandPeriodReceiver` - `@Scheduled(every = "${inventory.demand-period}", delayed = "${inventory.first-period-close-delay}")` (1 min, `off` in `%test` and e2e; the first close one period after the start - no zero-length period, no supplier call before the HTTP server listens) → `ReorderPolicyHandler.closePeriod()`; needs `quarkus-scheduler`
+
+### Event executor
+- `EventExecutorProducer` - Produces core's `@EventExecutor` as Quarkus' `@VirtualThreads ExecutorService`, so core's async events (and with them every observer above) run on a virtual thread - one per event, its observers one after another (see `virtual-threads-in-this-project.md`)
 
 **Responsibilities**:
 - React to core's domain events, decoupled from the code that fires them (a failing reaction cannot fail, or make the Kafka receiver repeat, the delivery)
 - Route to Handlers only, like every Receiver (ArchUnit's inbound rules cover this module by its `inbound-` name)
 
-**Technology**: CDI (Quarkus ArC) async events, no further dependency besides `core`
+**Technology**: CDI (Quarkus ArC) async events, delivered on virtual threads (`quarkus-virtual-threads`), no further dependency besides `core`
 
 ---
 
@@ -175,7 +178,7 @@ Complete inventory of all classes participating in the system flows, organized b
 ### cross.inventory
 - `InventoryRepositorySPI` - Interface for stock per location (methods: findAll(location), findAllLocations, addAmount(location, …) - seeding/tests, deliveries go through SupplierOrderRepositorySPI, deductAll(location, …), recordDemand(location, …) - own transaction, also for rejected/capped sales, closePeriod - one transaction per row, the DC's rows included)
 - `LocationStock` - Domain record (location, product, estimate, levels), returned by findAllLocations
-- `InventoryEvent` - Sealed interface of the CDI events core fires with `fireAsync`, one per committed change: `DeliveredToDc(productName)` (InventoryHandler), `StockDeducted(location, productNames)` (PurchaseHandler), `ReplenishmentChanged(location)` (ReplenishmentHandler), `LevelsRecalculated()` (ReorderPolicyHandler), `DcDemandChanged(productName)` (ReplenishmentHandler, on every request created), `SupplierOrdersChanged()` (commodity Handlers), `InventoryReset()` (ResetHandler). Observed by inbound adapters only - specific ones (DeliveryEventReceiver, AutoReplenishmentReceiver, AutoPurchasingReceiver) or all (InventoryEventBroadcaster, for the SSE live updates). All of them live in this package: core is no named module, so a sealed type's subclasses must share its package
+- `InventoryEvent` - Sealed interface of the CDI events core fires via `AsyncEvents` (`fireAsync`), one per committed change: `DeliveredToDc(productName)` (InventoryHandler), `StockDeducted(location, productNames)` (PurchaseHandler), `ReplenishmentChanged(location)` (ReplenishmentHandler), `LevelsRecalculated()` (ReorderPolicyHandler), `DcDemandChanged(productName)` (ReplenishmentHandler, on every request created), `SupplierOrdersChanged()` (commodity Handlers), `InventoryReset()` (ResetHandler). Observed by inbound adapters only - specific ones (DeliveryEventReceiver, AutoReplenishmentReceiver, AutoPurchasingReceiver) or all (InventoryEventBroadcaster, for the SSE live updates). All of them live in this package: core is no named module, so a sealed type's subclasses must share its package
 - `OnShortage` - Enum passed to deductAll: `REJECT` (online, deduct nothing) | `CAP_AT_ZERO` (physical store)
 - `StockDeduction` - Result of deductAll (updated products, shortages)
 - `Shortage` - Domain record (productName, requested, available) with rejection and discrepancy messages
@@ -237,7 +240,11 @@ Complete inventory of all classes participating in the system flows, organized b
 - `OccupancyRepositorySPI` - The latest report per store (methods: saveIfNewer - false if an as new or newer one is stored, findAll)
 - `CheckoutSystemSPI` - The stores' checkout systems, which own the tills (method: setTills - throws if refused or unreachable)
 - `OccupancyHandler` - (methods: record - via StoreOccupancyReceiver, `saveIfNewer`, fires `OccupancyChanged` if stored, not audit-logged; current; setTills - via LocationReceiver, audit `TILLS_CHANGED` / `TILLS_CHANGE_FAILED`, returns false on failure)
-- `OccupancyChanged` - CDI event (`fireAsync`), not an `InventoryEvent`: only the live updates of `/locations` observe it
+- `OccupancyChanged` - CDI event (via `AsyncEvents`), not an `InventoryEvent`: only the live updates of `/locations` observe it
+
+### cross.events
+- `AsyncEvents` - Fires core's events (`InventoryEvent`s, `OccupancyChanged`) with `Event.fireAsync` on the `@EventExecutor` instead of CDI's default executor (Quarkus' platform worker pool); the Handlers use it instead of `Event<…>`; ArchUnit forbids a direct `fireAsync` elsewhere (methods: fire(InventoryEvent), fire(OccupancyChanged))
+- `EventExecutor` - Qualifier of the plain `java.util.concurrent.Executor` the events are delivered on; core only names it, `inbound-event` produces it (virtual threads)
 
 ### cross.reset
 - `ResetRepositorySPI` - Deletes the stock of every location, every replenishment request, shipment and supplier order in one transaction; the id sequences stay (method: deleteAll)
@@ -377,7 +384,7 @@ Complete inventory of all classes participating in the system flows, organized b
 
 **Responsibilities**:
 - Receive order requests via REST (called by outbound-httpclient services)
-- Publish delivery notifications to Kafka topics (`fruit-deliveries`, `vegetables-deliveries`, `dairy-deliveries`) after the supplier lead time (`LeadTime`: `supplier-stub.lead-time`, 30s ± 20% in dev, 0 in `%test` and e2e; scheduled on Mutiny's worker pool, so the receiving thread returns right away)
+- Publish delivery notifications to Kafka topics (`fruit-deliveries`, `vegetables-deliveries`, `dairy-deliveries`) after the supplier lead time (`LeadTime`: `supplier-stub.lead-time`, 30s ± 20% in dev, 0 in `%test` and e2e; scheduled on Quarkus' worker pool, so the receiving thread returns right away)
 - Simulate supplier behavior
 
 **Technology**: JAX-RS REST endpoint, Quarkus SmallRye Reactive Messaging Emitter
@@ -399,7 +406,7 @@ Complete inventory of all classes participating in the system flows, organized b
 
 **Responsibilities**:
 - Receive order requests via SOAP (called by outbound-webservice services)
-- Publish delivery notifications to Kafka topics (`beverages-deliveries`, `meat-deliveries`, `bakery-deliveries`) after the supplier lead time (`LeadTime`: `supplier-stub.lead-time`, 30s ± 20% in dev, 0 in `%test` and e2e; scheduled on Mutiny's worker pool, so the receiving thread returns right away)
+- Publish delivery notifications to Kafka topics (`beverages-deliveries`, `meat-deliveries`, `bakery-deliveries`) after the supplier lead time (`LeadTime`: `supplier-stub.lead-time`, 30s ± 20% in dev, 0 in `%test` and e2e; scheduled on Quarkus' worker pool, so the receiving thread returns right away)
 - Simulate supplier behavior
 
 **Technology**: Apache CXF SOAP endpoint, Quarkus SmallRye Reactive Messaging Emitter
@@ -426,7 +433,7 @@ Complete inventory of all classes participating in the system flows, organized b
 **Responsibilities**:
 - Listen to order events from `nonfood-orders` topic
 - Process orders asynchronously
-- Publish delivery notifications to `nonfood-deliveries` topic after the supplier lead time (`LeadTime`: `supplier-stub.lead-time`, 30s ± 20% in dev, 0 in `%test` and e2e; scheduled on Mutiny's worker pool, so the receiving thread returns right away)
+- Publish delivery notifications to `nonfood-deliveries` topic after the supplier lead time (`LeadTime`: `supplier-stub.lead-time`, 30s ± 20% in dev, 0 in `%test` and e2e; scheduled on Quarkus' worker pool, so the receiving thread returns right away)
 - Simulate supplier behavior
 
 **Technology**: Quarkus SmallRye Reactive Messaging (@Incoming, @Outgoing)
@@ -506,8 +513,8 @@ Complete inventory of all classes participating in the system flows, organized b
 | inbound-http-html | 4 | HTTP HTML Receivers |
 | inbound-http-jsonapi | 3 | HTTP JSON API Receivers + request records |
 | inbound-kafka | 10 + 7 | Kafka Receivers + cashpoint / shipment-arrival / occupancy message types |
-| inbound-event | 5 | CDI event / scheduled Receivers |
-| core | 16 Handlers, 13 SPI interfaces, 37 domain records/enum/sealed interfaces/events | Feature (7 packages) + Cross (9 packages) |
+| inbound-event | 6 + 1 | CDI event / scheduled Receivers + event executor producer |
+| core | 16 Handlers, 13 SPI interfaces, 37 domain records/enum/sealed interfaces/events | Feature (7 packages) + Cross (11 packages) |
 | outbound-postgres | 7 | Services (InventoryService, ReplenishmentService, SupplierOrderService) + Entities (StockEntity, ReplenishmentRequestEntity, ShipmentEntity, SupplierOrderEntity) |
 | outbound-mongodb | 2 | Service (AuditLogService) + Entity (AuditLogEntryEntity) |
 | outbound-httpclient | 4 | Services + 4 REST Clients |

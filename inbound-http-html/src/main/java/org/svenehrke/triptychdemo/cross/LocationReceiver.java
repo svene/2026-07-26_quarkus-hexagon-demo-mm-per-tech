@@ -15,6 +15,7 @@ import org.svenehrke.triptychdemo.cross.replenishment.ParsedStockRequest;
 import org.svenehrke.triptychdemo.cross.replenishment.ReplenishmentHandler;
 import org.svenehrke.triptychdemo.cross.replenishment.StockRequest;
 
+import io.smallrye.common.annotation.RunOnVirtualThread;
 import jakarta.inject.Inject;
 import jakarta.validation.ConstraintViolation;
 import jakarta.ws.rs.Consumes;
@@ -36,6 +37,7 @@ import java.util.Map;
  * One page with every store and the online FC (the DC is managed on {@code /admin}): per location its stock, and
  * requesting more from the DC; per store its occupancy, and opening/closing its tills.
  */
+@RunOnVirtualThread
 @Path("/locations")
 public class LocationReceiver {
 

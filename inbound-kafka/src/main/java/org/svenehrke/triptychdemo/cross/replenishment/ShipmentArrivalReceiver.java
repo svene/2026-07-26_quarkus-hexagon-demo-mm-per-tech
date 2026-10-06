@@ -2,7 +2,7 @@ package org.svenehrke.triptychdemo.cross.replenishment;
 
 import org.svenehrke.triptychdemo.cross.auditlog.AuditLogHandler;
 
-import io.smallrye.reactive.messaging.annotations.Blocking;
+import io.smallrye.common.annotation.RunOnVirtualThread;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.faulttolerance.Retry;
@@ -24,7 +24,7 @@ public class ShipmentArrivalReceiver {
     AuditLogHandler auditLog;
 
     @Incoming("shipment-arrivals")
-    @Blocking
+    @RunOnVirtualThread
     @Retry(maxRetries = 3, delay = 1, delayUnit = ChronoUnit.SECONDS, abortOn = UnprocessableMessageException.class)
     public void receive(ShipmentArrivalMessage message) {
         auditLog.log("ShipmentArrivalReceiver: SHIPMENT_ARRIVAL_RECEIVED",

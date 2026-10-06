@@ -7,8 +7,8 @@ import org.svenehrke.triptychdemo.cross.products.ProductType;
 import org.svenehrke.triptychdemo.cross.purchasing.SupplierOrder;
 import org.svenehrke.triptychdemo.cross.purchasing.SupplierOrderOrigin;
 import org.svenehrke.triptychdemo.cross.purchasing.SupplierOrderRepositorySPI;
+import org.svenehrke.triptychdemo.cross.events.AsyncEvents;
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.enterprise.event.Event;
 import jakarta.inject.Inject;
 
 @ApplicationScoped
@@ -21,7 +21,7 @@ public class BakeryHandler {
     @Inject
     AuditLogSPI auditLog;
     @Inject
-    Event<InventoryEvent> inventoryEvents;
+    AsyncEvents inventoryEvents;
 
     public void order(BakeryOrder bakeryOrder) {
         auditLog.log("BakeryHandler: BAKERY_ORDER_PROCESSING", bakeryOrder.productName() + " qty=" + bakeryOrder.quantity());
@@ -41,7 +41,7 @@ public class BakeryHandler {
                 auditLog.log("BakeryHandler: BAKERY_ORDER_CANCELLED", cancelled.describe() + ": " + e));
             throw e;
         } finally {
-            inventoryEvents.fireAsync(new SupplierOrdersChanged());
+            inventoryEvents.fire(new SupplierOrdersChanged());
         }
         auditLog.log("BakeryHandler: BAKERY_ORDER_PLACED", bakeryOrder.productName() + " qty=" + bakeryOrder.quantity());
     }

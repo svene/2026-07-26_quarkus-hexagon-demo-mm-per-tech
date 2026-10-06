@@ -2,6 +2,7 @@ package org.svenehrke.triptychdemo.external.inbound.kafka.cashpoint;
 
 import io.quarkus.logging.Log;
 import io.quarkus.scheduler.Scheduled;
+import io.smallrye.common.annotation.RunOnVirtualThread;
 import io.smallrye.reactive.messaging.kafka.api.OutgoingKafkaRecordMetadata;
 import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -73,6 +74,7 @@ public class CashpointStub {
         return true;
     }
 
+    @RunOnVirtualThread
     @Scheduled(every = "${cashpoint-stub.tick}", delayed = "30s", concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
     void tick() {
         var now = Instant.now();

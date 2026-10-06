@@ -87,7 +87,7 @@ AdminReceiver.fulfilRequest(id) / rejectRequest(id)
    │        reject cancels what is outstanding
    ├─ AuditLogSPI.log("STOCK_SHIPPED" / "REQUEST_PENDING" / "REQUEST_CANCELLED")
    ├─ CarrierSPI.dispatch(shipment)   fulfil only, if anything was shipped
-   └─ Event<InventoryEvent>.fireAsync(ReplenishmentChanged(location))
+   └─ AsyncEvents.fire(ReplenishmentChanged(location))
    → 200 empty body, or 409 UiResponse(OrderErrors) if the request is no longer pending
 ```
 
@@ -103,7 +103,7 @@ AdminReceiver.reset()
    ├─ AuditLogSPI.clear()
    │  └─ AuditLogService (outbound-mongodb) → MongoDB: delete every audit entry
    ├─ AuditLogSPI.log("INVENTORY_RESET")
-   └─ Event<InventoryEvent>.fireAsync(InventoryReset)   (refreshes every page except /audit-log, which has no live updates)
+   └─ AsyncEvents.fire(InventoryReset)   (refreshes every page except /audit-log, which has no live updates)
       └─ DcSeedReceiver.onInventoryReset (@ObservesAsync) → seeds the now empty DC (see "Event: seeding the DC")
    → 200 empty body
 ```
@@ -135,7 +135,7 @@ AdminReceiver.orderFruits()
    │                       │     └─ PostgreSQL (tables stock, supplier_order)
    │                       ├─ AuditLogSPI.log("SUPPLIER_ORDER_DELIVERED")   (per order the delivery went to)
    │                       ├─ AuditLogSPI.log("FRUIT_INVENTORY_UPDATED")
-   │                       └─ Event<InventoryEvent>.fireAsync(DeliveredToDc)   (after the commit; decoupled from the delivery;
+   │                       └─ AsyncEvents.fire(DeliveredToDc)   (after the commit; decoupled from the delivery;
    │                          │                                                also refreshes the pages, see GET /inventory/events)
    │                          └─ DeliveryEventReceiver (inbound-event, @ObservesAsync)
    │                             ├─ AuditLogHandler.log("DELIVERED_TO_DC_RECEIVED")
@@ -146,7 +146,7 @@ AdminReceiver.orderFruits()
    ├─ AuditLogSPI.log("FRUITS_ORDER_PLACED")
    │  └─ AuditLogService (outbound-mongodb)
    │     └─ MongoDB
-   └─ Event<InventoryEvent>.fireAsync(SupplierOrdersChanged)   (refreshes /admin)
+   └─ AsyncEvents.fire(SupplierOrdersChanged)   (refreshes /admin)
 ```
 
 #### POST /admin/order-vegetables - HTML Form → REST Client → Kafka Delivery Topic
@@ -284,7 +284,7 @@ carries no location: every page refreshes on every change (the core events do ca
 InventoryEventsReceiver.events()   → text/event-stream, never ends
 ├─ event: inventoryChanged   (once on (re)connect, so nothing missed while disconnected)
 ├─ InventoryEventBroadcaster.events()   (inbound-http-html, JDK Flow.Publisher fed by @ObservesAsync InventoryEvent)
-│  └─ event: inventoryChanged per InventoryEvent, fired by core with fireAsync after a committed change:
+│  └─ event: inventoryChanged per InventoryEvent, fired by core via AsyncEvents (fireAsync, on a virtual thread) after a committed change:
 │     ├─ DeliveredToDc          ← InventoryHandler.update*Amount()   (every Kafka delivery)
 │     ├─ StockDeducted          ← PurchaseHandler.deduct()           (shop/JSON API checkout, cashpoint sale; only if something was deducted)
 │     ├─ ReplenishmentChanged   ← ReplenishmentHandler               (every request, fulfil, reject, automatic request; fulfilPending per location served; shipment arrival)
@@ -308,7 +308,7 @@ ShopReceiver.checkout(productNames[], quantities[])
    │  └─ InventoryService (outbound-postgres)
    │     └─ PostgreSQL (SELECT ... FOR UPDATE per product, sorted by name)
    ├─ InventoryRepositorySPI.recordDemand(ONLINE, quantities)   (own transaction: a rejected checkout is demand, too)
-   ├─ Event<InventoryEvent>.fireAsync(StockDeducted)   (if something was deducted; see Automatic Replenishment below)
+   ├─ AsyncEvents.fire(StockDeducted)   (if something was deducted; see Automatic Replenishment below)
    └─ Completed: AuditLogSPI.log("INVENTORY_DEDUCTED") → 200 UiResponse(ShopPage), fresh page
       Rejected:  AuditLogSPI.log("PURCHASE_REJECTED") → 409 UiResponse(ShopPage) with shortage messages, nothing deducted
          └─ AuditLogService (outbound-mongodb)
@@ -354,8 +354,8 @@ LocationReceiver.request(id, productName, quantity)
    │        each share leaves the DC as an IN_TRANSIT shipment (location stock grows on arrival)
    ├─ AuditLogSPI.log("STOCK_SHIPPED" / "REQUEST_PENDING")
    ├─ CarrierSPI.dispatch(shipment)   per transfer, after the commit (see "Kafka: shipment-arrivals" below)
-   ├─ Event<InventoryEvent>.fireAsync(ReplenishmentChanged(location))
-   └─ Event<InventoryEvent>.fireAsync(DcDemandChanged(productName))   (see AutoPurchasingReceiver below)
+   ├─ AsyncEvents.fire(ReplenishmentChanged(location))
+   └─ AsyncEvents.fire(DcDemandChanged(productName))   (see AutoPurchasingReceiver below)
    → 200 empty body; 409 UiResponse(OrderErrors) if the DC never carried the product ("REQUEST_REJECTED")
 ```
 
@@ -445,7 +445,7 @@ ProductApiReceiver.purchase(request)
    │  └─ InventoryService (outbound-postgres)
    │     └─ PostgreSQL (SELECT ... FOR UPDATE per product, sorted by name)
    ├─ InventoryRepositorySPI.recordDemand(ONLINE, quantities)   (own transaction: a rejected checkout is demand, too)
-   ├─ Event<InventoryEvent>.fireAsync(StockDeducted)   (if something was deducted; see Automatic Replenishment below)
+   ├─ AsyncEvents.fire(StockDeducted)   (if something was deducted; see Automatic Replenishment below)
    └─ Completed: AuditLogSPI.log("INVENTORY_DEDUCTED") → 204
       Rejected:  AuditLogSPI.log("PURCHASE_REJECTED") → 409 with shortage messages, nothing deducted
          └─ AuditLogService (outbound-mongodb)
@@ -482,7 +482,7 @@ DemandPeriodReceiver.closePeriod()   (@Scheduled)
    │     └─ per row (the DC's included), one transaction (FOR UPDATE): DemandEstimate.next(periodDemand)
    │        → LearnedLevels.of() → periodDemand = 0   (the DC's demand: what the locations requested)
    ├─ AuditLogSPI.log("PERIOD_CLOSED")
-   └─ Event<InventoryEvent>.fireAsync(LevelsRecalculated)
+   └─ AsyncEvents.fire(LevelsRecalculated)
       ├─ AutoReplenishmentReceiver.onLevelsRecalculated (@ObservesAsync)
       │  └─ ReplenishmentHandler.replenishAllIfLow(DC products)
       │     └─ per product: requestIfLow for every store and the online FC, then one allocate (as below),
@@ -502,7 +502,7 @@ one-off timer seeds it `inventory.dc-seed.startup-delay` (5 s) later, once the H
 run in the same app). The check is per product and idempotent, so running it at every period close is harmless - and it re-orders a product whose seed order a supplier that was down
 could not take. Off with `inventory.dc-seed.enabled=false` (`%test`, e2e).
 ```
-DcSeedReceiver.onStart (StartupEvent → Vert.x timer, 5 s, worker thread) / onInventoryReset / onLevelsRecalculated (@ObservesAsync)
+DcSeedReceiver.onStart (StartupEvent → Vert.x timer, 5 s, virtual thread) / onInventoryReset / onLevelsRecalculated (@ObservesAsync)
 └─ PurchasingHandler.seedDc(inventory.dc-seed.quantity = 500)   (a failure is audit-logged DC_SEED_FAILED)
    ├─ SupplierOrderRepositorySPI.openSeed(Catalog.PRODUCTS, 500)
    │  └─ SupplierOrderService (outbound-postgres), one transaction:
@@ -528,8 +528,8 @@ AutoReplenishmentReceiver.onStockDeducted (@ObservesAsync)
    │                                                      pending requests (FairShare), one transaction
    ├─ AuditLogSPI.log("AUTO_REQUEST_CREATED"), ("STOCK_SHIPPED"), ("REQUEST_PENDING")
    ├─ CarrierSPI.dispatch(shipment)   per transfer
-   ├─ Event<InventoryEvent>.fireAsync(ReplenishmentChanged)   (if a request was created)
-   └─ Event<InventoryEvent>.fireAsync(DcDemandChanged)   (if a request was created)
+   ├─ AsyncEvents.fire(ReplenishmentChanged)   (if a request was created)
+   └─ AsyncEvents.fire(DcDemandChanged)   (if a request was created)
 ```
 
 #### Event: DcDemandChanged (a store / the online FC requested from the DC)
@@ -559,7 +559,7 @@ ShipmentArrivalReceiver.receive(message)   (inbound-kafka)
    │  └─ ReplenishmentService (outbound-postgres) → PostgreSQL
    │     (shipment FOR UPDATE if IN_TRANSIT, then location row; available += quantity, shipment ARRIVED)
    ├─ AuditLogSPI.log("SHIPMENT_ARRIVED") / ("SHIPMENT_ARRIVAL_IGNORED")   unknown or arrived already
-   └─ Event<InventoryEvent>.fireAsync(ReplenishmentChanged(location))   if booked
+   └─ AsyncEvents.fire(ReplenishmentChanged(location))   if booked
 ```
 
 #### Kafka: store-occupancy (a store's checkout system reports its occupancy)
@@ -572,7 +572,7 @@ StoreOccupancyReceiver.receive(message)   (inbound-kafka; no audit entry for a v
 └─ OccupancyHandler.record(occupancy)
    ├─ OccupancyRepositorySPI.saveIfNewer(occupancy)
    │  └─ OccupancyService (outbound-postgres) → PostgreSQL: one upsert, only if newer than the stored report
-   └─ Event<OccupancyChanged>.fireAsync(OccupancyChanged(store))   if stored (see GET /inventory/events)
+   └─ AsyncEvents.fire(OccupancyChanged(store))   if stored (see GET /inventory/events)
 ```
 
 ## Note: Kafka Delivery Receivers

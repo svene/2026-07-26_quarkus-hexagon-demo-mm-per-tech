@@ -26,6 +26,8 @@ import org.svenehrke.triptychdemo.cross.products.ProductType;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -34,6 +36,7 @@ import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.doThrow;
 
@@ -119,16 +122,19 @@ class KafkaTransientFailureTest {
 
     @Test
     void persistent_failure_stops_the_channel_without_dead_lettering() throws Exception {
-        doThrow(new IllegalStateException("database down"))
-            .when(supplierOrderService).receiveDelivery(anyString(), eq(ProductType.VEGETABLE), anyInt());
+        var failures = new AtomicInteger();
+        doAnswer(invocation -> {
+            failures.incrementAndGet();
+            throw new IllegalStateException("database down");
+        }).when(supplierOrderService).receiveDelivery(anyString(), eq(ProductType.VEGETABLE), anyInt());
 
         send("transient-vegetables-deliveries", """
             {"productName": "Leek", "quantity": 5}""");
 
-        // 1 attempt + 3 retries, then the channel stops.
-        await().atMost(15, SECONDS).untilAsserted(() ->
-            assertThat(auditHelper.findEventDetails("VegetablesDeliveryReceiver: VEGETABLE_DELIVERY_RECEIVED"))
-                .hasSize(4));
+        // 1 attempt + 3 retries, then the channel stops. Wait for the 4th failure itself, not its audit entry: the
+        // receipt is logged before receiveDelivery is called, so "recovering" right after it would let attempt 4 succeed.
+        await().atMost(15, SECONDS).untilAsserted(() -> assertThat(failures).hasValue(4));
+        assertThat(auditHelper.findEventDetails("VegetablesDeliveryReceiver: VEGETABLE_DELIVERY_RECEIVED")).hasSize(4);
 
         // The database "recovers", but the stopped channel doesn't consume the next message.
         doCallRealMethod().when(supplierOrderService).receiveDelivery(anyString(), eq(ProductType.VEGETABLE), anyInt());
@@ -146,6 +152,37 @@ class KafkaTransientFailureTest {
             assertThat(committed.values()).allSatisfy(offset ->
                 assertThat(offset == null ? 0 : offset.offset()).isZero());
         }
+    }
+
+    /**
+     * The receivers run on virtual threads, where SmallRye would process a channel's messages concurrently and out
+     * of order; {@code smallrye.messaging.worker.<virtual-thread>.max-concurrency=1} keeps them one at a time, which
+     * the fail-stop above relies on. Each delivery is slowed down, so an overlap would show.
+     */
+    @Test
+    void messages_are_processed_one_at_a_time_in_order() throws Exception {
+        var processed = new CopyOnWriteArrayList<Integer>();
+        var inFlight = new AtomicInteger();
+        var maxInFlight = new AtomicInteger();
+        doAnswer(invocation -> {
+            maxInFlight.accumulateAndGet(inFlight.incrementAndGet(), Math::max);
+            try {
+                Thread.sleep(50);
+                processed.add(invocation.getArgument(2));
+                return invocation.callRealMethod();
+            } finally {
+                inFlight.decrementAndGet();
+            }
+        }).when(supplierOrderService).receiveDelivery(anyString(), eq(ProductType.FRUIT), anyInt());
+
+        for (int quantity = 1; quantity <= 10; quantity++) {
+            send("transient-fruit-deliveries", """
+                {"productName": "Mango", "quantity": %d}""".formatted(quantity));
+        }
+
+        await().atMost(15, SECONDS).untilAsserted(() -> assertThat(processed).hasSize(10));
+        assertThat(processed).containsExactly(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
+        assertThat(maxInFlight).hasValue(1);
     }
 
     private void send(String topic, String value) throws Exception {

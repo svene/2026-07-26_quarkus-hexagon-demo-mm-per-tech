@@ -7,8 +7,8 @@ import org.svenehrke.triptychdemo.cross.products.ProductType;
 import org.svenehrke.triptychdemo.cross.purchasing.SupplierOrder;
 import org.svenehrke.triptychdemo.cross.purchasing.SupplierOrderOrigin;
 import org.svenehrke.triptychdemo.cross.purchasing.SupplierOrderRepositorySPI;
+import org.svenehrke.triptychdemo.cross.events.AsyncEvents;
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.enterprise.event.Event;
 import jakarta.inject.Inject;
 
 @ApplicationScoped
@@ -21,7 +21,7 @@ public class MeatHandler {
     @Inject
     AuditLogSPI auditLog;
     @Inject
-    Event<InventoryEvent> inventoryEvents;
+    AsyncEvents inventoryEvents;
 
     public void order(MeatOrder meatOrder) {
         auditLog.log("MeatHandler: MEAT_ORDER_PROCESSING", meatOrder.productName() + " qty=" + meatOrder.quantity());
@@ -41,7 +41,7 @@ public class MeatHandler {
                 auditLog.log("MeatHandler: MEAT_ORDER_CANCELLED", cancelled.describe() + ": " + e));
             throw e;
         } finally {
-            inventoryEvents.fireAsync(new SupplierOrdersChanged());
+            inventoryEvents.fire(new SupplierOrdersChanged());
         }
         auditLog.log("MeatHandler: MEAT_ORDER_PLACED", meatOrder.productName() + " qty=" + meatOrder.quantity());
     }

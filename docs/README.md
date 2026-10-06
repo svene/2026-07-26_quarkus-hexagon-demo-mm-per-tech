@@ -50,11 +50,21 @@ Complete architecture documentation for the supermarket inventory system. All fi
 
 ### Programming Model: Virtual Threads vs. Mutiny
 
-**`architecture/virtual-threads-vs-mutiny.md`** (convention guide, mostly project-independent)
+Three files:
+
+**`architecture/virtual-threads-vs-mutiny.md`** (background, project-independent)
 - When a modern Quarkus app uses blocking code on virtual threads and when Mutiny (`Uni`/`Multi`)
-- What gets simpler, what stays Mutiny, how a large Mutiny-based system migrates, and the pitfalls
-- What it means for this demo
+- The two problems Mutiny solves, how Quarkus picks the thread, what gets simpler, what stays Mutiny, decision guide
 - **Audience**: Developers and architects choosing or reviewing a threading/programming model
+
+**`architecture/virtual-threads-migrating-from-mutiny.md`** (project-independent)
+- Moving a large code base that uses Mutiny everywhere to virtual threads: strategy, transition rules, pitfalls
+- **Audience**: Teams with a Mutiny-heavy Quarkus system
+
+**`architecture/virtual-threads-in-this-project.md`** (this demo)
+- What runs where (virtual thread, event loop, worker pool), the Kafka and async-event decisions, the ArchUnit/test
+  guards and the pinning check
+- **Audience**: Developers working on this project
 
 ### Flow Sequence Diagrams
 

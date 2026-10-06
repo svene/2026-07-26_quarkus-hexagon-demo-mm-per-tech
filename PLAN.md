@@ -904,14 +904,15 @@ enough (3 failures again): Quarkus scans for changes at most every 2 s (`HOT_REP
 reused server with a changed source **27/27, 33 s** (one reload, absorbed); fresh run **27/27, 39 s** (the warm-up costs
 ≈ 2.5 s there).
 
-## virtual-threads: Replace Mutiny with virtual threads? (ELABORATED 2026-10-06, conversion TO PLAN)
+## virtual-threads: Replace Mutiny with virtual threads? (DONE 2026-10-06)
 
 Added 2026-10-06 at the user's request: elaborate whether replacing Mutiny with virtual threads simplifies the code,
 and whether it is a good idea or not. Analysis first, no code until a plan is approved.
 
 **Direction (user, 2026-10-06):** the demo's programming model must conform to a modern Quarkus app: not Mutiny for
 everything, and no blocked platform threads, even in the demo. Background, migration guidance for large Mutiny code
-bases, and the per-part mapping for this demo: [`docs/architecture/virtual-threads-vs-mutiny.md`](docs/architecture/virtual-threads-vs-mutiny.md).
+bases, and this demo: `docs/architecture/virtual-threads-vs-mutiny.md`, `virtual-threads-migrating-from-mutiny.md`,
+`virtual-threads-in-this-project.md`.
 This supersedes option A below: next step is a conversion plan (`@RunOnVirtualThread` on REST/`@Scheduled`, Kafka
 receivers with max concurrency 1, SSE/`DeadLetterOrFailStop`/`LeadTime` unchanged) to be approved before code.
 Precondition done 2026-10-06: Java 25 (`maven.compiler.release` 25, `.sdkmanrc`; Quarkus 3.33 can't build Java 27).
@@ -959,6 +960,78 @@ threads would only pay off as a throughput measure under high concurrent blockin
 - **B: showcase only** - `@RunOnVirtualThread` on one REST receiver as a demo point, documented as "no functional
   change". Small, but adds a second threading model to explain.
 - **C: `LeadTime` on virtual threads** - rejected above (shutdown/reload handling makes it longer, not shorter).
+
+### Conversion plan (APPROVED 2026-10-06)
+
+Goal: no blocking I/O on a platform thread in the app; Mutiny only for streams and framework interfaces; existing
+libraries (JDBC, classic Mongo Panache, CXF, REST client, Kafka) unchanged.
+
+Entry points that run blocking code today, and their change:
+
+| # | Entry point | Today | Change |
+|---|---|---|---|
+| 1 | Kafka `@Incoming` (10 in `inbound-kafka`, `CarrierStub`, `NonFoodSupplierStub`) | `@Blocking`: worker thread, ordered | `@RunOnVirtualThread` instead of `@Blocking`, plus one global `smallrye.messaging.worker.<virtual-thread>.max-concurrency=1` (applies per method) to keep one-at-a-time processing and fail-stop |
+| 2 | REST receivers (`AdminReceiver`, `ShopReceiver`, `LocationReceiver`, `AuditLogReceiver`, `ProductApiReceiver`, `LocationApiReceiver`; stubs `Fruit/Vegetables/DairySupplierStub`, `CashpointTillsStub`) | worker thread | `@RunOnVirtualThread` on the class |
+| 3 | `@Scheduled` (`DemandPeriodReceiver`, `CashpointStub`) | worker thread | `@RunOnVirtualThread` on the method |
+| 4 | `@ObservesAsync` in `inbound-event` (`DeliveryEventReceiver`, `AutoReplenishmentReceiver`, `AutoPurchasingReceiver`, `ShipmentCatchUpReceiver`, `DcSeedReceiver`) | CDI async executor = worker thread, calls Handlers (JDBC, supplier calls) | the observer hands the work to an injected `@VirtualThreads ExecutorService` (Quarkus); the existing try/catch + audit log moves into the task unchanged |
+| 5 | `DcSeedReceiver.onStart` (Vert.x timer + `executeBlocking`) | worker thread | timer callback submits to the same virtual-thread executor |
+| 6 | SOAP stubs (`external-outbound-soap`, CXF endpoints) | CXF worker thread | spike: check whether quarkus-cxf can run service methods on virtual threads; if not, leave them (simulated external system) and document the exception |
+
+Unchanged on purpose: `InventoryEventsReceiver` (SSE `Multi`, no thread held), `InventoryEventBroadcaster` (only
+`offer`s, non-blocking), `DeadLetterOrFailStop` (SmallRye `Uni` SPI), `LeadTime` (timer, no thread held while
+waiting; only its javadoc "Mutiny's worker pool" → "Quarkus' worker pool").
+
+Rejected for #4: `fireAsync(event, NotificationOptions.ofExecutor(...))` in core - it would put a threading concern into
+the hexagon's core. The adapter (`inbound-event`) is the right place.
+
+Steps:
+1. **Spike Kafka** (decides #1): convert one receiver, confirm with `KafkaTransientFailureTest` /
+   `KafkaMalformedMessageTest` that retry, fail-stop and dead-lettering behave as with `@Blocking`, and with a
+   temporary log line that messages run one at a time on virtual threads. Same spike: quarkus-cxf support (#6).
+2. Convert #1 (all), #2, #3, #4, #5 (#6 per spike).
+3. **ArchUnit rule** in the existing `ArchitectureTest`: no `@Blocking` in our modules; REST resource methods
+   (except `Uni`/`Multi` returns), `@Incoming` and `@Scheduled` methods carry `@RunOnVirtualThread` (method or class).
+   Keeps new code from silently falling back to platform threads.
+4. **Pinning check, once:** run the full suite with JFR and look for `jdk.VirtualThreadPinned` events
+   (JDBC, Mongo driver, CXF, Kafka client); report, fix only what is ours.
+5. Docs: split `virtual-threads-vs-mutiny.md` into three (user, 2026-10-06; essentially just splitting): general
+   background, this project (mark done, add the `@ObservesAsync` row it is missing), and migrating a code base that
+   uses Mutiny heavily today. Also
+   `architecture-module-participants.md` / `architecture-flow.md` / `flows/dc-seed.puml` (worker thread → virtual
+   thread), `LeadTime` wording.
+6. Full app-server suite + e2e, then stage.
+
+**Progress (2026-10-06):**
+- Step 1 spike DONE: without the cap, 10 fruit messages ran concurrently and finished out of order; with
+  `max-concurrency=1` one at a time, in order, on virtual threads; retry, fail-stop and DLQ tests green. Kept as
+  `KafkaTransientFailureTest.messages_are_processed_one_at_a_time_in_order` (verified to fail without the cap).
+  Fixed a latent race in the fail-stop test it exposed (it "recovered" between attempt 4's audit entry and its failure).
+  quarkus-cxf 3.33.2 has no virtual-thread support for service endpoints; the SOAP stubs don't block (they only
+  schedule the delivery), so #6 stays as is.
+- #1 (12 Kafka consumers), #2 (10 REST classes), #3 (2 `@Scheduled`) DONE; ArchUnit rules
+  `entry_points_run_on_virtual_threads` (verified to fail on a missing annotation) and
+  `nothing_runs_on_platform_worker_threads` DONE; full suite 168/168 green. Staged.
+- **#4 BLOCKED, decision needed:** ArC notifies all async observers of one event serially in ONE task
+  (`EventImpl.fireAsync`: "async observers are notified serially") on the platform worker pool. A per-observer hand-off
+  to virtual threads would run e.g. DcSeed, AutoPurchasing, AutoReplenishment and ShipmentCatchUp on
+  `LevelsRecalculated` in parallel (risk: duplicate supplier orders). Options: (A) core fires with
+  `NotificationOptions.ofExecutor(executor)`, the `Executor` injected via a core qualifier and produced by an adapter
+  as Quarkus' `@VirtualThreads` executor - same serial semantics, ~30 call sites in core; (B) one single-threaded
+  virtual-thread executor in `inbound-event` that all observers hand off to - inbound-event only, but serializes ALL
+  event reactions globally; (C) leave observers on platform threads, documented exception.
+- #4 DONE with option A (user, 2026-10-06; a Kafka-based variant was considered and rejected: separate consumers
+  would run the reactions in parallel just the same): core `cross.events.AsyncEvents` + qualifier `@EventExecutor`,
+  13 handlers use it instead of `Event<…>`; `inbound-event` `EventExecutorProducer` produces Quarkus' `@VirtualThreads`
+  executor. Guards: ArchUnit `async_events_are_fired_only_through_async_events`, `AsyncEventsTest`. #5 DONE
+  (`DcSeedReceiver.onStart` timer → `@VirtualThreads` executor).
+- Step 4 DONE: full suite under JFR, `jdk.VirtualThreadPinned` threshold 0 ms: ~1,700 virtual-thread events, 0 pinned.
+- Step 5 DONE: doc split into `virtual-threads-vs-mutiny.md` (general), `virtual-threads-migrating-from-mutiny.md`
+  (Mutiny-heavy code bases; plus 3 lessons from this conversion) and `virtual-threads-in-this-project.md`; module
+  participants, flow doc, 2 diagrams, `LeadTime` javadoc, docs index, session notes updated.
+- Step 6 DONE: app-server 172/172, e2e 27/27. Staged.
+
+Risks: ordering with max-concurrency 1 is to be verified, not assumed (step 1); the Agroal pool (default 20) becomes
+the concurrency limit for HTTP - irrelevant at demo load, noted in the doc.
 
 ## Open questions
 

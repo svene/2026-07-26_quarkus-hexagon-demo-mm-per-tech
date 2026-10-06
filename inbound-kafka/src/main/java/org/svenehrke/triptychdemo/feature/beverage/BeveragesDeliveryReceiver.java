@@ -3,7 +3,7 @@ package org.svenehrke.triptychdemo.feature.beverage;
 import org.svenehrke.triptychdemo.cross.auditlog.AuditLogHandler;
 import org.svenehrke.triptychdemo.cross.inventory.InventoryHandler;
 
-import io.smallrye.reactive.messaging.annotations.Blocking;
+import io.smallrye.common.annotation.RunOnVirtualThread;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.validation.ConstraintViolation;
@@ -24,7 +24,7 @@ public class BeveragesDeliveryReceiver {
     AuditLogHandler auditLog;
 
     @Incoming("beverages-deliveries")
-    @Blocking
+    @RunOnVirtualThread
     @Retry(maxRetries = 3, delay = 1, delayUnit = ChronoUnit.SECONDS, abortOn = UnprocessableMessageException.class)
     public void receive(RawBeverageDelivery message) {
         logReceived(message);

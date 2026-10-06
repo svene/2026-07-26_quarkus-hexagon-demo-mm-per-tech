@@ -3,6 +3,7 @@ package org.svenehrke.triptychdemo.cross;
 import org.svenehrke.triptychdemo.cross.location.Locations;
 import org.svenehrke.triptychdemo.cross.products.ProductsHandler;
 
+import io.smallrye.common.annotation.RunOnVirtualThread;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.NotFoundException;
@@ -13,6 +14,7 @@ import jakarta.ws.rs.core.MediaType;
 import java.util.List;
 
 /** Stock per location, e.g. for the store cashpoints. */
+@RunOnVirtualThread
 @Path("/api/locations")
 public class LocationApiReceiver {
 

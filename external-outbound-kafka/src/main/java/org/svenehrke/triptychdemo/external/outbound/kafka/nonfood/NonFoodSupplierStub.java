@@ -1,6 +1,6 @@
 package org.svenehrke.triptychdemo.external.outbound.kafka.nonfood;
 
-import io.smallrye.reactive.messaging.annotations.Blocking;
+import io.smallrye.common.annotation.RunOnVirtualThread;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.svenehrke.triptychdemo.external.outbound.kafka.LeadTime;
@@ -19,7 +19,7 @@ public class NonFoodSupplierStub {
     LeadTime leadTime;
 
     @Incoming("nonfood-orders")
-    @Blocking
+    @RunOnVirtualThread
     public void processOrder(NonFoodOrderMessage order) {
         leadTime.deliverLater(() -> emitter.send(new DeliveryMessage(order.productName(), order.quantity())));
     }

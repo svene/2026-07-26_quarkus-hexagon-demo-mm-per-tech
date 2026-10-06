@@ -1,9 +1,11 @@
 # Virtual Threads vs. Mutiny: the Programming Model of a Modern Quarkus App
 
 General background on when a Quarkus application should use Mutiny (`Uni`/`Multi`) and when plain blocking
-code on virtual threads. It also covers what changes when a large code base that uses Mutiny everywhere moves to
-virtual threads. Most of this file is project-independent on purpose. How this demo applies it is in the last section,
-and the decision is tracked in `PLAN.md` (`virtual-threads`).
+code on virtual threads. Project-independent on purpose. Two companion files:
+
+- [`virtual-threads-migrating-from-mutiny.md`](virtual-threads-migrating-from-mutiny.md): moving a large code base that
+  uses Mutiny everywhere to virtual threads - strategy, rules, pitfalls.
+- [`virtual-threads-in-this-project.md`](virtual-threads-in-this-project.md): how this demo applies it.
 
 Written 2026-10-06 against Quarkus 3.33 and Java 25.
 
@@ -140,61 +142,7 @@ What doesn't change: the domain logic, the APIs of the endpoints and topics, and
 
 ---
 
-## Migrating a large Mutiny-based system
-
-### Strategy: incremental, outside in
-
-1. **Raise the runtime first:** run on Java 24 or later (Java 25 is the current LTS). Up to Java 23, a virtual thread
-   that blocks inside a `synchronized` block **pins** its carrier thread: the platform thread stays blocked, which
-   defeats the purpose and can deadlock under load. JEP 491 (Java 24) removed that limitation. Many libraries (JDBC
-   drivers, Kafka clients, Jackson, logging) use `synchronized` internally.
-2. **New code is imperative on virtual threads:** new endpoints and consumers get `@RunOnVirtualThread` and blocking
-   signatures.
-3. **Convert existing code where it is touched,** endpoint by endpoint, worst-to-read chains first. Each endpoint picks
-   its own model, so old and new code live side by side.
-4. **Keep the reactive clients for now:** on a virtual thread you may wait for a `Uni`. Quarkus explicitly supports
-   this, and Mutiny's `...AndAwait()` methods or `uni.await().atMost(...)` don't pin the carrier. So the code above the
-   client becomes sequential before the client is swapped:
-
-   ```java
-   @RunOnVirtualThread
-   public Response product(String name) {
-       var product = reactiveRepository.findByName(name).await().atMost(Duration.ofSeconds(5));
-       return product == null ? Response.status(404).build() : Response.ok(product).build();
-   }
-   ```
-5. **Swap the libraries later, if ever:** Hibernate Reactive → Hibernate ORM, the reactive Mongo client → the classic
-   one, and so on. That is optional: it removes the `await()` calls and gives `@Transactional`, but the programming
-   model is already sequential without it.
-
-### Rules for the transition
-
-- **Never block on the event loop.** A method that still returns `Uni` runs on the event loop, so it must not call
-  converted, blocking code. Convert from the entry point (endpoint, consumer) inwards, or let the entry point switch
-  to `@RunOnVirtualThread` first.
-- **Don't leak `Uni` into the domain.** If core interfaces currently return `Uni`, change them to plain types once
-  all of their callers run on virtual threads. That is the step with the biggest payoff in readability, and the one
-  that touches the most code.
-
-### Pitfalls
-
-- **Kafka ordering:** `@RunOnVirtualThread` on an `@Incoming` method processes messages **concurrently and out of
-  order** (default max concurrency 1024 per method). If order, or a stop-on-failure strategy, matters, cap the
-  concurrency to 1 (`smallrye.messaging.worker.<virtual-thread>.max-concurrency=1`, or a named worker) and verify the
-  behaviour with tests.
-- **The limit moves to the resource pools:** with a virtual thread per request there is no thread pool limiting
-  concurrency any more, so a burst goes straight to the database connection pool and to downstream services. Size the
-  pools deliberately, and use a semaphore or a rate limiter where a downstream service needs protection.
-- **CPU-bound work** doesn't belong on virtual threads: they help with waiting, not with computing. Keep heavy
-  computation on a bounded platform pool.
-- **Thread-local caches:** libraries that cache expensive objects per thread (assuming a few long-lived pooled threads)
-  create one per virtual thread instead. Watch the memory and allocation profile after the switch.
-- **Remaining pinning:** native frames (JNI) and class initialisation can still pin. The JFR event
-  `jdk.VirtualThreadPinned` shows where (the old `-Djdk.tracePinnedThreads` flag is gone since Java 24).
-- **Thread dumps:** virtual threads are not in a classic `jstack` dump. Use
-  `jcmd <pid> Thread.dump_to_file -format=json <file>`.
-
-### Decision guide
+## Decision guide
 
 | Code | Model |
 |---|---|
@@ -205,30 +153,6 @@ What doesn't change: the domain logic, the APIs of the endpoints and topics, and
 | SSE, WebSocket streams, merging event sources | `Multi` |
 | parallel calls inside one request | `Uni.combine()` or a virtual-thread executor |
 | CPU-heavy work | bounded platform pool |
-
----
-
-## This demo
-
-The demo never went reactive. Handlers, SPIs and Services return plain types; persistence is JDBC
-(`outbound-postgres`), classic MongoDB Panache and CXF; Kafka receivers are `@Blocking`. Its **programming model
-already is the modern one**. What's missing is the execution side: the blocking code runs on **platform worker
-threads**, so every wait holds one.
-
-Moving the demo to virtual threads therefore **doesn't make its code simpler** (there are no `Uni` chains to remove),
-but it **stops blocking platform threads** while keeping the code as it is. Concretely, keeping all existing libraries:
-
-| Part | Change |
-|---|---|
-| REST receivers (`inbound-http-html`, `inbound-http-jsonapi`, stubs in `external-*`) | `@RunOnVirtualThread`, no code change |
-| `@Scheduled` (`DemandPeriodReceiver`, `CashpointStub`) | `@RunOnVirtualThread` |
-| Kafka receivers and stubs (`@Incoming` + `@Blocking`) | `@RunOnVirtualThread` with max concurrency 1, to keep order and fail-stop (`DeadLetterOrFailStop`); to be verified by the existing Kafka tests |
-| SSE stream (`InventoryEventsReceiver`) | stays `Multi`: it's a stream and holds no thread while idle |
-| `DeadLetterOrFailStop` | stays: `Uni` is SmallRye's interface |
-| `LeadTime` (delayed stub deliveries) | stays on Quarkus' worker-pool timer: it holds no thread while waiting |
-
-Precondition: Java 25, done on 2026-10-06 (`maven.compiler.release` 25, `.sdkmanrc`). Quarkus 3.33 can't build Java 27
-bytecode yet.
 
 ---
 

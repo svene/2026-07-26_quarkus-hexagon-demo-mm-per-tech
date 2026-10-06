@@ -8,7 +8,7 @@ import org.svenehrke.triptychdemo.cross.purchase.Purchase;
 import org.svenehrke.triptychdemo.cross.purchase.PurchaseHandler;
 
 import org.svenehrke.triptychdemo.cross.purchase.PurchaseItem;
-import io.smallrye.reactive.messaging.annotations.Blocking;
+import io.smallrye.common.annotation.RunOnVirtualThread;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.faulttolerance.Retry;
@@ -28,7 +28,7 @@ public class CashpointReceiver {
     AuditLogHandler auditLog;
 
     @Incoming("cashpoint-purchases")
-    @Blocking
+    @RunOnVirtualThread
     @Retry(maxRetries = 3, delay = 1, delayUnit = ChronoUnit.SECONDS, abortOn = UnprocessableMessageException.class)
     public void receive(PurchaseMessage message) {
         logReceived(message);

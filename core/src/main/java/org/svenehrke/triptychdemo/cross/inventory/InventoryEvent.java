@@ -1,7 +1,7 @@
 package org.svenehrke.triptychdemo.cross.inventory;
 
 /**
- * A committed change of stock (or of the requests for it), fired by core with {@code Event.fireAsync} - one event
+ * A committed change of stock (or of the requests for it), fired by core via {@code AsyncEvents} ({@code Event.fireAsync}) - one event
  * per change, after the commit, so an observer that re-reads sees it. Observers are inbound adapters: one can react
  * to a specific event (e.g. {@link DeliveredToDc}), or to all of them by observing this type (the live updates of
  * the pages). Async, so no observer can slow down or fail the change.

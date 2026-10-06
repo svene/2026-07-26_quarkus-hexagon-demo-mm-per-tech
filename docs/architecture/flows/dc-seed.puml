@@ -13,7 +13,7 @@ participant "AuditLogService\n(MongoDB)" as audit
 database "PostgreSQL\n(stock, supplier_order)" as db
 
 alt after the start
-  receiver -> receiver: StartupEvent → Vert.x timer\n(inventory.dc-seed.startup-delay = 5s, worker thread)
+  receiver -> receiver: StartupEvent → Vert.x timer\n(inventory.dc-seed.startup-delay = 5s, virtual thread)
 else after the admin reset
   source ->> receiver: fireAsync(InventoryReset)
 else after a period close

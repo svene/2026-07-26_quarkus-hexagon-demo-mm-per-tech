@@ -11,8 +11,8 @@ import org.svenehrke.triptychdemo.cross.location.Locations;
 import org.svenehrke.triptychdemo.cross.location.Replenished;
 import org.svenehrke.triptychdemo.cross.location.Store;
 import org.svenehrke.triptychdemo.cross.products.Product;
+import org.svenehrke.triptychdemo.cross.events.AsyncEvents;
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.enterprise.event.Event;
 import jakarta.inject.Inject;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -30,7 +30,7 @@ public class PurchaseHandler {
     @Inject
     AuditLogSPI auditLog;
     @Inject
-    Event<InventoryEvent> inventoryEvents;
+    AsyncEvents inventoryEvents;
 
     /**
      * Online purchase (shop, JSON API), from the online FC's stock: all-or-nothing, rejected if any item is not
@@ -64,7 +64,7 @@ public class PurchaseHandler {
         var deduction = inventoryRepository.deductAll(location, quantitiesByName, onShortage);
         inventoryRepository.recordDemand(location, quantitiesByName);
         if (!deduction.updated().isEmpty()) {
-            inventoryEvents.fireAsync(new StockDeducted(location,
+            inventoryEvents.fire(new StockDeducted(location,
                 deduction.updated().stream().map(Product::name).collect(Collectors.toSet())));
             auditLog.log("PurchaseHandler: INVENTORY_DEDUCTED", location.id() + ": " + deduction.updated().stream()
                 .map(p -> p.name() + " -" + quantitiesByName.get(p.name()) + " total=" + p.availableAmount())

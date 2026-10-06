@@ -1,5 +1,6 @@
 package org.svenehrke.triptychdemo.external.inbound.kafka.cashpoint;
 
+import io.smallrye.common.annotation.RunOnVirtualThread;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.PUT;
@@ -9,6 +10,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
 /** The checkout systems' till control: the app opens or closes tills of a store (head office, demo). */
+@RunOnVirtualThread
 @Path("/cashpoint-stub/stores/{storeId}/tills")
 public class CashpointTillsStub {
 

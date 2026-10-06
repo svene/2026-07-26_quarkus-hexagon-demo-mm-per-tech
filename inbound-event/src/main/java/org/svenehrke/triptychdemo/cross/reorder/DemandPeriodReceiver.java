@@ -1,6 +1,7 @@
 package org.svenehrke.triptychdemo.cross.reorder;
 
 import io.quarkus.scheduler.Scheduled;
+import io.smallrye.common.annotation.RunOnVirtualThread;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
@@ -20,6 +21,7 @@ public class DemandPeriodReceiver {
      * almost no length (learning a demand of 0), and the observers of {@code LevelsRecalculated} would call the
      * supplier stubs before the HTTP server listens. A property of its own: {@code delayed} doesn't accept {@code off}.
      */
+    @RunOnVirtualThread
     @Scheduled(every = "${inventory.demand-period}", delayed = "${inventory.first-period-close-delay}",
         concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
     void closePeriod() {

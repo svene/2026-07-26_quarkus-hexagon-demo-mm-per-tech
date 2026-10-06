@@ -8,6 +8,7 @@ import org.svenehrke.triptychdemo.cross.purchase.PurchaseHandler;
 import org.svenehrke.triptychdemo.cross.purchase.ParsedPurchase;
 import org.svenehrke.triptychdemo.cross.purchase.Purchase;
 import org.svenehrke.triptychdemo.cross.purchase.PurchaseOutcome;
+import io.smallrye.common.annotation.RunOnVirtualThread;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.FormParam;
@@ -23,6 +24,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /** The online shop: sells from the online FC's stock. */
+@RunOnVirtualThread
 @Path("/shop")
 public class ShopReceiver {
 

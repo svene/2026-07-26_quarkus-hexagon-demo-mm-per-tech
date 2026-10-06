@@ -6,8 +6,8 @@ import org.svenehrke.triptychdemo.cross.inventory.InventoryEvent;
 import org.svenehrke.triptychdemo.cross.inventory.ReplenishmentChanged;
 import org.svenehrke.triptychdemo.cross.location.Locations;
 import org.svenehrke.triptychdemo.cross.location.Replenished;
+import org.svenehrke.triptychdemo.cross.events.AsyncEvents;
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.enterprise.event.Event;
 import jakarta.inject.Inject;
 import java.time.Duration;
 import java.time.Instant;
@@ -39,7 +39,7 @@ public class ReplenishmentHandler {
     @Inject
     AuditLogSPI auditLog;
     @Inject
-    Event<InventoryEvent> inventoryEvents;
+    AsyncEvents inventoryEvents;
 
     /** Empty if the DC has never carried the product. */
     public Optional<ReplenishmentRequest> request(StockRequest request) {
@@ -58,7 +58,7 @@ public class ReplenishmentHandler {
             auditLog.log("ReplenishmentHandler: REQUEST_PENDING", describe(stored));
         }
         fireChanged(Stream.concat(Stream.of(stored.location()), locations(transfers)));
-        inventoryEvents.fireAsync(new DcDemandChanged(request.productName()));
+        inventoryEvents.fire(new DcDemandChanged(request.productName()));
         return Optional.of(stored);
     }
 
@@ -93,7 +93,7 @@ public class ReplenishmentHandler {
         fulfilled.ifPresent(f -> {
             ship(f.transfers());
             if (f.transfers().isEmpty()) logPending(f.request());
-            inventoryEvents.fireAsync(new ReplenishmentChanged(f.request().location()));
+            inventoryEvents.fire(new ReplenishmentChanged(f.request().location()));
         });
         return fulfilled.map(Requested::request);
     }
@@ -104,7 +104,7 @@ public class ReplenishmentHandler {
         var rejected = replenishmentRepository.reject(requestId);
         rejected.ifPresent(r -> {
             auditLog.log("ReplenishmentHandler: REQUEST_CANCELLED", describe(r));
-            inventoryEvents.fireAsync(new ReplenishmentChanged(r.location()));
+            inventoryEvents.fire(new ReplenishmentChanged(r.location()));
         });
         return rejected;
     }
@@ -115,7 +115,7 @@ public class ReplenishmentHandler {
         replenishmentRepository.receiveShipment(shipmentId).ifPresentOrElse(
             shipment -> {
                 auditLog.log("ReplenishmentHandler: SHIPMENT_ARRIVED", describe(shipment));
-                inventoryEvents.fireAsync(new ReplenishmentChanged(shipment.location()));
+                inventoryEvents.fire(new ReplenishmentChanged(shipment.location()));
             },
             () -> auditLog.log("ReplenishmentHandler: SHIPMENT_ARRIVAL_IGNORED",
                 "shipment " + shipmentId + ": not in transit (unknown or arrived already)"));
@@ -153,7 +153,7 @@ public class ReplenishmentHandler {
             .filter(r -> transfers.stream().noneMatch(t -> t.request().id() == r.id()))
             .forEach(r -> auditLog.log("ReplenishmentHandler: REQUEST_PENDING", describe(r)));
         fireChanged(Stream.concat(created.stream().map(ReplenishmentRequest::location), locations(transfers)));
-        inventoryEvents.fireAsync(new DcDemandChanged(productName));
+        inventoryEvents.fire(new DcDemandChanged(productName));
     }
 
     private static Stream<Replenished> locations(List<Transfer> transfers) {
@@ -161,7 +161,7 @@ public class ReplenishmentHandler {
     }
 
     private void fireChanged(Stream<Replenished> locations) {
-        locations.distinct().forEach(location -> inventoryEvents.fireAsync(new ReplenishmentChanged(location)));
+        locations.distinct().forEach(location -> inventoryEvents.fire(new ReplenishmentChanged(location)));
     }
 
     private void ship(List<Transfer> transfers) {

@@ -32,6 +32,7 @@ import org.svenehrke.triptychdemo.feature.vegetable.VegetablesHandler;
 
 import com.fasterxml.jackson.databind.exc.MismatchedInputException;
 import io.quarkus.resteasy.reactive.jackson.CustomDeserialization;
+import io.smallrye.common.annotation.RunOnVirtualThread;
 import jakarta.inject.Inject;
 import jakarta.validation.ConstraintViolation;
 import jakarta.ws.rs.Consumes;
@@ -51,6 +52,7 @@ import static org.svenehrke.triptychdemo.cross.JsonResponses.badRequest;
 import static org.svenehrke.triptychdemo.cross.JsonResponses.conflict;
 
 /** The online shop's API: products and purchases are those of the online FC; supplier orders go to the DC. */
+@RunOnVirtualThread
 @Path("/api/products")
 @CustomDeserialization(StrictJsonReader.class)
 public class ProductApiReceiver {

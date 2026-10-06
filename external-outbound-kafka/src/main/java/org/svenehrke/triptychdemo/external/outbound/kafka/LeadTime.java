@@ -13,10 +13,10 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 /**
  * A supplier's lead time: the stubs deliver an order {@code supplier-stub.lead-time} ± 20% after it was placed. The
- * delivery is scheduled on Mutiny's worker pool, so the thread that received the order (HTTP, SOAP or Kafka consumer)
- * returns right away instead of waiting for it. Each external module has its own copy, as they stand for independent
- * suppliers. The carrier stub uses {@link #later} with its own transit time. Looked up per delivery, so a test can
- * switch it without its own Quarkus instance.
+ * delivery is scheduled on Quarkus' worker pool (via Mutiny's {@code Infrastructure}), so the thread that received the
+ * order (HTTP, SOAP or Kafka consumer) returns right away instead of waiting for it. Each external module has its own
+ * copy, as they stand for independent suppliers. The carrier stub uses {@link #later} with its own transit time. Looked
+ * up per delivery, so a test can switch it without its own Quarkus instance.
  */
 @ApplicationScoped
 public class LeadTime {
@@ -28,7 +28,7 @@ public class LeadTime {
         later(leadTime.get(), delivery);
     }
 
-    /** Runs {@code action} {@code delay} ± 20% from now, on Mutiny's worker pool. */
+    /** Runs {@code action} {@code delay} ± 20% from now, on Quarkus' worker pool. */
     public void later(Duration delay, Runnable action) {
         Infrastructure.getDefaultWorkerPool().schedule(() -> {
             try {

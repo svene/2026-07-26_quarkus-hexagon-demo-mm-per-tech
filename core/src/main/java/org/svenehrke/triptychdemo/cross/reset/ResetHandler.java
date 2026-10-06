@@ -3,8 +3,8 @@ package org.svenehrke.triptychdemo.cross.reset;
 import org.svenehrke.triptychdemo.cross.auditlog.AuditLogSPI;
 import org.svenehrke.triptychdemo.cross.inventory.InventoryEvent;
 import org.svenehrke.triptychdemo.cross.inventory.InventoryReset;
+import org.svenehrke.triptychdemo.cross.events.AsyncEvents;
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.enterprise.event.Event;
 import jakarta.inject.Inject;
 
 /**
@@ -22,12 +22,12 @@ public class ResetHandler {
     @Inject
     AuditLogSPI auditLog;
     @Inject
-    Event<InventoryEvent> inventoryEvents;
+    AsyncEvents inventoryEvents;
 
     public void reset() {
         repository.deleteAll();
         auditLog.clear();
         auditLog.log("ResetHandler: INVENTORY_RESET", "stock, requests, shipments, supplier orders and audit log deleted");
-        inventoryEvents.fireAsync(new InventoryReset());
+        inventoryEvents.fire(new InventoryReset());
     }
 }

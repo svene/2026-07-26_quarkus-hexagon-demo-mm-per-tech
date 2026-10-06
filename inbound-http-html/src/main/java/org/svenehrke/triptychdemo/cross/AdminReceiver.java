@@ -29,6 +29,7 @@ import org.svenehrke.triptychdemo.feature.vegetable.VegetableOrder;
 import org.svenehrke.triptychdemo.feature.vegetable.ParsedVegetableOrder;
 import org.svenehrke.triptychdemo.feature.vegetable.VegetablesHandler;
 
+import io.smallrye.common.annotation.RunOnVirtualThread;
 import jakarta.validation.ConstraintViolation;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
@@ -46,6 +47,7 @@ import java.util.Map;
 import java.util.Set;
 
 /** Head office: the stock of every location, supplier orders (for the DC) and the stores' pending requests. */
+@RunOnVirtualThread
 @Path("/admin")
 public class AdminReceiver {
 

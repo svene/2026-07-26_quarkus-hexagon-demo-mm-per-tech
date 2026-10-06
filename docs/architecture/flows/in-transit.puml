@@ -26,7 +26,7 @@ alt send fails
   handler -> audit: log("SHIPMENT_DISPATCH_FAILED")\n(the period close sends it again)
 end
 topic_out -> stub: consume (@Incoming)
-stub -> stub: wait carrier-stub.transit-time ± 20%\n(Mutiny worker pool)
+stub -> stub: wait carrier-stub.transit-time ± 20%\n(Quarkus worker pool)
 stub -> topic_in: ShipmentArrivalMessage {shipmentId}
 topic_in -> receiver: consume (@Incoming)
 receiver -> audit: log("SHIPMENT_ARRIVAL_RECEIVED")

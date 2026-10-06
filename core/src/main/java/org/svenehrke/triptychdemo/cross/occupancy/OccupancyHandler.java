@@ -1,8 +1,8 @@
 package org.svenehrke.triptychdemo.cross.occupancy;
 
 import org.svenehrke.triptychdemo.cross.auditlog.AuditLogSPI;
+import org.svenehrke.triptychdemo.cross.events.AsyncEvents;
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.enterprise.event.Event;
 import jakarta.inject.Inject;
 
 import java.util.List;
@@ -21,7 +21,7 @@ public class OccupancyHandler {
     @Inject
     AuditLogSPI auditLog;
     @Inject
-    Event<OccupancyChanged> occupancyEvents;
+    AsyncEvents occupancyEvents;
 
     /**
      * Idempotent: a report older than (or as old as) the stored one - redelivered, or overtaken by a newer one - is
@@ -29,7 +29,7 @@ public class OccupancyHandler {
      */
     public void record(StoreOccupancy occupancy) {
         if (repository.saveIfNewer(occupancy)) {
-            occupancyEvents.fireAsync(new OccupancyChanged(occupancy.store()));
+            occupancyEvents.fire(new OccupancyChanged(occupancy.store()));
         }
     }
 

@@ -4,7 +4,7 @@ import org.svenehrke.triptychdemo.cross.auditlog.AuditLogHandler;
 import org.svenehrke.triptychdemo.cross.location.Locations;
 import org.svenehrke.triptychdemo.cross.location.Store;
 
-import io.smallrye.reactive.messaging.annotations.Blocking;
+import io.smallrye.common.annotation.RunOnVirtualThread;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.validation.Path;
@@ -30,7 +30,7 @@ public class StoreOccupancyReceiver {
     AuditLogHandler auditLog;
 
     @Incoming("store-occupancy")
-    @Blocking
+    @RunOnVirtualThread
     @Retry(maxRetries = 3, delay = 1, delayUnit = ChronoUnit.SECONDS, abortOn = UnprocessableMessageException.class)
     public void receive(OccupancyMessage message) {
         rejectUnprocessable(message);
