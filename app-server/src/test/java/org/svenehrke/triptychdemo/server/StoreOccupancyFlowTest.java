@@ -59,7 +59,7 @@ class StoreOccupancyFlowTest {
         var now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
         occupancyPublisher.publish(new OccupancyMessage("zurich", now, 16, 16, 5, 4, 4, 7));
 
-        await().atMost(10, SECONDS).untilAsserted(() -> assertThat(fragment("zurich").getInt("vm.report.inside")).isEqualTo(16));
+        await().atMost(10, SECONDS).untilAsserted(() -> assertThat(fragment("zurich").<Integer>get("vm.report.inside")).isEqualTo(16));
         var report = fragment("zurich");
         assertThat(report.getInt("vm.report.capacity")).isEqualTo(16);
         assertThat(report.getBoolean("vm.report.full")).isTrue();
@@ -81,14 +81,14 @@ class StoreOccupancyFlowTest {
     void an_older_report_than_the_stored_one_is_ignored() {
         var now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
         occupancyPublisher.publish(new OccupancyMessage("basel", now, 10, 12, 2, 2, 2, 0));
-        await().atMost(10, SECONDS).untilAsserted(() -> assertThat(fragment("basel").getInt("vm.report.inside")).isEqualTo(10));
+        await().atMost(10, SECONDS).untilAsserted(() -> assertThat(fragment("basel").<Integer>get("vm.report.inside")).isEqualTo(10));
 
         // overtaken (or redelivered): older than what is stored, then a newer one to know both were processed
         occupancyPublisher.publish(new OccupancyMessage("basel", now.minusSeconds(5), 9, 12, 0, 2, 0, 0));
         occupancyPublisher.publish(new OccupancyMessage("basel", now, 8, 12, 0, 2, 0, 0));
         occupancyPublisher.publish(new OccupancyMessage("basel", now.plusSeconds(5), 11, 12, 3, 2, 2, 1));
 
-        await().atMost(10, SECONDS).untilAsserted(() -> assertThat(fragment("basel").getInt("vm.report.inside")).isEqualTo(11));
+        await().atMost(10, SECONDS).untilAsserted(() -> assertThat(fragment("basel").<Integer>get("vm.report.inside")).isEqualTo(11));
     }
 
     @Test

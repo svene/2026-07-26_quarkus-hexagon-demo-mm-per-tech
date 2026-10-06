@@ -7,12 +7,12 @@ import io.quarkus.test.junit.mockito.InjectSpy;
 import jakarta.inject.Inject;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.AdminClientConfig;
-import org.apache.kafka.clients.consumer.ConsumerConfig;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.clients.admin.ListOffsetsResult;
+import org.apache.kafka.clients.admin.OffsetSpec;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.common.serialization.StringDeserializer;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.eclipse.microprofile.config.ConfigProvider;
 import org.junit.jupiter.api.AfterAll;
@@ -22,11 +22,10 @@ import org.junit.jupiter.api.Test;
 import org.svenehrke.triptychdemo.cross.purchasing.SupplierOrderService;
 import org.svenehrke.triptychdemo.cross.products.ProductType;
 
-import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
+import java.util.stream.Collectors;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -130,7 +129,7 @@ class KafkaTransientFailureTest {
         doCallRealMethod().when(supplierOrderService).receiveDelivery(anyString(), eq(ProductType.VEGETABLE), anyInt());
         send("transient-vegetables-deliveries", """
             {"productName": "Carrot", "quantity": 5}""");
-        await().during(5, SECONDS).atMost(6, SECONDS).untilAsserted(() ->
+        await().during(2, SECONDS).atMost(3, SECONDS).untilAsserted(() ->
             assertThat(auditHelper.findEventDetails("VegetablesDeliveryReceiver: VEGETABLE_DELIVERY_RECEIVED"))
                 .containsOnly("Leek qty=5"));
 
@@ -148,15 +147,14 @@ class KafkaTransientFailureTest {
         producer.send(new ProducerRecord<>(topic, value)).get();
     }
 
-    private static int countRecords(String topic) {
-        try (var consumer = new KafkaConsumer<String, String>(Map.of(
-            ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrap,
-            ConsumerConfig.GROUP_ID_CONFIG, "dlq-reader-" + UUID.randomUUID(),
-            ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest",
-            ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class,
-            ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class))) {
-            consumer.subscribe(List.of(topic));
-            return consumer.poll(Duration.ofSeconds(3)).count();
+    /** The topic's end offset: instant, where polling an empty topic waits for the whole poll timeout. */
+    private static long countRecords(String topic) throws Exception {
+        try (var admin = AdminClient.create(Map.of(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrap))) {
+            if (!admin.listTopics().names().get().contains(topic)) return 0;
+            var partitions = admin.describeTopics(List.of(topic)).allTopicNames().get().get(topic).partitions().stream()
+                .collect(Collectors.toMap(p -> new TopicPartition(topic, p.partition()), p -> OffsetSpec.latest()));
+            return admin.listOffsets(partitions).all().get().values().stream()
+                .mapToLong(ListOffsetsResult.ListOffsetsResultInfo::offset).sum();
         }
     }
 }

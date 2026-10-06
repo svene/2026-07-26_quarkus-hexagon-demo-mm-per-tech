@@ -737,7 +737,7 @@ transaction; the sequences stay, so ids remain unique), `AuditLogSPI.clear()` (t
 late supplier delivery adds to the DC, a late shipment arrival is ignored. Tests: `AdminReceiverTest` case; the e2e
 test intercepts the POST (a real reset would wipe the data of the spec files running in parallel).
 
-## faster-tests: Shorten the test runs (lever 1 DONE; levers 2-5 TO ELABORATE)
+## faster-tests: Shorten the test runs (levers 1 and 3 DONE; levers 2, 4, 5 TO ELABORATE)
 
 Added 2026-10-05 at the user's request: the test runs take too long. Measured on 2026-10-05 (`store-occupancy`):
 - **app-server: 3:48 min** for 167 tests (+ build). The 7 slowest classes are exactly the 7 with a `@TestProfile`
@@ -804,6 +804,57 @@ Steps:
 4. Update this item with the measurements; docs/`concepts.md` where they mention the profiles. DONE: nothing to
    change - only the historical `split-inventory_wip.md` mentions the old profiles.
 5. Stage, don't commit.
+
+### Lever 3: shorter waits (APPROVED and DONE 2026-10-06)
+
+Where the waiting goes (app-server ≈ 2:10 after lever 1, from the surefire reports):
+
+| Cause | Cost |
+|---|---|
+| Awaitility's default poll delay (100 ms before the first check): 79 `await()`s, 25 of them in `@BeforeEach`. E.g. `ProductApiReceiverTest`: 51 tests in 6.2 s ≈ the `setUp()` await | est. 15-25 s |
+| Negative waits (`await().during`): 5 s in the persistent-failure test, 4 × 1 s in `AutoReplenishment`/`AutoPurchasing` | 9 s |
+| `countRecords()` on an empty DLQ: `poll(3s)` always waits the full 3 s, called twice | 6 s |
+| `@Retry` delay 1 s (+ jitter): 1 retry in the transient test, 3 in the persistent one | ≈ 4 s |
+| Lead/transit time 2 s in the 3 timing tests | ≈ 6 s, by design |
+| Startup of the two Kafka profile classes | ≈ 27 s, lever 1 territory |
+
+**Kafka is not the bottleneck:** an order → Kafka → delivery round trip takes 0.25-0.4 s per test. The consumer/broker
+settings (`fetch.max.wait.ms`, rebalance delay) are therefore dropped from this lever.
+
+Decisions:
+- **A. Awaitility defaults:** poll delay 0, poll interval 50 ms, set once for the app-server test JVM. Open: where -
+  a JUnit extension might set it in another classloader than the one Quarkus loads the tests with. Spike first,
+  measured on `ProductApiReceiverTest`; fallback a `TestAwait` helper (touches the 25 `@BeforeEach` awaits).
+- **B. `@Retry` delay in `%test` only:** 100 ms, jitter 0 (`quarkus.fault-tolerance.global.retry.*`, names to verify).
+  Production keeps 1 s.
+- **C. `countRecords()` without polling:** the DLQ's end offset via `AdminClient` (0 if the topic doesn't exist) -
+  instant, and the same check.
+- **D. Persistent-failure test:** `during(5s)` → `during(2s)` (a message is normally consumed in ≈ 0.3 s). The 1 s
+  negative waits stay.
+- Rejected: lead/transit time 1 s - `SupplierLeadTimeFlowTest` asserts the order call returns in < 1 s and nothing
+  arrived yet; with 1 s ± 20 % that gets flaky.
+
+Expected: ≈ 15-20 s from B-D plus whatever A shows; measured, not promised.
+
+Steps:
+1. Spike A, measure. DONE 2026-10-06: `FastAwaitility`, a `QuarkusTestBeforeClassCallback` (META-INF/services) that
+   sets the defaults per `@QuarkusTest` class, so they land in Quarkus' classloader. `ProductApiReceiverTest`: 51 tests
+   6.8 s → 1.4 s (median 126 → 19 ms); `AutoReplenishmentFlowTest` 7.5 → 7.1 s (dominated by its `during` waits).
+2. B, C, D. DONE: `%test.quarkus.fault-tolerance.global.retry.delay=100` (+ `delay-unit=millis`, `jitter=0`);
+   `countRecords()` reads the end offset via `AdminClient`; `during(2s)`. Persistent-failure test 13.7 → 3.8 s,
+   transient 5.8 → 1.2 s.
+3. Full suite twice; compare against 2:10. DONE: the first two runs (1:38 / 1:32) failed - the faster polling exposed
+   two existing bugs (fixed, approved 2026-10-06):
+   - `StoreOccupancyFlowTest` (test bug): `getInt("vm.report.inside")` inside `untilAsserted` threw a
+     `NullPointerException` while no report was there yet, and Awaitility only retries on `AssertionError`s; it only
+     passed because the first check used to come 100 ms late. Now `.<Integer>get(…)`, a failing assertion instead.
+   - `DcSeedFlowTest.concurrent_seeds_order_once` (production race, `SupplierOrderService.openSeed`): the "DC carries
+     it" and "an order is open" checks are separate statements under READ COMMITTED; a delivery committing between
+     them (stock first missing, then the order already delivered) made the seed order the product again. Fix: check
+     the open order first, then the stock - every interleaving sees one of the two.
+   After the fixes: 167/167 green twice, app-server **1:33 / 1:34 min** (was 2:10, before lever 1 3:48);
+   `DcSeedFlowTest` + `StoreOccupancyFlowTest` green 5 more times in a row.
+4. Update this item; stage, don't commit. DONE.
 
 ## Open questions
 

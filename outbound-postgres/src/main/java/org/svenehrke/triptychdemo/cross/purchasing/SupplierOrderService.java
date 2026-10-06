@@ -58,13 +58,16 @@ public class SupplierOrderService implements SupplierOrderRepositorySPI {
     /**
      * A product the DC doesn't carry has no stock row to lock, so an advisory lock serializes concurrent seeds (two
      * pods, or a period close and a reset at the same time): the second one waits, then finds the first one's orders.
+     * The open order is checked before the stock: a delivery turns "no stock, order open" into "stock, order delivered"
+     * in one transaction, but the two checks are separate statements, so one can commit in between. In this order,
+     * either check sees it; the other way round, both can miss it and the product is ordered again.
      */
     @Override
     @Transactional
     public List<SupplierOrder> openSeed(List<CatalogProduct> products, int quantity) {
         orders.advisoryLock(SEED_LOCK);
         return products.stream()
-            .filter(p -> stockTable.findType(Locations.DC, p.name()).isEmpty() && orders.outstanding(p.name()) == 0)
+            .filter(p -> orders.outstanding(p.name()) == 0 && stockTable.findType(Locations.DC, p.name()).isEmpty())
             .map(p -> orders.create(p.name(), p.type(), quantity, SupplierOrderOrigin.SEED))
             .toList();
     }
