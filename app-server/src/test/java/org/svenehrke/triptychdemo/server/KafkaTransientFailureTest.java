@@ -18,6 +18,7 @@ import org.eclipse.microprofile.config.ConfigProvider;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.svenehrke.triptychdemo.cross.purchasing.SupplierOrderService;
 import org.svenehrke.triptychdemo.cross.products.ProductType;
@@ -45,8 +46,12 @@ import static org.mockito.Mockito.doThrow;
  * Each test uses its own channel, because a stopped channel stays stopped for the rest of this
  * Quarkus instance. The channels are remapped to probe-only topics, as in
  * {@link KafkaMalformedMessageTest}.
+ * <p>
+ * Tagged {@code slow}: the profile starts a Quarkus instance of its own; the quick suite
+ * ({@code -DexcludedGroups=slow}) skips it.
  */
 @QuarkusTest
+@Tag("slow")
 @TestProfile(KafkaTransientFailureTest.ProbeTopics.class)
 class KafkaTransientFailureTest {
 

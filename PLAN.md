@@ -737,7 +737,7 @@ transaction; the sequences stay, so ids remain unique), `AuditLogSPI.clear()` (t
 late supplier delivery adds to the DC, a late shipment arrival is ignored. Tests: `AdminReceiverTest` case; the e2e
 test intercepts the POST (a real reset would wipe the data of the spec files running in parallel).
 
-## faster-tests: Shorten the test runs (levers 1, 3, 5 DONE; levers 2, 4 TO ELABORATE)
+## faster-tests: Shorten the test runs (levers 1, 2, 3, 5 DONE; lever 4 TO ELABORATE)
 
 Added 2026-10-05 at the user's request: the test runs take too long. Measured on 2026-10-05 (`store-occupancy`):
 - **app-server: 3:48 min** for 167 tests (+ build). The 7 slowest classes are exactly the 7 with a `@TestProfile`
@@ -804,6 +804,23 @@ Steps:
 4. Update this item with the measurements; docs/`concepts.md` where they mention the profiles. DONE: nothing to
    change - only the historical `split-inventory_wip.md` mentions the old profiles.
 5. Stage, don't commit.
+
+### Lever 2: run only what a change touches (APPROVED and DONE 2026-10-06)
+
+Measured: full app-server suite 1:33-1:42; the two Kafka probe classes (own Quarkus instance each) ≈ 37 s of it; one
+class (`-Dtest=LandingPageTest`, incl. reactor build + one Quarkus start) 25 s; `mvn test -pl core` 2 s.
+
+Decisions:
+- `KafkaMalformedMessageTest` and `KafkaTransientFailureTest` tagged `@Tag("slow")`; the quick suite is
+  `-DexcludedGroups=slow` (surefire's own user property, no Maven profile).
+- README "Running tests": the four tiers (core / single classes / quick / full) with times, and a "change in → tests"
+  table. The full suite still runs before staging.
+- Mentioned only: Quarkus continuous testing (`quarkus:test`) for interactive use.
+- Rejected: deriving the affected tests from a diff (a module → test mapping script) - too much machinery for 28
+  classes.
+
+Measured after: quick suite **161 tests, 66 s**; full suite 167 tests, 102 s (green, the tagged classes still run);
+`-Dtest='ShopReceiverTest,Cashpoint*'` 22 tests, 27 s.
 
 ### Lever 3: shorter waits (APPROVED and DONE 2026-10-06)
 

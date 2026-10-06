@@ -190,6 +190,37 @@ mvn test -pl app-server -am
 Quarkus Dev Services starts the containers for the test run. The integration
 tests use Awaitility to wait for Kafka messages to travel through the pipeline.
 
+While working on a change, run only what it touches, and the full suite once
+before committing (times measured 2026-10-06):
+
+| Scope | Command | Time |
+|---|---|---|
+| Domain logic only | `mvn test -pl core` | ≈ 2 s |
+| Single test classes | `mvn test -pl app-server -am -Dtest='ShopReceiverTest,Cashpoint*' -Dsurefire.failIfNoSpecifiedTests=false` | ≈ 25 s |
+| Quick suite | `mvn test -pl app-server -am -DexcludedGroups=slow` | ≈ 65 s |
+| Full suite | `mvn test -pl app-server -am` | ≈ 1:35 |
+
+The quick suite skips the classes tagged `slow` (`KafkaMalformedMessageTest`,
+`KafkaTransientFailureTest`): each needs a Quarkus instance of its own. Run them
+when you touch Kafka channel configuration or a Kafka receiver's error handling.
+
+Which tests cover what (all in `app-server` unless noted):
+
+| Change in | Tests |
+|---|---|
+| Domain records, parsing, validation (`core`) | `core` unit tests, e.g. `FruitDeliveryTest`, `PurchaseTest`, `DemandEstimateTest` |
+| HTML pages (`inbound-http-html`) | `AdminReceiverTest`, `ShopReceiverTest`, `AuditLogReceiverTest`, `LandingPageTest`, `StaticResourcesTest`; `ShopCartTest` in `inbound-http-html`; the Playwright tests |
+| JSON API (`inbound-http-jsonapi`) | `ProductApiReceiverTest` |
+| Ordering, deliveries, Kafka topics | `*OrderDeliveryFlowTest`, `SupplierOrderFlowTest`, `SupplierLeadTimeFlowTest` |
+| Stores, shipments, replenishment | `ReplenishmentFlowTest`, `AutoReplenishmentFlowTest`, `ShipmentFlowTest`, `ShipmentTransitFlowTest`, `DcSeedFlowTest`, `AutoPurchasingFlowTest` |
+| Cashpoints, store occupancy | `CashpointFlowTest`, `CashpointViaKafkaFlowTest`, `StoreOccupancyFlowTest`; `StoreSimulationTest` in `external-inbound-kafka` |
+| Live updates (SSE) | `InventoryEventsReceiverTest` |
+| Kafka error handling (DLQ, retry) | `KafkaMalformedMessageTest`, `KafkaTransientFailureTest` |
+| Package moves, new modules | `ArchitectureTest` |
+
+Interactive alternative: `mvn -pl app-server quarkus:test` (Quarkus continuous
+testing) reruns only the tests affected by each saved change.
+
 ### Running the Playwright end-to-end tests
 
 ```bash

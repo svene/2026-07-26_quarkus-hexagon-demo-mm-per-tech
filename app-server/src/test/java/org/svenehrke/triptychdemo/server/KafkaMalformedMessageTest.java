@@ -17,6 +17,7 @@ import org.eclipse.microprofile.config.ConfigProvider;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
@@ -39,8 +40,12 @@ import static org.awaitility.Awaitility.await;
  * <p>
  * The channels and their DLQs are remapped to probe-only topics, so the bad records can't leak
  * into other tests.
+ * <p>
+ * Tagged {@code slow}: the profile starts a Quarkus instance of its own; the quick suite
+ * ({@code -DexcludedGroups=slow}) skips it.
  */
 @QuarkusTest
+@Tag("slow")
 @TestProfile(KafkaMalformedMessageTest.ProbeTopics.class)
 class KafkaMalformedMessageTest {
 
