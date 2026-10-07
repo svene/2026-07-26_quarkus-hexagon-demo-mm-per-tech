@@ -1,6 +1,5 @@
 package org.svenehrke.triptychdemo.cross.occupancy;
 
-import org.svenehrke.triptychdemo.cross.auditlog.AuditLogSPI;
 import org.svenehrke.triptychdemo.cross.events.AsyncEvents;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -8,18 +7,14 @@ import jakarta.inject.Inject;
 import java.util.List;
 
 /**
- * The stores' occupancy as their checkout systems report it, and opening/closing their tills. The app shows the
- * occupancy but doesn't act on it.
+ * The stores' occupancy as their checkout systems report it. Shown on {@code /locations}; the tills are opened and
+ * closed by it ({@link AutoTillsHandler}).
  */
 @ApplicationScoped
 public class OccupancyHandler {
 
     @Inject
     OccupancyRepositorySPI repository;
-    @Inject
-    CheckoutSystemSPI checkoutSystem;
-    @Inject
-    AuditLogSPI auditLog;
     @Inject
     AsyncEvents occupancyEvents;
 
@@ -35,18 +30,5 @@ public class OccupancyHandler {
 
     public List<StoreOccupancy> current() {
         return repository.findAll();
-    }
-
-    /** False if the checkout system refused the change or could not be reached (audit-logged). */
-    public boolean setTills(TillCount tillCount) {
-        var details = tillCount.store().id() + ": tills=" + tillCount.tills();
-        try {
-            checkoutSystem.setTills(tillCount);
-        } catch (RuntimeException e) {
-            auditLog.log("OccupancyHandler: TILLS_CHANGE_FAILED", details + ": " + e.getMessage());
-            return false;
-        }
-        auditLog.log("OccupancyHandler: TILLS_CHANGED", details);
-        return true;
     }
 }

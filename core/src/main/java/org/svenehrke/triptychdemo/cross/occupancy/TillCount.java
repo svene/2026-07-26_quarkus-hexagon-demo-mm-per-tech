@@ -13,24 +13,22 @@ import java.util.Set;
 import static org.svenehrke.triptychdemo.cross.validation.ConstructorValidation.declaredConstructor;
 import static org.svenehrke.triptychdemo.cross.validation.ConstructorValidation.validateParameters;
 
-/** How many tills a store should have open (head office, demo): at least one, at most {@value #MAX_TILLS}. */
-public record TillCount(@NotNull Store store, @Min(1) @Max(MAX_TILLS) int tills) implements ParsedTillCount {
+/**
+ * How many tills a store should have open ({@link TillPolicy}): at least one, at most {@value #MAX_TILLS}. Only built
+ * by the app itself, so there is no parse() for untrusted input.
+ */
+public record TillCount(@NotNull Store store, @Min(1) @Max(MAX_TILLS) int tills) {
 
 	public static final int MAX_TILLS = 8;
 
 	private static final Constructor<TillCount> CANONICAL_CONSTRUCTOR =
 		declaredConstructor(TillCount.class, Store.class, int.class);
 
-	/** For trusted data only - throws {@link IllegalArgumentException} on a violation; untrusted input uses parse(). */
+	/** Throws {@link IllegalArgumentException} on a violation. */
 	public TillCount {
 		Set<ConstraintViolation<TillCount>> violations = validateParameters(CANONICAL_CONSTRUCTOR, store, tills);
 		if (!violations.isEmpty()) {
 			throw new IllegalArgumentException(violations.iterator().next().getMessage());
 		}
-	}
-
-	public static ParsedTillCount parse(Store store, int tills) {
-		Set<ConstraintViolation<TillCount>> violations = validateParameters(CANONICAL_CONSTRUCTOR, store, tills);
-		return violations.isEmpty() ? new TillCount(store, tills) : new ParsedTillCount.Invalid(violations);
 	}
 }

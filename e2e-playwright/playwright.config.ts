@@ -20,6 +20,8 @@ export default defineConfig({
       // Automatic replenishment and supplier orders would race with the tests' own stock changes (e.g. drain the DC
       // after a restock, or refill it).
       + ' -Dinventory.demand-period=off -Dinventory.auto-replenishment.enabled=false -Dinventory.auto-purchasing.enabled=false'
+      // No automatic tills, like the other automatic steps (with the cashpoint stub off no store reports anyway).
+      + ' -Dinventory.auto-tills.enabled=false'
       // The DC is not seeded: the tests expect an empty inventory after their reset.
       + ' -Dinventory.dc-seed.enabled=false'
       // Supplier deliveries follow the order right away, and DC shipments arrive right away, as the tests wait for them.

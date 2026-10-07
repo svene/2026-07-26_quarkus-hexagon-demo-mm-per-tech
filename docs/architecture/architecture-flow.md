@@ -361,29 +361,14 @@ LocationReceiver.request(id, productName, quantity)
 
 #### GET /locations/{id}/occupancy-fragment - A Store's Occupancy
 Stores only (the online FC has no customers inside). Fetched on that store's `occupancyChanged-{id}` event and morphed
-into its line: inside / capacity ("full") · queuing for a till · tills busy / open, with − / + buttons · turned away in
-the last demo minute; greyed out if the report is older than 30 s.
+into its line: inside / capacity ("full") · queuing for a till · tills busy / open ("auto" if
+`inventory.auto-tills.enabled`) · turned away in the last demo minute; greyed out if the report is older than 30 s. The
+tills are opened and closed by the app itself (see "Event: OccupancyChanged" below), not on the page.
 ```
-LocationReceiver.occupancyFragment(id)   → UiResponse(StoreOccupancy, {storeId, report (null: none yet), maxTills})
+LocationReceiver.occupancyFragment(id)   → UiResponse(StoreOccupancy, {storeId, report (null: none yet), autoTills})
 └─ OccupancyHandler.current()
    └─ OccupancyRepositorySPI.findAll()
       └─ OccupancyService (outbound-postgres) → PostgreSQL (store_occupancy)
-```
-
-#### POST /locations/{id}/tills - Open or Close Tills
-The buttons send the reported number of tills ± 1. The tills belong to the store's checkout system (external), so the
-app asks it; the new number shows up with the checkout system's next report, which it sends right after the change.
-```
-LocationReceiver.tills(id, tills)
-├─ AuditLogHandler.log("TILLS_RECEIVED")
-├─ TillCount.parse(store, tills)   → 400 UiResponse(OrderErrors) outside 1..8
-└─ OccupancyHandler.setTills(tillCount)
-   ├─ CheckoutSystemSPI.setTills(tillCount)
-   │  └─ CheckoutSystemService (outbound-httpclient) → PUT /cashpoint-stub/stores/{id}/tills
-   │     └─ CashpointTillsStub (external-inbound-kafka) → CashpointStub: applied by the next tick, then reported
-   │        on store-occupancy (see "Kafka: store-occupancy" below); a busy till closes once its customer has paid
-   └─ AuditLogSPI.log("TILLS_CHANGED") / ("TILLS_CHANGE_FAILED")
-   → 200 empty body; 502 UiResponse(OrderErrors) if the checkout system refused or was unreachable
 ```
 
 ### AuditLogReceiver (/audit-log) - Audit Log Page → MongoDB
@@ -572,7 +557,25 @@ StoreOccupancyReceiver.receive(message)   (inbound-kafka; no audit entry for a v
 └─ OccupancyHandler.record(occupancy)
    ├─ OccupancyRepositorySPI.saveIfNewer(occupancy)
    │  └─ OccupancyService (outbound-postgres) → PostgreSQL: one upsert, only if newer than the stored report
-   └─ AsyncEvents.fire(OccupancyChanged(store))   if stored (see GET /inventory/events)
+   └─ AsyncEvents.fire(OccupancyChanged(store))   if stored (see GET /inventory/events and the next section)
+```
+
+#### Event: OccupancyChanged (a store reported a newer occupancy) - automatic tills
+Off with `inventory.auto-tills.enabled=false` (`%test`, e2e). The tills belong to the store's checkout system
+(external), so the app asks it; the new number shows up with the checkout system's next report, which it sends right
+after the change.
+```
+AutoTillsReceiver.onOccupancyChanged (@ObservesAsync)
+└─ AutoTillsHandler.adjust(store)   synchronized; skipped while the latest report was measured < 10 s after the store's
+   │                                last change (cooldown, in memory)
+   ├─ OccupancyRepositorySPI.findAll()   the store's latest report
+   ├─ TillPolicy.decide(occupancy)   +1: queuing > tills, or full with every till busy;
+   │                                 −1: nobody queuing and ≥ 2 tills free; within 1..8; else no change
+   ├─ CheckoutSystemSPI.setTills(tillCount)
+   │  └─ CheckoutSystemService (outbound-httpclient) → PUT /cashpoint-stub/stores/{id}/tills
+   │     └─ CashpointTillsStub (external-inbound-kafka) → CashpointStub: applied by the next tick, then reported
+   │        on store-occupancy; a busy till closes once its customer has paid
+   └─ AuditLogSPI.log("TILLS_OPENED") / ("TILLS_CLOSED") / ("TILLS_CHANGE_FAILED": judged again with the next report)
 ```
 
 ## Note: Kafka Delivery Receivers

@@ -51,7 +51,7 @@ Technical reference for understanding the Kafka-based integration patterns and t
 
 All endpoint: `placeOrder(productName, quantity)`
 
-- **CheckoutSystemService** → CheckoutSystemClient (`checkout-system`): `setTills(store, tills)` → `PUT /cashpoint-stub/stores/{storeId}/tills` `{"tills": n}` (CashpointTillsStub; 204, 400 outside 1..8, 404 unknown store). Called by OccupancyHandler.setTills from `POST /locations/{id}/tills`
+- **CheckoutSystemService** → CheckoutSystemClient (`checkout-system`): `setTills(store, tills)` → `PUT /cashpoint-stub/stores/{storeId}/tills` `{"tills": n}` (CashpointTillsStub; 204, 400 outside 1..8, 404 unknown store). Called by AutoTillsHandler (automatic tills, on `OccupancyChanged`)
 
 ### SOAP Web Services (outbound-webservice)
 - **BeverageSupplierService** → BeverageOrderService (SOAP)
@@ -178,7 +178,7 @@ Every stub publishes its delivery after the supplier lead time (`supplier-stub.l
 - **Producer**: External checkout systems (simulated by CashpointStub: every 5 s per store, and right after a till change; `StoreSimulation.report`)
 - **Consumer**: StoreOccupancyReceiver (in inbound-kafka)
 - **Message**: `{storeId, measuredAt, inside, capacity, queuing, tills, tillsBusy, turnedAway}` - current values only (`turnedAway`: at the full store in the last demo day, not since the last report). A missing field goes to the DLQ; an id that is no store, or values out of range, are audit-logged `INVALID` and skipped. Valid messages are not audit-logged (36 per minute)
-- **Flow**: Occupancy report → OccupancyHandler.record → OccupancyService.saveIfNewer → if newer, `OccupancyChanged` (CDI, async) → SSE `occupancyChanged-<storeId>` on `/inventory/events` → that store's line on `/locations` re-fetches
+- **Flow**: Occupancy report → OccupancyHandler.record → OccupancyService.saveIfNewer → if newer, `OccupancyChanged` (CDI, async) → SSE `occupancyChanged-<storeId>` on `/inventory/events` → that store's line on `/locations` re-fetches; and AutoTillsReceiver → AutoTillsHandler → `TillPolicy` → CheckoutSystemService (opens/closes a till, which the stub reports right away)
 - **A snapshot, not an event**: unlike every other topic here, only the latest message per store counts. Storing it is idempotent (an older or redelivered report is not newer), so it needs no inbox, not even with two pods. Keyed by store, the topic suits **log compaction** (`cleanup.policy=compact`: Kafka keeps at least the latest message per key) - not configured in this demo, where the dev-services topic keeps everything for its short life
 - **Config**:
   - Incoming: `mp.messaging.incoming.store-occupancy.topic=store-occupancy`
@@ -214,7 +214,6 @@ Every stub publishes its delivery after the supplier lead time (`supplier-stub.l
 | LocationReceiver | /locations/page, /locations/{id}/inventory-fragment | GET | Query | - | PostgreSQL (read) |
 | LocationReceiver | /locations/{id}/requests | POST | Command | - | PostgreSQL + MongoDB |
 | LocationReceiver | /locations/{id}/occupancy-fragment | GET | Query (stores only) | (fed by **← store-occupancy**) | PostgreSQL (read) |
-| LocationReceiver | /locations/{id}/tills | POST | Command (stores only: open/close tills) | REST → checkout system, which reports on **store-occupancy** | MongoDB |
 | ProductApiReceiver | /api/products | GET | Query | - | PostgreSQL (read) |
 | ProductApiReceiver | /api/products/order-fruits | POST | Command | **→ fruit-deliveries** (stub publishes) | PostgreSQL + MongoDB |
 | ProductApiReceiver | /api/products/order-vegetables | POST | Command | **→ vegetables-deliveries** (stub publishes) | PostgreSQL + MongoDB |

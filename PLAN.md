@@ -1033,6 +1033,73 @@ Steps:
 Risks: ordering with max-concurrency 1 is to be verified, not assumed (step 1); the Agroal pool (default 20) becomes
 the concurrency limit for HTTP - irrelevant at demo load, noted in the doc.
 
+## auto-tills: Open and close tills automatically (DONE 2026-10-07)
+
+Added 2026-10-07 at the user's request. Today a till only opens or closes when someone clicks − / + on `/locations`.
+The app already receives everything it needs to decide this itself (the `store-occupancy` snapshots) and already has the
+way to act (`OccupancyHandler.setTills` → `CheckoutSystemSPI`). This item adds the decision: the first time the app
+*acts* on the occupancy instead of only showing it.
+
+### Plan (APPROVED 2026-10-07, with the − / + buttons removed)
+
+1. **Policy in core** (`cross.occupancy`): `TillPolicy`, a pure function `decide(StoreOccupancy) → Optional<TillCount>`,
+   with hysteresis so it doesn't flap:
+   - **open** one till when the store is full (`inside >= capacity`) or more than one customer per open till is
+     queuing (`queuing > tills`);
+   - **close** one till when nobody is queuing and at least two tills are free (`queuing == 0 && tillsBusy <= tills - 2`):
+     a till costs staff, otherwise "open all 8" would always win;
+   - bounds: at least 1, at most `TillCount.MAX_TILLS` (8); one step per decision.
+2. **Cooldown:** after a change, no new decision for that store until a report *measured after the change plus 10 s*
+   (= 2 reports) arrives, so the till has an effect before the next judgement. Last change per store kept in memory in
+   `AutoTillsHandler` (core).
+3. **Trigger:** `AutoTillsReceiver` in `inbound-event`, `@ObservesAsync OccupancyChanged` → `AutoTillsHandler`
+   (looks up the current snapshot, asks `TillPolicy`, calls `CheckoutSystemSPI.setTills`). Same shape as
+   `AutoReplenishmentReceiver`: config `inventory.auto-tills.enabled` (dev `true`, `%test` `false`), read per event
+   via `Supplier<Boolean>` so a flow test can switch it on without its own profile. Audit: `AutoTillsHandler:
+   TILLS_OPENED` / `TILLS_CLOSED` with the reason (e.g. `zurich: 4→5, queuing 6, inside 16/16`), or
+   `TILLS_CHANGE_FAILED` (replaces `OccupancyHandler: TILLS_CHANGED`).
+4. **The − / + buttons on `/locations` are removed** (user, 2026-10-07), with `POST /locations/{id}/tills`,
+   `TillCount.parse()` / `ParsedTillCount` and `OccupancyHandler.setTills`: the tills are only changed by
+   `AutoTillsHandler`, which calls `CheckoutSystemSPI` itself. `/locations` shows an "auto" tag per store when the
+   switch is on.
+5. **Two pods:** `OccupancyChanged` fires only in the pod that consumes the store's partition, so only one pod decides
+   per store; the in-memory cooldown is lost on a rebalance (harmless: at worst one extra step). Noted in
+   `two-pods_wip.md`.
+6. **Tests:** `TillPolicyTest` (plain unit test: open on full, open on queue, close on idle, no change in between,
+   bounds 1 and 8); flow test via `TestOccupancyPublisher` with the switch on: a full-store report → stub receives
+   `tills+1` + audit entry; a second report within the cooldown → no further change. e2e unchanged.
+7. **Docs:** update-architecture-docs (new receiver/handler), `concepts.md`, `README.md`, `two-pods_wip.md`,
+   `docs/ai/session-notes.md`.
+
+Decided: the switch is config only (no runtime toggle on `/locations`). Thresholds get tuned in the dev app.
+
+Implemented as planned (staged): core 2 new unit test classes (`TillPolicyTest`, `AutoTillsHandlerTest` - the
+cooldown is tested there, with fake SPIs, not via Kafka), `StoreOccupancyFlowTest` (3 till-endpoint tests replaced by
+one auto-tills test), core + app-server 171, e2e 27/27 (`-Dinventory.auto-tills.enabled=false` added). Not yet watched
+in the dev app (thresholds untuned).
+
+## till-metrics: Queue and throughput over time (TO ELABORATE)
+
+Added 2026-10-07 at the user's request, to come after `auto-tills`. Per store, over time: till queue length, checkouts
+(throughput) per demo minute and customers turned away - so the effect of opening/closing tills (manual or `auto-tills`)
+is visible as a trend, not only as the current snapshot. To elaborate: history storage (today only the latest snapshot
+per store is kept), rate/window, where and how it is shown (chart on `/locations`?).
+
+## occupancy-metrics: Customers in the store vs. capacity over time (TO ELABORATE)
+
+Added 2026-10-07 at the user's request, to come after `auto-tills`. Per store, over time: customers inside relative to
+the capacity (utilisation, time spent full). Shares the history storage and the chart with `till-metrics`; may be done
+together with it.
+
+## store-purchases: Purchases table on the store pages (TO ELABORATE)
+
+Added 2026-10-07 at the user's request. On the store pages (`location.ts`), above the Requests table, a Purchases table
+with one row per purchase: number of products and timestamp - enough to see the sales flow next to the restocking it
+triggers. To elaborate: purchases are not persisted today (no Postgres table; `PurchaseHandler` only changes stock), so
+a source is needed (new table via Flyway, or the MongoDB audit log); how many rows (latest N?); whether "number of
+products" means items or total quantity; whether the online dark store page gets it too; live update via the existing
+inventoryChanged re-fetch.
+
 ## Open questions
 
 - Authentication/authorization is out of scope for this POC, but the separate routes (`/admin`, `/shop`) make it easy to add later.

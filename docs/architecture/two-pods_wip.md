@@ -105,6 +105,10 @@ UI-only events (`ReplenishmentChanged`, `SupplierOrdersChanged`) only feed secti
   Already idempotent: the carrier's `shipment-arrivals` (in-transit transfers) - the shipment row is the inbox, only
   an `IN_TRANSIT` shipment can arrive. And `store-occupancy`: its messages are snapshots, stored only if newer than the
   stored one (one upsert, `StoreOccupancyTable.upsertIfNewer`), so a redelivered report changes nothing.
+  The automatic tills (`AutoTillsReceiver`, on `OccupancyChanged`) follow from that: the event fires only in the pod
+  that consumed the store's report, so only one pod decides per store, as long as the event stays local (the SSE
+  fan-out of section 2 must not hand it to the other pod's `AutoTillsReceiver`). The 10 s cooldown after a change is
+  in memory: after a rebalance the other pod starts without it - at worst one extra step.
 - **Partitions (should do).** With Dev Services every topic has one partition, so only one pod consumes a topic and the
   other one idles (fine for failover, no parallelism). For parallel processing: several partitions per topic, with the
   product name as the message key, so all messages for one product stay in order.

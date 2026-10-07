@@ -189,13 +189,14 @@ PlantUML sequence diagrams for all primary flows in the supermarket inventory sy
 - **Participants**: none (CDI events)
 - **Databases**: PostgreSQL (`stock`, `supplier_order`), MongoDB (audit log)
 
-### Opening / Closing Tills
-**File**: `location-tills.puml`
-- **Trigger**: POST /locations/{id}/tills (− / + on a store's occupancy line)
-- **Flow**: LocationReceiver → `TillCount.parse()` → OccupancyHandler → CheckoutSystemService → `PUT /cashpoint-stub/stores/{id}/tills` (the stores' checkout system, external) → applied by the stub's next tick, reported on `store-occupancy` right away
-- **Returns**: 200 empty body; 400 (outside 1..8) / 502 (checkout system refused or unreachable) `{route: OrderErrors, vm}`
-- **Participants**: 1 (Store manager)
-- **Databases**: MongoDB (audit log); the new tills reach PostgreSQL with the next occupancy report
+### Automatic Tills
+**File**: `auto-tills.puml`
+- **Trigger**: `OccupancyChanged(store)` (a newer occupancy report was stored); off with `inventory.auto-tills.enabled=false` (tests, e2e)
+- **Flow**: AutoTillsReceiver → AutoTillsHandler (cooldown: no decision until a report measured 10 s after the store's last change) → `TillPolicy.decide()` → CheckoutSystemService → `PUT /cashpoint-stub/stores/{id}/tills` (the stores' checkout system, external) → applied by the stub's next tick, reported on `store-occupancy` right away
+- **Actions**: one till more when more customers queue than tills are open, or the store is full and every till busy; one less when nobody queues and two tills are free; 1..8 tills
+- **Returns**: nothing (async)
+- **Participants**: none (CDI events)
+- **Databases**: PostgreSQL (`store_occupancy`, read), MongoDB (audit log); the new tills reach PostgreSQL with the next occupancy report
 
 ## Event-Driven Flow (Kafka Inbound)
 

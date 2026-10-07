@@ -57,9 +57,9 @@ export const LocationInventory = (vm: LocationInventoryVM): HtmlResult => html`
 	</div>
 `;
 
-// What the store's checkout system reports (door counters, tills), refreshed on each report. − / + send the reported
-// number of tills ± 1; the checkout system reports again right after the change. A closed till that is busy closes
-// once its customer has paid. A full store turns new customers away (lost sales): more tills let them in.
+// What the store's checkout system reports (door counters, tills), refreshed on each report. The app opens and closes
+// the tills by these reports ("auto"); a closed till that is busy closes once its customer has paid. A full store
+// turns new customers away (lost sales): more tills let them in.
 export const StoreOccupancy = (vm: StoreOccupancyVM): HtmlResult => {
 	const r = vm.report;
 	if (!r) return html`<p class="has-text-grey mb-4"><em>No occupancy reported yet.</em></p>`;
@@ -67,15 +67,8 @@ export const StoreOccupancy = (vm: StoreOccupancyVM): HtmlResult => {
 		<div class="level is-mobile is-justify-content-flex-start mb-4 ${r.stale ? 'has-text-grey' : ''}">
 			<div class="level-item is-flex-grow-0 mr-5"><span title="Customers inside / capacity"><strong class="occupancy-inside">${r.inside} / ${r.capacity}</strong> inside</span>${r.full ? html`<span class="tag is-danger ml-2">full</span>` : ''}</div>
 			<div class="level-item is-flex-grow-0 mr-5"><span class="tag is-medium ${r.queuing > 0 ? 'is-warning' : 'is-light'}"><strong class="occupancy-queuing mr-1">${r.queuing}</strong> queuing for a till</span></div>
-			<div class="level-item is-flex-grow-0 mr-3"><span title="Busy tills / open tills">tills <strong class="occupancy-tills">${r.tillsBusy} / ${r.tills}</strong> busy</span></div>
-			<form class="level-item is-flex-grow-0 mr-3" hx-post="/locations/${vm.storeId}/tills" hx-target="next .tills-error" hx-swap="innerHTML">
-				<div class="buttons has-addons are-small mb-0">
-					<button class="button mb-0" type="submit" name="tills" value="${r.tills - 1}" title="Close a till" aria-label="Close a till" ${r.tills <= 1 ? 'disabled' : ''}>−</button>
-					<button class="button mb-0" type="submit" name="tills" value="${r.tills + 1}" title="Open a till" aria-label="Open a till" ${r.tills >= vm.maxTills ? 'disabled' : ''}>+</button>
-				</div>
-			</form>
+			<div class="level-item is-flex-grow-0 mr-5"><span title="Busy tills / open tills">tills <strong class="occupancy-tills">${r.tillsBusy} / ${r.tills}</strong> busy</span>${vm.autoTills ? html`<span class="tag is-info is-light ml-2" title="The app opens and closes the tills by the queue">auto</span>` : ''}</div>
 			<div class="level-item is-flex-grow-0 mr-5"><span class="${r.turnedAway > 0 ? 'has-text-danger' : 'has-text-grey'}" title="Customers who found the store full in the last demo day (1 min): lost sales"><strong class="occupancy-turned-away">${r.turnedAway}</strong> turned away (last minute)</span></div>
-			<div class="level-item is-flex-grow-0 has-text-danger is-size-7 tills-error"></div>
 			<div class="level-item is-flex-grow-0 is-size-7 has-text-grey" title="Time of the checkout system's latest report">${r.stale ? `as of ${r.measuredAt}, no newer report` : r.measuredAt}</div>
 		</div>
 	`;

@@ -5,9 +5,7 @@ import org.svenehrke.triptychdemo.cross.location.Locations;
 import org.svenehrke.triptychdemo.cross.location.Replenished;
 import org.svenehrke.triptychdemo.cross.location.Store;
 import org.svenehrke.triptychdemo.cross.occupancy.OccupancyHandler;
-import org.svenehrke.triptychdemo.cross.occupancy.ParsedTillCount;
 import org.svenehrke.triptychdemo.cross.occupancy.StoreOccupancy;
-import org.svenehrke.triptychdemo.cross.occupancy.TillCount;
 import org.svenehrke.triptychdemo.cross.products.ProductStock;
 import org.svenehrke.triptychdemo.cross.products.ProductsHandler;
 import org.svenehrke.triptychdemo.cross.reorder.DemandEstimate;
@@ -28,14 +26,18 @@ import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
+
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * One page with every store and the online FC (the DC is managed on {@code /admin}): per location its stock, and
- * requesting more from the DC; per store its occupancy, and opening/closing its tills.
+ * requesting more from the DC; per store its occupancy (its tills open and close automatically, see
+ * {@code AutoTillsReceiver}).
  */
 @RunOnVirtualThread
 @Path("/locations")
@@ -51,6 +53,8 @@ public class LocationReceiver {
     OccupancyHandler occupancyHandler;
     @Inject
     AuditLogHandler auditLog;
+    @ConfigProperty(name = "inventory.auto-tills.enabled")
+    Supplier<Boolean> autoTills;
 
     /** The static page shell; its {@code #app} element loads {@link #page()} and renders it in the browser. */
     @GET
@@ -76,23 +80,6 @@ public class LocationReceiver {
     @Produces(MediaType.APPLICATION_JSON)
     public UiResponse occupancyFragment(@PathParam("id") String id) {
         return UiResponse.of(UiRoute.StoreOccupancy, occupancy(store(id), occupancyHandler.current()));
-    }
-
-    /** Opens or closes tills: {@code tills} is the new number (the page sends the reported one ± 1). */
-    @POST
-    @Path("/{id}/tills")
-    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
-    public Response tills(@PathParam("id") String id, @FormParam("tills") int tills) {
-        var store = store(id);
-        auditLog.log("LocationReceiver: TILLS_RECEIVED", store.id() + ": tills=" + tills);
-        return switch (TillCount.parse(store, tills)) {
-            case ParsedTillCount.Invalid invalid -> errors(Response.Status.BAD_REQUEST,
-                invalid.violations().stream().map(v -> "tills " + v.getMessage()).toList());
-            // the new tills show up with the checkout system's next report, right after the change
-            case TillCount tillCount -> occupancyHandler.setTills(tillCount)
-                ? Response.ok("", MediaType.TEXT_HTML).build()
-                : errors(Response.Status.BAD_GATEWAY, List.of(store.name() + ": the checkout system did not accept the change"));
-        };
     }
 
     @GET
@@ -129,8 +116,9 @@ public class LocationReceiver {
         return Locations.storeById(id).orElseThrow(() -> new NotFoundException("no store: " + id));
     }
 
-    private static StoreOccupancyVM occupancy(Store store, List<StoreOccupancy> occupancy) {
-        return StoreOccupancyVM.of(store, occupancy.stream().filter(o -> o.store().equals(store)).findFirst(), Instant.now());
+    private StoreOccupancyVM occupancy(Store store, List<StoreOccupancy> occupancy) {
+        return StoreOccupancyVM.of(store, occupancy.stream().filter(o -> o.store().equals(store)).findFirst(),
+            autoTills.get(), Instant.now());
     }
 
     private static Response errors(Response.Status status, List<String> messages) {

@@ -5,6 +5,7 @@ import org.svenehrke.triptychdemo.cross.occupancy.StoreOccupancyTable;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.path.json.JsonPath;
 import jakarta.inject.Inject;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -16,7 +17,7 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
-/** The stores' occupancy reports (store-occupancy topic) on /locations, and opening/closing tills. */
+/** The stores' occupancy reports (store-occupancy topic) on /locations, and the automatic tills. */
 @QuarkusTest
 class StoreOccupancyFlowTest {
 
@@ -40,6 +41,11 @@ class StoreOccupancyFlowTest {
         auditHelper.clearAuditLog();
     }
 
+    @AfterEach
+    void tearDown() {
+        TestConfigOverrides.clear();
+    }
+
     private static JsonPath fragment(String storeId) {
         return given().get("/locations/" + storeId + "/occupancy-fragment").jsonPath();
     }
@@ -51,7 +57,7 @@ class StoreOccupancyFlowTest {
         assertThat(json.getString("route")).isEqualTo("StoreOccupancy");
         assertThat(json.getString("vm.storeId")).isEqualTo("bern");
         assertThat(json.getMap("vm.report")).isNull();
-        assertThat(json.getInt("vm.maxTills")).isEqualTo(8);
+        assertThat(json.getBoolean("vm.autoTills")).isFalse();
     }
 
     @Test
@@ -115,29 +121,21 @@ class StoreOccupancyFlowTest {
     }
 
     @Test
-    void setting_the_tills_reaches_the_checkout_system() {
-        var response = given().formParam("tills", 3).post("/locations/bern/tills");
+    void with_auto_tills_a_full_store_opens_a_till_at_its_checkout_system() {
+        TestConfigOverrides.set("inventory.auto-tills.enabled", "true");
+        assertThat(fragment("bern").getBoolean("vm.autoTills")).isTrue();
 
-        assertThat(response.statusCode()).isEqualTo(200);
-        assertThat(response.asString()).isEmpty();
-        assertThat(auditHelper.findEventDetails("OccupancyHandler: TILLS_CHANGED")).containsExactly("bern: tills=3");
+        // full, the one till busy, two queuing: TillPolicy opens a second till
+        occupancyPublisher.publish(new OccupancyMessage("bern", Instant.now(), 6, 6, 2, 1, 1, 3));
+
+        // logged once the checkout system (the stub's REST endpoint) accepted the change
+        await().atMost(10, SECONDS).untilAsserted(() ->
+            assertThat(auditHelper.findEventDetails("AutoTillsHandler: TILLS_OPENED"))
+                .containsExactly("bern: 1→2, queuing 2, tills busy 1, inside 6/6"));
     }
 
     @Test
-    void tills_outside_1_to_8_are_rejected() {
-        var zero = given().formParam("tills", 0).post("/locations/bern/tills");
-        var nine = given().formParam("tills", 9).post("/locations/bern/tills");
-
-        assertThat(zero.statusCode()).isEqualTo(400);
-        assertThat(zero.jsonPath().getList("vm.messages")).containsExactly("tills must be greater than or equal to 1");
-        assertThat(nine.statusCode()).isEqualTo(400);
-        assertThat(nine.jsonPath().getList("vm.messages")).containsExactly("tills must be less than or equal to 8");
-        assertThat(auditHelper.findEventDetails("OccupancyHandler: TILLS_CHANGED")).isEmpty();
-    }
-
-    @Test
-    void only_stores_have_tills() {
-        assertThat(given().formParam("tills", 2).post("/locations/online/tills").statusCode()).isEqualTo(404);
+    void only_stores_have_an_occupancy() {
         assertThat(given().get("/locations/online/occupancy-fragment").statusCode()).isEqualTo(404);
     }
 }

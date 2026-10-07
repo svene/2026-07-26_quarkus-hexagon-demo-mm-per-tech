@@ -232,14 +232,21 @@ other topic, these messages are **state snapshots, not events**: only the latest
 `OccupancyHandler.record` stores a report only if it is newer than the stored one (one upsert), so a
 redelivered or overtaken message changes nothing - no inbox needed, not even with two pods. A keyed
 snapshot topic is what Kafka's log compaction (`cleanup.policy=compact`) is made for; the demo does not
-configure it. The app shows the occupancy on `/locations` but doesn't act on it.
+configure it. The app shows the occupancy on `/locations`, and acts on it: it opens and closes the tills.
 
 Opening a till is the store's only means against turning customers away: the demand stays the same, but
-more of it gets served before the store fills up. The tills belong to the external checkout systems, so opening or closing one on `/locations` goes
-through the hexagon like any other outbound call: `LocationReceiver` → `OccupancyHandler.setTills` →
+more of it gets served before the store fills up. A till also costs staff, so an idle one should close
+again. The app decides this itself, like it reorders stock by itself: every stored report fires
+`OccupancyChanged`, `AutoTillsReceiver` (inbound-event) hands it to `AutoTillsHandler`, and the pure
+function `TillPolicy` judges the report - one till more when more customers queue than tills are open (or
+the store is full and every till busy), one less when nobody queues and two tills are free. After a change
+the store gets a 10 s cooldown, so the change shows its effect before it is judged again. The tills belong
+to the external checkout systems, so the change goes through the hexagon like any other outbound call:
 `CheckoutSystemSPI` → `CheckoutSystemService` (REST client) → the stub's `PUT
-/cashpoint-stub/stores/{id}/tills`. The page learns the result the way it learns everything about the
-stores - from the next occupancy report, which the stub sends right after the change.
+/cashpoint-stub/stores/{id}/tills`. The app learns the result the way it learns everything about the
+stores - from the next occupancy report, which the stub sends right after the change. It is the first
+loop in the demo that closes over an external system: a report leads to a command to the same system,
+whose next report shows the effect.
 
 `PurchaseHandler` is also reachable directly via the REST endpoint (`/api/products/purchase`), which
 bypasses Kafka entirely and is what tests and tooling use to drive a purchase synchronously.

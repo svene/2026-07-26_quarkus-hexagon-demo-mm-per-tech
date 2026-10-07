@@ -75,9 +75,12 @@ grouped by the underlying technology of the outbound adapter:
    how many tills are busy and how many customers were turned away in the last
    demo minute, as the checkout systems report it every 5 s (Kafka topic
    `store-occupancy`). At the rush hour the queue grows until the store is
-   full, and new customers turn away - lost sales. Open a till with *+* and
-   more of them get in: fewer turned away, more sales (and the store's stock
-   falls faster).
+   full, and new customers turn away - lost sales. The app opens a till when
+   the queue gets longer than the open tills (or the store is full and every
+   till busy) and closes one when two stand idle (tag *auto*; switch:
+   `inventory.auto-tills.enabled`): more of them get in, fewer turned away,
+   more sales (and the store's stock falls faster). Each change is in the
+   audit log (`TILLS_OPENED` / `TILLS_CLOSED`).
 
 ### JSON API
 
