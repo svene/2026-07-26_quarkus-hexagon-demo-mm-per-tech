@@ -3,6 +3,7 @@ package org.svenehrke.triptychdemo.cross.occupancy;
 import org.svenehrke.triptychdemo.cross.auditlog.AuditLogEntry;
 import org.svenehrke.triptychdemo.cross.auditlog.AuditLogSPI;
 import org.svenehrke.triptychdemo.cross.location.Locations;
+import org.svenehrke.triptychdemo.cross.location.Store;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -26,6 +27,8 @@ class AutoTillsHandlerTest {
 		handler.repository = new OccupancyRepositorySPI() {
 			@Override public boolean saveIfNewer(StoreOccupancy occupancy) { throw new UnsupportedOperationException(); }
 			@Override public List<StoreOccupancy> findAll() { return List.copyOf(stored); }
+			@Override public void appendToHistory(StoreOccupancy occupancy, Instant keepSince) { throw new UnsupportedOperationException(); }
+			@Override public List<StoreOccupancy> history(Store store, Instant since) { throw new UnsupportedOperationException(); }
 		};
 		handler.checkoutSystem = tillCount -> {
 			if (checkoutSystemFailure != null) throw checkoutSystemFailure;
@@ -41,7 +44,7 @@ class AutoTillsHandlerTest {
 	/** Bern (capacity 6) with one busy till and two queuing, measured {@code secondsFromNow} from now. */
 	private void report(long secondsFromNow, int tills) {
 		stored.clear();
-		stored.add(new StoreOccupancy(Locations.BERN, Instant.now().plusSeconds(secondsFromNow), 6, 6, 4, tills, tills, 0));
+		stored.add(new StoreOccupancy(Locations.BERN, Instant.now().plusSeconds(secondsFromNow), 6, 6, 4, tills, tills, 0, 0));
 	}
 
 	@Test
@@ -72,7 +75,7 @@ class AutoTillsHandlerTest {
 	void theCooldownIsPerStore() {
 		report(0, 1);
 		handler.adjust(Locations.BERN);
-		stored.add(new StoreOccupancy(Locations.BASEL, Instant.now(), 10, 10, 3, 2, 2, 0));
+		stored.add(new StoreOccupancy(Locations.BASEL, Instant.now(), 10, 10, 3, 2, 2, 0, 0));
 
 		handler.adjust(Locations.BASEL);
 

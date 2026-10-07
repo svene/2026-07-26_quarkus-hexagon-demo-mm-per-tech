@@ -36,8 +36,8 @@ import java.util.function.Supplier;
 
 /**
  * One page with every store and the online FC (the DC is managed on {@code /admin}): per location its stock, and
- * requesting more from the DC; per store its occupancy (its tills open and close automatically, see
- * {@code AutoTillsReceiver}).
+ * requesting more from the DC; per store its occupancy, now and over the last minutes (its tills open and close
+ * automatically, see {@code AutoTillsReceiver}).
  */
 @RunOnVirtualThread
 @Path("/locations")
@@ -118,7 +118,7 @@ public class LocationReceiver {
 
     private StoreOccupancyVM occupancy(Store store, List<StoreOccupancy> occupancy) {
         return StoreOccupancyVM.of(store, occupancy.stream().filter(o -> o.store().equals(store)).findFirst(),
-            autoTills.get(), Instant.now());
+            autoTills.get(), occupancyHandler.history(store), OccupancyHandler.WINDOW, Instant.now());
     }
 
     private static Response errors(Response.Status status, List<String> messages) {

@@ -33,13 +33,18 @@ else valid (not audit-logged)
   db --> service: 1 row (newer) / 0 rows (older or repeated)
   service --> handler: stored?
   opt stored
+    handler -> service: appendToHistory(occupancy, measuredAt − 30 min)
+    service -> db: INSERT INTO store_occupancy_history … ON CONFLICT DO NOTHING;\nDELETE the store's rows older than 30 min
     handler -> sse: fireAsync(OccupancyChanged(store))\nvia InventoryEventBroadcaster
     sse -> browser: event: occupancyChanged-{storeId}
     browser -> location: GET /locations/{storeId}/occupancy-fragment
     location -> handler: current()
     handler -> service: findAll()
     service -> db: SELECT
-    location --> browser: {route: StoreOccupancy, vm}\n(morphed into the store's line)
+    location -> handler: history(store)
+    handler -> service: history(store, now − 10 min)
+    service -> db: SELECT … FROM store_occupancy_history
+    location --> browser: {route: StoreOccupancy, vm}\n(morphed into the store's line and its charts)
   end
 end
 

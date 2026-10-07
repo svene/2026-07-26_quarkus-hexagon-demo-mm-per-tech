@@ -108,7 +108,10 @@ UI-only events (`ReplenishmentChanged`, `SupplierOrdersChanged`) only feed secti
   The automatic tills (`AutoTillsReceiver`, on `OccupancyChanged`) follow from that: the event fires only in the pod
   that consumed the store's report, so only one pod decides per store, as long as the event stays local (the SSE
   fan-out of section 2 must not hand it to the other pod's `AutoTillsReceiver`). The 10 s cooldown after a change is
-  in memory: after a rebalance the other pod starts without it - at worst one extra step.
+  in memory: after a rebalance the other pod starts without it - at worst one extra step. The occupancy history
+  (`store_occupancy_history`, the charts on `/locations`) is written by the pod that consumed the report and read by
+  both from PostgreSQL, so each pod's page shows every store; a redelivered report adds no row (key `(storeId,
+  measuredAt)`). Kept in memory instead, each pod would only have its own partitions' stores.
 - **Partitions (should do).** With Dev Services every topic has one partition, so only one pod consumes a topic and the
   other one idles (fine for failover, no parallelism). For parallel processing: several partitions per topic, with the
   product name as the message key, so all messages for one product stay in order.

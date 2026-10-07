@@ -49,7 +49,7 @@ public class StoreOccupancyReceiver {
     // Empty if the message is invalid (audit-logged, then skipped).
     private Optional<StoreOccupancy> validated(Store store, OccupancyMessage m) {
         return switch (StoreOccupancy.parse(store, m.measuredAt(), m.inside(), m.capacity(), m.queuing(), m.tills(),
-            m.tillsBusy(), m.turnedAway())) {
+            m.tillsBusy(), m.paid(), m.turnedAway())) {
             case ParsedStoreOccupancy.Invalid invalid -> {
                 auditLog.log("StoreOccupancyReceiver: INVALID", "%s: %s".formatted(store.id(), invalid.violations().stream()
                     .map(v -> parameterName(v.getPropertyPath()) + " " + v.getMessage()).sorted()
@@ -75,9 +75,9 @@ public class StoreOccupancyReceiver {
         }
         if (message.storeId() == null || message.measuredAt() == null || message.inside() == null
             || message.capacity() == null || message.queuing() == null || message.tills() == null
-            || message.tillsBusy() == null || message.turnedAway() == null) {
+            || message.tillsBusy() == null || message.paid() == null || message.turnedAway() == null) {
             throw new UnprocessableMessageException(
-                "storeId, measuredAt, inside, capacity, queuing, tills, tillsBusy and turnedAway are required");
+                "storeId, measuredAt, inside, capacity, queuing, tills, tillsBusy, paid and turnedAway are required");
         }
     }
 }

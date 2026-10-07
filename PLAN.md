@@ -1078,18 +1078,45 @@ cooldown is tested there, with fake SPIs, not via Kafka), `StoreOccupancyFlowTes
 one auto-tills test), core + app-server 171, e2e 27/27 (`-Dinventory.auto-tills.enabled=false` added). Not yet watched
 in the dev app (thresholds untuned).
 
-## till-metrics: Queue and throughput over time (TO ELABORATE)
+## store-metrics: Queue, throughput and occupancy over time (DONE 2026-10-07)
 
-Added 2026-10-07 at the user's request, to come after `auto-tills`. Per store, over time: till queue length, checkouts
-(throughput) per demo minute and customers turned away - so the effect of opening/closing tills (manual or `auto-tills`)
-is visible as a trend, not only as the current snapshot. To elaborate: history storage (today only the latest snapshot
-per store is kept), rate/window, where and how it is shown (chart on `/locations`?).
+Merges the former items `till-metrics` (per store over time: queue, checkouts per demo minute, customers turned away)
+and `occupancy-metrics` (customers inside vs. capacity over time, time spent full), both added 2026-10-07 to come after
+`auto-tills`: the effect of the tills becomes visible as a trend, not only as the current snapshot. In flow terms: WIP
+(queue), throughput (paid) and lost demand (turned away) side by side.
 
-## occupancy-metrics: Customers in the store vs. capacity over time (TO ELABORATE)
+### Plan (APPROVED 2026-10-07, all recommendations taken)
 
-Added 2026-10-07 at the user's request, to come after `auto-tills`. Per store, over time: customers inside relative to
-the capacity (utilisation, time spent full). Shares the history storage and the chart with `till-metrics`; may be done
-together with it.
+1. **Throughput from the report:** the occupancy report gets `paid` = customers who paid at a till in the last demo
+   minute, computed like `turnedAway` (stub: deque of payment times). The report stays a snapshot (idempotent). Message,
+   `StoreOccupancy` (+ `parse()`), receiver, `store_occupancy` table (`V6__store_occupancy_history.sql`). Not counted in
+   the app: purchases are not persisted, and with two pods each pod sees only its partitions.
+2. **History in Postgres:** table `store_occupancy_history` (same columns, PK `(storeId, measuredAt)`), written by
+   `OccupancyHandler.record` for every report that was newer (`on conflict do nothing`, so idempotent); rows older than
+   30 min (`OccupancyHandler.RETENTION`) of the store are deleted on each append (3 stores × 12/min ≈ 1,100 rows). Not in
+   memory: lost on restart, and with two pods each pod would only have its partitions' stores. Not touched by the admin
+   reset (external system's state, like `store_occupancy`). SPI: `OccupancyRepositorySPI.appendToHistory(occupancy,
+   keepSince)`, `history(store, since)`; `OccupancyHandler.history(store)` (last 10 min, `OccupancyHandler.WINDOW`).
+3. **Window:** the last 10 real minutes (= 10 demo days, several rush hours), the raw 5 s points (~120 per store); no
+   aggregation needed - `paid` and `turnedAway` already are per demo minute.
+4. **UI on `/locations`:** under each store's occupancy line, in the same fragment (refreshed on
+   `occupancyChanged-{storeId}`), two small inline-SVG charts, no chart library:
+   - *Occupancy:* inside (line), capacity (dashed), full periods shaded; header "full N % of the last 10 min".
+   - *Tills:* queuing and paid / min (lines), turned away / min (red), open tills (step line, own scale); header
+     "Ø paid / min · Ø turned away / min".
+   The VM carries the points and the summary values (computed in Java, `StoreMetricsVM`); the template only draws.
+5. **Two pods:** the history is written by the pod consuming the store's partition, read by every pod via Postgres -
+   one line in `two-pods_wip.md`.
+6. **Tests:** `StoreSimulationTest` (`paid` counts the last demo minute); `StoreMetricsVMTest` (full %, averages);
+   `StoreOccupancyFlowTest`: reports end up in the history, a redelivered one adds no row, the fragment carries the
+   metrics; e2e unchanged ("No occupancy reported yet" without the stub).
+7. **Docs:** update-architecture-docs (V6, history table, SPI methods), `concepts.md`, `two-pods_wip.md`, `README.md`,
+   `docs/ai/session-notes.md`.
+
+Implemented as planned (staged): `StoreSimulationTest` +1, `StoreMetricsVMTest` 3, `StoreOccupancyFlowTest` +2
+(metrics on the fragment, retention), app-server 173, e2e 27/27. Deviations: a full report shades at most 10 s (so a
+stub that stopped reporting isn't shown as full until now); the charts leave a 4 % margin above the maximum and below 0.
+Not yet watched in the dev app (the charts need a few minutes of stub reports).
 
 ## store-purchases: Purchases table on the store pages (TO ELABORATE)
 

@@ -4,3 +4,18 @@
 @media (prefers-color-scheme: dark) {
 	:root:not([data-theme="light"]) .theme-toggle::after { content: "☀"; }
 }
+
+/* The store metrics charts on /locations (location.ts): plain SVG, stretched to the column's width. */
+.metrics-chart { display: block; width: 100%; height: 6rem; border-left: 1px solid var(--bulma-border); border-bottom: 1px solid var(--bulma-border); }
+.metrics-chart polyline { fill: none; stroke-width: 2; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+.metrics-chart polyline.chart-capacity { stroke-dasharray: 4 3; stroke-width: 1.5; }
+.metrics-chart polyline.chart-tills { stroke-width: 1.5; }
+.chart-key { display: inline-block; width: 0.9em; height: 0.25em; margin-right: 0.3em; vertical-align: middle; }
+.chart-inside { stroke: var(--bulma-info); background: var(--bulma-info); }
+.chart-capacity { stroke: var(--bulma-text-weak); background: var(--bulma-text-weak); }
+.chart-full { fill: var(--bulma-danger); fill-opacity: 0.15; background: var(--bulma-danger); opacity: 0.4; }
+.metrics-chart .chart-full { opacity: 1; }
+.chart-queuing { stroke: var(--bulma-warning); background: var(--bulma-warning); }
+.chart-paid { stroke: var(--bulma-success); background: var(--bulma-success); }
+.chart-turned-away { stroke: var(--bulma-danger); background: var(--bulma-danger); }
+.chart-tills { stroke: var(--bulma-text); background: var(--bulma-text); }

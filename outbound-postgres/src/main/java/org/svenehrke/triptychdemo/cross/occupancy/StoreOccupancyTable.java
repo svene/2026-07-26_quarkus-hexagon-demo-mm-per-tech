@@ -12,7 +12,8 @@ import java.util.List;
 @ApplicationScoped
 public class StoreOccupancyTable {
 
-    private static final String COLUMNS = "storeId, measuredAt, inside, capacity, queuing, tills, tillsBusy, turnedAway";
+    /** Shared with {@link StoreOccupancyHistoryTable}: both tables have the same columns. */
+    static final String COLUMNS = "storeId, measuredAt, inside, capacity, queuing, tills, tillsBusy, paid, turnedAway";
 
     @Inject
     Db db;
@@ -22,13 +23,12 @@ public class StoreOccupancyTable {
      * report is newer. Returns false if an as new or newer one was stored already.
      */
     boolean upsertIfNewer(StoreOccupancy o) {
-        return db.update("insert into store_occupancy (" + COLUMNS + ") values (?, ?, ?, ?, ?, ?, ?, ?)"
+        return db.update("insert into store_occupancy (" + COLUMNS + ") values (?, ?, ?, ?, ?, ?, ?, ?, ?)"
                 + " on conflict (storeId) do update set measuredAt = excluded.measuredAt, inside = excluded.inside,"
                 + " capacity = excluded.capacity, queuing = excluded.queuing, tills = excluded.tills,"
-                + " tillsBusy = excluded.tillsBusy, turnedAway = excluded.turnedAway"
+                + " tillsBusy = excluded.tillsBusy, paid = excluded.paid, turnedAway = excluded.turnedAway"
                 + " where excluded.measuredAt > store_occupancy.measuredAt",
-            o.store().id(), o.measuredAt(), o.inside(), o.capacity(), o.queuing(), o.tills(), o.tillsBusy(),
-            o.turnedAway()) == 1;
+            values(o)) == 1;
     }
 
     List<StoreOccupancy> findAll() {
@@ -39,10 +39,16 @@ public class StoreOccupancyTable {
         db.update("delete from store_occupancy");
     }
 
-    private static StoreOccupancy map(ResultSet rs) throws SQLException {
+    /** The values for {@link #COLUMNS}, in their order. */
+    static Object[] values(StoreOccupancy o) {
+        return new Object[]{o.store().id(), o.measuredAt(), o.inside(), o.capacity(), o.queuing(), o.tills(),
+            o.tillsBusy(), o.paid(), o.turnedAway()};
+    }
+
+    static StoreOccupancy map(ResultSet rs) throws SQLException {
         var storeId = rs.getString("storeId");
         var store = Locations.storeById(storeId).orElseThrow(() -> new IllegalStateException("not a store: " + storeId));
         return new StoreOccupancy(store, Db.instant(rs, "measuredAt"), rs.getInt("inside"), rs.getInt("capacity"),
-            rs.getInt("queuing"), rs.getInt("tills"), rs.getInt("tillsBusy"), rs.getInt("turnedAway"));
+            rs.getInt("queuing"), rs.getInt("tills"), rs.getInt("tillsBusy"), rs.getInt("paid"), rs.getInt("turnedAway"));
     }
 }

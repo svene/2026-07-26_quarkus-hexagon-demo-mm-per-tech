@@ -50,6 +50,8 @@ final class StoreSimulation {
     private long turnedAwaySinceSnapshot;
     /** When customers were turned away, oldest first; only the last demo day is kept (see {@link #report}). */
     private final ArrayDeque<Instant> turnedAway = new ArrayDeque<>();
+    /** When customers paid, oldest first; only the last demo day is kept (see {@link #report}). */
+    private final ArrayDeque<Instant> paid = new ArrayDeque<>();
 
     StoreSimulation(String storeId, int capacity, int tills, SimulationTiming timing, RandomGenerator random,
                     Instant dayStart) {
@@ -86,6 +88,7 @@ final class StoreSimulation {
         for (int i = 0; i < tills.size(); i++) {
             if (tills.get(i) != null && !tills.get(i).isAfter(now)) {
                 tills.set(i, null); // paid and left: frees a place in the store
+                this.paid.add(now);
                 paid++;
             }
         }
@@ -134,18 +137,23 @@ final class StoreSimulation {
     /**
      * What the store's door counters and tills report: {@code tills} is the number that should be open, so right
      * after closing a busy till {@code tillsBusy} is capped at it (the till closes once its customer has paid).
-     * {@code turnedAway}: in the last demo day - a current value like the others, not a count since the last report,
-     * so a report can be repeated or lost without harm.
+     * {@code paid} and {@code turnedAway}: in the last demo day - current values like the others, not counts since
+     * the last report, so a report can be repeated or lost without harm.
      */
     Occupancy report(Instant now) {
         var dayAgo = now.minus(timing.day());
-        while (!turnedAway.isEmpty() && !turnedAway.peek().isAfter(dayAgo)) turnedAway.poll();
+        dropUntil(turnedAway, dayAgo);
+        dropUntil(paid, dayAgo);
         return new Occupancy(storeId, now, occupancy(), capacity, queued, openTills, Math.min(busyTills(), openTills),
-            turnedAway.size());
+            paid.size(), turnedAway.size());
     }
 
     record Occupancy(String storeId, Instant measuredAt, int inside, int capacity, int queuing, int tills,
-                     int tillsBusy, int turnedAway) {}
+                     int tillsBusy, int paid, int turnedAway) {}
+
+    private static void dropUntil(ArrayDeque<Instant> times, Instant until) {
+        while (!times.isEmpty() && !times.peek().isAfter(until)) times.poll();
+    }
 
     /** What the tills can serve, scaled by the rush-hour curve: a cosine over the day, quiet at its start and end. */
     double arrivalsPerSecond(Instant now) {

@@ -13,7 +13,7 @@ class TillPolicyTest {
 
 	/** Zurich: capacity 16. */
 	private static Optional<Integer> decide(int inside, int queuing, int tills, int tillsBusy) {
-		return TillPolicy.decide(new StoreOccupancy(Locations.ZURICH, Instant.now(), inside, 16, queuing, tills, tillsBusy, 0))
+		return TillPolicy.decide(new StoreOccupancy(Locations.ZURICH, Instant.now(), inside, 16, queuing, tills, tillsBusy, 0, 0))
 			.map(TillCount::tills);
 	}
 

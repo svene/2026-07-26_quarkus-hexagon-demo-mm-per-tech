@@ -362,13 +362,19 @@ LocationReceiver.request(id, productName, quantity)
 #### GET /locations/{id}/occupancy-fragment - A Store's Occupancy
 Stores only (the online FC has no customers inside). Fetched on that store's `occupancyChanged-{id}` event and morphed
 into its line: inside / capacity ("full") · queuing for a till · tills busy / open ("auto" if
-`inventory.auto-tills.enabled`) · turned away in the last demo minute; greyed out if the report is older than 30 s. The
-tills are opened and closed by the app itself (see "Event: OccupancyChanged" below), not on the page.
+`inventory.auto-tills.enabled`) · paid / turned away in the last demo minute; greyed out if the report is older than
+30 s. Below the line two inline-SVG charts of the last 10 min (`OccupancyHandler.WINDOW`): inside vs. capacity (full
+periods shaded, "full N % of the time"), and queuing, paid / min, turned away / min and open tills (Ø paid / turned
+away). The tills are opened and closed by the app itself (see "Event: OccupancyChanged" below), not on the page.
 ```
-LocationReceiver.occupancyFragment(id)   → UiResponse(StoreOccupancy, {storeId, report (null: none yet), autoTills})
-└─ OccupancyHandler.current()
-   └─ OccupancyRepositorySPI.findAll()
-      └─ OccupancyService (outbound-postgres) → PostgreSQL (store_occupancy)
+LocationReceiver.occupancyFragment(id)   → UiResponse(StoreOccupancy, {storeId, report (null: none yet), autoTills,
+│                                           metrics: {windowSeconds, points, fullPercent, avgPaid, avgTurnedAway}})
+├─ OccupancyHandler.current()
+│  └─ OccupancyRepositorySPI.findAll()
+│     └─ OccupancyService (outbound-postgres) → PostgreSQL (store_occupancy)
+└─ OccupancyHandler.history(store)   the reports of the last 10 min, oldest first (StoreMetricsVM)
+   └─ OccupancyRepositorySPI.history(store, since)
+      └─ OccupancyService (outbound-postgres) → PostgreSQL (store_occupancy_history)
 ```
 
 ### AuditLogReceiver (/audit-log) - Audit Log Page → MongoDB
@@ -557,6 +563,8 @@ StoreOccupancyReceiver.receive(message)   (inbound-kafka; no audit entry for a v
 └─ OccupancyHandler.record(occupancy)
    ├─ OccupancyRepositorySPI.saveIfNewer(occupancy)
    │  └─ OccupancyService (outbound-postgres) → PostgreSQL: one upsert, only if newer than the stored report
+   ├─ OccupancyRepositorySPI.appendToHistory(occupancy, keepSince)   if stored: one row more (a repeated one is
+   │  └─ OccupancyService → PostgreSQL (store_occupancy_history)       skipped), the store's rows older than 30 min dropped
    └─ AsyncEvents.fire(OccupancyChanged(store))   if stored (see GET /inventory/events and the next section)
 ```
 

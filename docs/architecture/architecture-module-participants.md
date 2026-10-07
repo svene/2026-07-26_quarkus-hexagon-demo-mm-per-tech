@@ -16,7 +16,7 @@ Complete inventory of all classes participating in the system flows, organized b
 | **inbound-kafka** | `FruitDeliveryReceiver`<br>`VegetablesDeliveryReceiver`<br>`DairyDeliveryReceiver`<br>`BeveragesDeliveryReceiver`<br>`MeatDeliveryReceiver`<br>`BakeryDeliveryReceiver`<br>`NonFoodDeliveryReceiver`<br>`CashpointReceiver`<br>`ShipmentArrivalReceiver`<br>`StoreOccupancyReceiver` |
 | **inbound-event** | `DeliveryEventReceiver`, `AutoReplenishmentReceiver`, `AutoPurchasingReceiver`, `DcSeedReceiver`, `ShipmentCatchUpReceiver`, `DemandPeriodReceiver`, `AutoTillsReceiver`, `EventExecutorProducer` |
 | **core** | `FruitSupplierSPI`/`FruitDelivery`/`FruitsHandler`<br>`VegetablesSupplierSPI`/`VegetableDelivery`/`VegetablesHandler`<br>`DairySupplierSPI`/`DairyDelivery`/`DairyHandler`<br>`BeverageSupplierSPI`/`BeverageDelivery`/`BeveragesHandler`<br>`MeatSupplierSPI`/`MeatDelivery`/`MeatHandler`<br>`BakerySupplierSPI`/`BakeryDelivery`/`BakeryHandler`<br>`NonFoodSupplierSPI`/`NonFoodDelivery`/`NonFoodHandler`<br>`InventoryRepositorySPI`/`InventoryHandler`/`InventoryEvent` (`DeliveredToDc`/`StockDeducted`/`ReplenishmentChanged`/`LevelsRecalculated`/`DcDemandChanged`/`SupplierOrdersChanged`/`InventoryReset`)<br>`Location`/`Replenished`/`Warehouse`/`Store`/`OnlineFc`/`Locations`<br>`ReplenishmentRepositorySPI`/`ReplenishmentHandler`/`StockRequest`/`ReplenishmentRequest`/`RequestOrigin`/`CarrierSPI`/`Shipment`/`ShipmentStatus`<br>`ReorderPolicyHandler`/`ReorderPolicy`/`DemandEstimate`/`LearnedLevels`<br>`SupplierOrderRepositorySPI`/`PurchasingHandler`/`SupplierOrder`/`SupplierOrderStatus`/`SupplierOrderOrigin`<br>`AuditLogSPI`/`AuditLogHandler`/`AuditLogEntry`<br>`ResetRepositorySPI`/`ResetHandler`<br>`OccupancyRepositorySPI`/`CheckoutSystemSPI`/`OccupancyHandler`/`StoreOccupancy`/`TillCount`/`OccupancyChanged`<br>`ProductsHandler`/`Product`/`ProductStock`/`ProductType`<br>`PurchaseHandler`/`PurchaseItem`<br>`AsyncEvents`/`EventExecutor` |
-| **outbound-postgres** | `InventoryService`<br>`StockTable`<br>`ReplenishmentService`<br>`ReplenishmentRequestTable`<br>`ShipmentTable`<br>`SupplierOrderService`<br>`SupplierOrderTable`<br>`OccupancyService`<br>`StoreOccupancyTable`<br>`ResetService`<br>`Db` |
+| **outbound-postgres** | `InventoryService`<br>`StockTable`<br>`ReplenishmentService`<br>`ReplenishmentRequestTable`<br>`ShipmentTable`<br>`SupplierOrderService`<br>`SupplierOrderTable`<br>`OccupancyService`<br>`StoreOccupancyTable`<br>`StoreOccupancyHistoryTable`<br>`ResetService`<br>`Db` |
 | **outbound-mongodb** | `AuditLogService`<br>`AuditLogEntryEntity` |
 | **outbound-httpclient** | `FruitSupplierService`<br>`VegetablesSupplierService`<br>`DairySupplierService`<br>`CheckoutSystemService`<br>`FruitSupplierClient`<br>`VegetablesSupplierClient`<br>`DairySupplierClient`<br>`CheckoutSystemClient` |
 | **outbound-webservice** | `BeverageSupplierService`<br>`MeatSupplierService`<br>`BakerySupplierService`<br>`BeverageOrderService`<br>`MeatOrderService`<br>`BakeryOrderService` |
@@ -236,12 +236,12 @@ Complete inventory of all classes participating in the system flows, organized b
 - `SupplierOrderOrigin` - Enum (MANUAL, AUTOMATIC)
 
 ### cross.occupancy
-- `StoreOccupancy` - What a store's checkout system reports (store, measuredAt, inside, capacity, queuing, tills 1..8, tillsBusy, turnedAway in the last demo day); `parse()` / sealed `ParsedStoreOccupancy`. A snapshot: only the latest per store counts
+- `StoreOccupancy` - What a store's checkout system reports (store, measuredAt, inside, capacity, queuing, tills 1..8, tillsBusy, paid and turnedAway in the last demo day); `parse()` / sealed `ParsedStoreOccupancy`. A snapshot: only the latest per store counts
 - `TillCount` - How many tills a store should have open (1..`MAX_TILLS` = 8); only built by the app, no `parse()`
 - `TillPolicy` - Plain function `decide(StoreOccupancy)` → one till more (more queuing than tills open, or full with every till busy), one less (nobody queuing, ≥ 2 tills free) or none; within 1..8
-- `OccupancyRepositorySPI` - The latest report per store (methods: saveIfNewer - false if an as new or newer one is stored, findAll)
+- `OccupancyRepositorySPI` - The latest report per store, and each store's recent reports (methods: saveIfNewer - false if an as new or newer one is stored, findAll, appendToHistory - idempotent, drops the store's reports before `keepSince`, history(store, since))
 - `CheckoutSystemSPI` - The stores' checkout systems, which own the tills (method: setTills - throws if refused or unreachable)
-- `OccupancyHandler` - (methods: record - via StoreOccupancyReceiver, `saveIfNewer`, fires `OccupancyChanged` if stored, not audit-logged; current)
+- `OccupancyHandler` - (methods: record - via StoreOccupancyReceiver, `saveIfNewer`, if stored `appendToHistory` (kept `RETENTION` = 30 min) and fires `OccupancyChanged`, not audit-logged; current; history(store) - the last `WINDOW` = 10 min, for the charts on /locations)
 - `AutoTillsHandler` - Automatic tills (method: adjust(store) - via AutoTillsReceiver; the store's latest report → `TillPolicy` → `CheckoutSystemSPI.setTills`, audit `TILLS_OPENED` / `TILLS_CLOSED` / `TILLS_CHANGE_FAILED`; synchronized; a 10 s cooldown per store after a change, kept in memory)
 - `OccupancyChanged` - CDI event (via `AsyncEvents`), not an `InventoryEvent`: observed by the live updates of `/locations` and by AutoTillsReceiver
 
@@ -279,15 +279,16 @@ Complete inventory of all classes participating in the system flows, organized b
 - `ShipmentTable` / `ShipmentRow` - SQL of the `shipment` table and its row record (requestId, locationId, productName, type, quantity, status, dispatchedAt, arrivedAt; core's `Shipment` has no type)
 - `SupplierOrderService` - Implements SupplierOrderRepositorySPI; locks the DC stock row first, then the supplier orders
 - `SupplierOrderTable` - SQL of the `supplier_order` table; rows map straight to core's `SupplierOrder`
-- `OccupancyService` - Implements OccupancyRepositorySPI (via `StoreOccupancyTable`)
+- `OccupancyService` - Implements OccupancyRepositorySPI (via `StoreOccupancyTable` and `StoreOccupancyHistoryTable`)
 - `StoreOccupancyTable` - SQL of the `store_occupancy` table (one row per store); `upsertIfNewer` is one `insert … on conflict … do update … where excluded.measuredAt > store_occupancy.measuredAt`, so no lock is needed; not deleted by the reset
+- `StoreOccupancyHistoryTable` - SQL of the `store_occupancy_history` table (every report per store, same columns, PK `(storeId, measuredAt)`): `insertIfAbsent` (`on conflict do nothing`), `deleteBefore(store, before)`, `findSince(store, since)`; not deleted by the reset
 - `ResetService` - Implements ResetRepositorySPI: bulk delete of the four tables in one transaction; identity columns keep counting, so a new row never reuses an id a message in flight still refers to
 
 - `Db` - small JDBC helper (`query`, `queryOne`, `queryInt`, `update`, `insert`) on the Agroal datasource; inside `@Transactional` every call uses the transaction's connection
 
 **Technology**: Plain SQL over JDBC (Agroal datasource, Narayana JTA for `@Transactional`), PostgreSQL, Flyway - no ORM
-**Schema**: Flyway migrations in `src/main/resources/db/migration` (`V1__initial_schema.sql`, `V2__identity_ids.sql`: identity ids instead of the Panache sequences, `V3__seed_origin.sql`: supplier order origin `SEED`, `V4__store_occupancy.sql`, `V5__store_occupancy_capacity.sql`), applied at startup - every schema change needs a new `V<n>__*.sql`; the flow tests run every query against the migrated schema
-**Database**: `stock`, `replenishment_request`, `shipment`, `supplier_order` and `store_occupancy` tables in PostgreSQL
+**Schema**: Flyway migrations in `src/main/resources/db/migration` (`V1__initial_schema.sql`, `V2__identity_ids.sql`: identity ids instead of the Panache sequences, `V3__seed_origin.sql`: supplier order origin `SEED`, `V4__store_occupancy.sql`, `V5__store_occupancy_capacity.sql`, `V6__store_occupancy_history.sql`), applied at startup - every schema change needs a new `V<n>__*.sql`; the flow tests run every query against the migrated schema
+**Database**: `stock`, `replenishment_request`, `shipment`, `supplier_order`, `store_occupancy` and `store_occupancy_history` tables in PostgreSQL
 **Transactional**: Yes (@Transactional on write operations)
 
 ---

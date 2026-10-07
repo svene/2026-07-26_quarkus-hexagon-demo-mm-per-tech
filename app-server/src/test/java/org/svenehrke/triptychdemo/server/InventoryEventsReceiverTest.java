@@ -103,7 +103,7 @@ class InventoryEventsReceiverTest {
 
             assertThat(nextEvent(lines)).isEqualTo("inventoryChanged"); // on connect
 
-            occupancyHandler.record(new StoreOccupancy(Locations.ZURICH, Instant.now(), 12, 16, 3, 4, 4, 0));
+            occupancyHandler.record(new StoreOccupancy(Locations.ZURICH, Instant.now(), 12, 16, 3, 4, 4, 0, 0));
 
             assertThat(nextEvent(lines)).isEqualTo("occupancyChanged-zurich");
             response.cancel(true);

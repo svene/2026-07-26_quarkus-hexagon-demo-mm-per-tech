@@ -72,15 +72,18 @@ grouped by the underlying technology of the outbound adapter:
 
 4. **Store occupancy and tills** (on `/locations`) — each store's line shows
    how many customers are inside (of its capacity), how many queue for a till,
-   how many tills are busy and how many customers were turned away in the last
-   demo minute, as the checkout systems report it every 5 s (Kafka topic
+   how many tills are busy and how many customers paid and were turned away in
+   the last demo minute, as the checkout systems report it every 5 s (Kafka topic
    `store-occupancy`). At the rush hour the queue grows until the store is
    full, and new customers turn away - lost sales. The app opens a till when
    the queue gets longer than the open tills (or the store is full and every
    till busy) and closes one when two stand idle (tag *auto*; switch:
    `inventory.auto-tills.enabled`): more of them get in, fewer turned away,
    more sales (and the store's stock falls faster). Each change is in the
-   audit log (`TILLS_OPENED` / `TILLS_CLOSED`).
+   audit log (`TILLS_OPENED` / `TILLS_CLOSED`). Below the line, two charts of
+   the last 10 minutes show the trend: customers inside vs. capacity (time
+   spent full), and queue, paid and turned away per minute with the open
+   tills - so you can see whether a till raises the throughput.
 
 ### JSON API
 
@@ -216,7 +219,7 @@ Which tests cover what (all in `app-server` unless noted):
 | JSON API (`inbound-http-jsonapi`) | `ProductApiReceiverTest` |
 | Ordering, deliveries, Kafka topics | `*OrderDeliveryFlowTest`, `SupplierOrderFlowTest`, `SupplierLeadTimeFlowTest` |
 | Stores, shipments, replenishment | `ReplenishmentFlowTest`, `AutoReplenishmentFlowTest`, `ShipmentFlowTest`, `ShipmentTransitFlowTest`, `DcSeedFlowTest`, `AutoPurchasingFlowTest` |
-| Cashpoints, store occupancy | `CashpointFlowTest`, `CashpointViaKafkaFlowTest`, `StoreOccupancyFlowTest`; `StoreSimulationTest` in `external-inbound-kafka` |
+| Cashpoints, store occupancy | `CashpointFlowTest`, `CashpointViaKafkaFlowTest`, `StoreOccupancyFlowTest`; `StoreSimulationTest` in `external-inbound-kafka`, `StoreMetricsVMTest` in `inbound-http-html` |
 | Live updates (SSE) | `InventoryEventsReceiverTest` |
 | Kafka error handling (DLQ, retry) | `KafkaMalformedMessageTest`, `KafkaTransientFailureTest` |
 | Package moves, new modules | `ArchitectureTest` |

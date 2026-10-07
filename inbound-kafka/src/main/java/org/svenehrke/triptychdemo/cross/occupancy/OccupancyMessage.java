@@ -7,4 +7,4 @@ import java.time.Instant;
  * field is noticed instead of read as 0.
  */
 public record OccupancyMessage(String storeId, Instant measuredAt, Integer inside, Integer capacity, Integer queuing,
-                               Integer tills, Integer tillsBusy, Integer turnedAway) {}
+                               Integer tills, Integer tillsBusy, Integer paid, Integer turnedAway) {}

@@ -1,5 +1,5 @@
 import {html} from "hono/html";
-import type {LocationInventoryVM, LocationProductRowVM, LocationsPageVM, RequestVM, StoreOccupancyVM} from "./generated/vm-types";
+import type {LocationInventoryVM, LocationProductRowVM, LocationsPageVM, PointVM, RequestVM, StoreMetricsVM, StoreOccupancyVM} from "./generated/vm-types";
 import type {HtmlResult} from "./route-types";
 
 // One section per store / the online FC, each refreshed on its own; the section id makes /locations#bern a link to Bern.
@@ -59,7 +59,7 @@ export const LocationInventory = (vm: LocationInventoryVM): HtmlResult => html`
 
 // What the store's checkout system reports (door counters, tills), refreshed on each report. The app opens and closes
 // the tills by these reports ("auto"); a closed till that is busy closes once its customer has paid. A full store
-// turns new customers away (lost sales): more tills let them in.
+// turns new customers away (lost sales): more tills let them in. Below the line the same reports over time.
 export const StoreOccupancy = (vm: StoreOccupancyVM): HtmlResult => {
 	const r = vm.report;
 	if (!r) return html`<p class="has-text-grey mb-4"><em>No occupancy reported yet.</em></p>`;
@@ -68,11 +68,91 @@ export const StoreOccupancy = (vm: StoreOccupancyVM): HtmlResult => {
 			<div class="level-item is-flex-grow-0 mr-5"><span title="Customers inside / capacity"><strong class="occupancy-inside">${r.inside} / ${r.capacity}</strong> inside</span>${r.full ? html`<span class="tag is-danger ml-2">full</span>` : ''}</div>
 			<div class="level-item is-flex-grow-0 mr-5"><span class="tag is-medium ${r.queuing > 0 ? 'is-warning' : 'is-light'}"><strong class="occupancy-queuing mr-1">${r.queuing}</strong> queuing for a till</span></div>
 			<div class="level-item is-flex-grow-0 mr-5"><span title="Busy tills / open tills">tills <strong class="occupancy-tills">${r.tillsBusy} / ${r.tills}</strong> busy</span>${vm.autoTills ? html`<span class="tag is-info is-light ml-2" title="The app opens and closes the tills by the queue">auto</span>` : ''}</div>
+			<div class="level-item is-flex-grow-0 mr-5"><span title="Customers who paid at a till in the last demo day (1 min): the throughput"><strong class="occupancy-paid">${r.paid}</strong> paid (last minute)</span></div>
 			<div class="level-item is-flex-grow-0 mr-5"><span class="${r.turnedAway > 0 ? 'has-text-danger' : 'has-text-grey'}" title="Customers who found the store full in the last demo day (1 min): lost sales"><strong class="occupancy-turned-away">${r.turnedAway}</strong> turned away (last minute)</span></div>
 			<div class="level-item is-flex-grow-0 is-size-7 has-text-grey" title="Time of the checkout system's latest report">${r.stale ? `as of ${r.measuredAt}, no newer report` : r.measuredAt}</div>
 		</div>
+		${StoreMetrics(vm.metrics)}
 	`;
 };
+
+// The charts: plain SVG, x = seconds in the window, y scaled to the chart's height. preserveAspectRatio="none"
+// stretches the drawing to the column's width; non-scaling-stroke (in theme.css) keeps the lines thin. So the SVG
+// has no text: the legends and scales are HTML above it.
+const CHART_HEIGHT = 100;
+// Room above the maximum and below 0, so a line at either isn't half cut off by the edge.
+const CHART_PAD = 4;
+const MAX_TILLS = 8;
+// The stub reports every 5 s; a longer gap (it stopped) isn't shaded as full.
+const MAX_SHADE_SECONDS = 10;
+
+const StoreMetrics = (m: StoreMetricsVM): HtmlResult => {
+	if (m.points.length === 0) return html``;
+	const minutes = m.windowSeconds / 60;
+	const occupancyMax = Math.max(1, ...m.points.map(p => Math.max(p.capacity, p.inside)));
+	const flowMax = Math.max(1, ...m.points.map(p => Math.max(p.queuing, p.paid, p.turnedAway)));
+	return html`
+		<div class="columns mb-4 store-metrics">
+			<div class="column">
+				<p class="is-size-7 mb-1">
+					<strong>Occupancy</strong>, last ${minutes} min ·
+					<span class="${m.fullPercent > 0 ? 'has-text-danger' : 'has-text-grey'}" title="Share of the reports that found the store full"><strong class="metrics-full">${m.fullPercent} %</strong> of the time full</span>
+				</p>
+				<p class="is-size-7 has-text-grey mb-1">
+					<span class="chart-key chart-inside"></span>inside
+					<span class="chart-key chart-capacity ml-3"></span>capacity
+					<span class="chart-key chart-full ml-3"></span>full · scale 0–${occupancyMax}
+				</p>
+				<svg class="metrics-chart" viewBox="0 0 ${m.windowSeconds} ${CHART_HEIGHT}" preserveAspectRatio="none" role="img" aria-label="Customers inside vs. capacity">
+					${fullPeriods(m)}
+					<polyline class="chart-capacity" points="${line(m.points, p => p.capacity, occupancyMax)}"/>
+					<polyline class="chart-inside" points="${line(m.points, p => p.inside, occupancyMax)}"/>
+				</svg>
+			</div>
+			<div class="column">
+				<p class="is-size-7 mb-1">
+					<strong>Tills</strong>, last ${minutes} min ·
+					Ø <strong class="metrics-avg-paid">${m.avgPaid.toFixed(1)}</strong> paid /
+					<span class="${m.avgTurnedAway > 0 ? 'has-text-danger' : 'has-text-grey'}">Ø <strong class="metrics-avg-turned-away">${m.avgTurnedAway.toFixed(1)}</strong> turned away</span> per minute
+				</p>
+				<p class="is-size-7 has-text-grey mb-1">
+					<span class="chart-key chart-queuing"></span>queuing
+					<span class="chart-key chart-paid ml-3"></span>paid / min
+					<span class="chart-key chart-turned-away ml-3"></span>turned away / min · scale 0–${flowMax}
+					<span class="chart-key chart-tills ml-3"></span>open tills (scale 0–${MAX_TILLS})
+				</p>
+				<svg class="metrics-chart" viewBox="0 0 ${m.windowSeconds} ${CHART_HEIGHT}" preserveAspectRatio="none" role="img" aria-label="Queue, throughput, turned away and open tills">
+					<polyline class="chart-tills" points="${steps(m.points, p => p.tills, MAX_TILLS)}"/>
+					<polyline class="chart-turned-away" points="${line(m.points, p => p.turnedAway, flowMax)}"/>
+					<polyline class="chart-queuing" points="${line(m.points, p => p.queuing, flowMax)}"/>
+					<polyline class="chart-paid" points="${line(m.points, p => p.paid, flowMax)}"/>
+				</svg>
+			</div>
+		</div>
+	`;
+};
+
+const y = (value: number, max: number): number =>
+	Math.round((CHART_HEIGHT - CHART_PAD - value * (CHART_HEIGHT - 2 * CHART_PAD) / max) * 10) / 10;
+
+const line = (points: PointVM[], value: (p: PointVM) => number, max: number): string =>
+	points.map(p => `${p.t},${y(value(p), max)}`).join(' ');
+
+// Holds each value until the next report: the tills change in steps, not gradually.
+const steps = (points: PointVM[], value: (p: PointVM) => number, max: number): string =>
+	points.flatMap((p, i) => {
+		const here = `${p.t},${y(value(p), max)}`;
+		return i === 0 ? [here] : [`${p.t},${y(value(points[i - 1]), max)}`, here];
+	}).join(' ');
+
+// A full report shades the time until the next one, at most MAX_SHADE_SECONDS.
+const fullPeriods = (m: StoreMetricsVM): HtmlResult[] =>
+	m.points.flatMap((p, i) => {
+		if (p.inside < p.capacity) return [];
+		const next = i + 1 < m.points.length ? m.points[i + 1].t : m.windowSeconds;
+		const width = Math.max(0, Math.min(next, p.t + MAX_SHADE_SECONDS, m.windowSeconds) - p.t);
+		return [html`<rect class="chart-full" x="${p.t}" y="0" width="${width}" height="${CHART_HEIGHT}"/>`];
+	});
 
 // Available against the learned levels: red below min (an automatic request is due), grey above max (overstocked).
 // Without levels (no row for the product yet), only an empty shelf is red.

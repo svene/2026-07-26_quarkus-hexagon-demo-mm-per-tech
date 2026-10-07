@@ -227,7 +227,7 @@ message and calls `PurchaseHandler`, exactly as a Kafka delivery receiver calls 
 ## Store occupancy: a snapshot topic, and tills behind an outbound port
 
 The same checkout systems also report each store's occupancy (customers inside and the capacity, queuing
-for a till, busy/open tills, turned away in the last demo day) on the `store-occupancy` topic, every 5 s per store, keyed by store id. Unlike every
+for a till, busy/open tills, paid and turned away in the last demo day) on the `store-occupancy` topic, every 5 s per store, keyed by store id. Unlike every
 other topic, these messages are **state snapshots, not events**: only the latest per store counts.
 `OccupancyHandler.record` stores a report only if it is newer than the stored one (one upsert), so a
 redelivered or overtaken message changes nothing - no inbox needed, not even with two pods. A keyed
@@ -247,6 +247,16 @@ to the external checkout systems, so the change goes through the hexagon like an
 stores - from the next occupancy report, which the stub sends right after the change. It is the first
 loop in the demo that closes over an external system: a report leads to a command to the same system,
 whose next report shows the effect.
+
+To show that effect as a trend, not only as the current numbers, every stored report is also appended to
+a history (`store_occupancy_history`, the last 30 min per store), and `/locations` draws the last 10 min
+per store as two small charts: inside vs. capacity, and queue, paid, turned away and open tills. In flow
+terms: work in progress (the queue), throughput (paid) and lost demand (turned away) side by side - the
+till is the bottleneck, and the charts show whether opening one raises the throughput or only shortens
+the queue. The history stays idempotent like the snapshot: its key is (store, measuredAt), so a
+redelivered report adds no row. The throughput comes from the checkout system's report (`paid` in the
+last demo day), not from counting purchases in the app: a current value can be repeated or lost without
+harm, and with two pods each pod only sees its own partitions.
 
 `PurchaseHandler` is also reachable directly via the REST endpoint (`/api/products/purchase`), which
 bypasses Kafka entirely and is what tests and tooling use to drive a purchase synchronously.

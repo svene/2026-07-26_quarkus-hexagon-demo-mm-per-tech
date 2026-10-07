@@ -185,6 +185,19 @@ class StoreSimulationTest {
     }
 
     @Test
+    void the_report_counts_who_paid_in_the_last_demo_day() {
+        var store = store(1);
+        var end = START.plus(TIMING.day().multipliedBy(3));
+        run(store, START, TIMING.day().multipliedBy(2)); // the days before: not counted
+        var lastDay = run(store, end.minus(TIMING.day()), TIMING.day());
+
+        var report = store.report(end);
+        assertThat(report.paid()).isEqualTo(lastDay.paid).isPositive();
+        assertThat(store.report(end).paid()).isEqualTo(report.paid()); // a report changes nothing
+        assertThat(store.report(end.plus(TIMING.day())).paid()).isZero();
+    }
+
+    @Test
     void more_tills_turn_fewer_customers_away_and_sell_more() {
         var configured = store(16, 4);
         var opened = store(16, 4);

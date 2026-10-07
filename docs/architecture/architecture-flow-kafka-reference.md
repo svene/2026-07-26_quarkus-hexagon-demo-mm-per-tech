@@ -34,7 +34,9 @@ Technical reference for understanding the Kafka-based integration patterns and t
 - **OccupancyService**: The latest occupancy each store's checkout system reported
   - `saveIfNewer(occupancy)`: Called by OccupancyHandler for every `store-occupancy` message - one upsert (`on conflict … do update … where excluded.measuredAt > store_occupancy.measuredAt`), so an older or repeated report changes nothing and needs no lock
   - `findAll()`: Called by the `/locations` page and its occupancy fragments
-  - Storage: `store_occupancy` table (StoreOccupancyTable, migration V4) - one row per store; not touched by the admin reset (the external system's state)
+  - `appendToHistory(occupancy, keepSince)`: Called by OccupancyHandler after a stored report - `insert … on conflict (storeId, measuredAt) do nothing`, then the store's rows older than 30 min deleted
+  - `history(store, since)`: Called by the occupancy fragments (the charts, last 10 min)
+  - Storage: `store_occupancy` table (StoreOccupancyTable, migration V4) - one row per store; `store_occupancy_history` (StoreOccupancyHistoryTable, migration V6) - every report of the last 30 min; neither is touched by the admin reset (the external system's state)
 
 ### MongoDB (outbound-mongodb)
 - **AuditLogService**: Logs all system events
@@ -177,8 +179,8 @@ Every stub publishes its delivery after the supplier lead time (`supplier-stub.l
 **Topic: store-occupancy** (Kafka key: storeId)
 - **Producer**: External checkout systems (simulated by CashpointStub: every 5 s per store, and right after a till change; `StoreSimulation.report`)
 - **Consumer**: StoreOccupancyReceiver (in inbound-kafka)
-- **Message**: `{storeId, measuredAt, inside, capacity, queuing, tills, tillsBusy, turnedAway}` - current values only (`turnedAway`: at the full store in the last demo day, not since the last report). A missing field goes to the DLQ; an id that is no store, or values out of range, are audit-logged `INVALID` and skipped. Valid messages are not audit-logged (36 per minute)
-- **Flow**: Occupancy report → OccupancyHandler.record → OccupancyService.saveIfNewer → if newer, `OccupancyChanged` (CDI, async) → SSE `occupancyChanged-<storeId>` on `/inventory/events` → that store's line on `/locations` re-fetches; and AutoTillsReceiver → AutoTillsHandler → `TillPolicy` → CheckoutSystemService (opens/closes a till, which the stub reports right away)
+- **Message**: `{storeId, measuredAt, inside, capacity, queuing, tills, tillsBusy, paid, turnedAway}` - current values only (`paid` at a till / `turnedAway` at the full store: in the last demo day, not since the last report). A missing field goes to the DLQ; an id that is no store, or values out of range, are audit-logged `INVALID` and skipped. Valid messages are not audit-logged (36 per minute)
+- **Flow**: Occupancy report → OccupancyHandler.record → OccupancyService.saveIfNewer → if newer, appendToHistory and `OccupancyChanged` (CDI, async) → SSE `occupancyChanged-<storeId>` on `/inventory/events` → that store's line on `/locations` re-fetches; and AutoTillsReceiver → AutoTillsHandler → `TillPolicy` → CheckoutSystemService (opens/closes a till, which the stub reports right away)
 - **A snapshot, not an event**: unlike every other topic here, only the latest message per store counts. Storing it is idempotent (an older or redelivered report is not newer), so it needs no inbox, not even with two pods. Keyed by store, the topic suits **log compaction** (`cleanup.policy=compact`: Kafka keeps at least the latest message per key) - not configured in this demo, where the dev-services topic keeps everything for its short life
 - **Config**:
   - Incoming: `mp.messaging.incoming.store-occupancy.topic=store-occupancy`
