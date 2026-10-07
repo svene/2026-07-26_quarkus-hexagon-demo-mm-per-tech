@@ -7,7 +7,7 @@ code on virtual threads. Project-independent on purpose. Two companion files:
   uses Mutiny everywhere to virtual threads - strategy, rules, pitfalls.
 - [`virtual-threads-in-this-project.md`](virtual-threads-in-this-project.md): how this demo applies it.
 
-Written 2026-10-06 against Quarkus 3.33 and Java 25.
+Written 2026-10-06 against Quarkus 3.33 and Java 25. Structured concurrency section added 2026-10-07 (Java 25-27).
 
 ---
 
@@ -134,11 +134,261 @@ What doesn't change: the domain logic, the APIs of the endpoints and topics, and
 
 - **Streams:** SSE endpoints, WebSocket message streams, Kafka processing written as `Multi` transformations.
 - **Framework interfaces** that declare `Uni`/`Multi`, for example SmallRye's `KafkaFailureHandler`.
-- **Fan-out/fan-in** within one request (call three services at once, combine the results). `Uni.combine().all()` is
-  still the most concise option. The Java alternative, structured concurrency (`StructuredTaskScope`), is still a
-  preview API in Java 25. Until it's final, an `ExecutorService` from `Executors.newVirtualThreadPerTaskExecutor()` with
-  `Future`s works, but is wordier.
+- **Fan-out/fan-in** within one request (call three services at once, combine the results), **for now**.
+  `Uni.combine().all()` is still the most concise option on Java 25. The Java replacement, structured concurrency
+  (`StructuredTaskScope`), is a preview API up to Java 27. See
+  [Fan-out/fan-in: structured concurrency instead of `Uni.combine()`](#fan-outfan-in-structured-concurrency-instead-of-unicombine).
 - **Truly high fan-in event-loop code** where even a virtual thread per event is too much (rare in business systems).
+
+---
+
+## Fan-out/fan-in: structured concurrency instead of `Uni.combine()`
+
+Virtual threads make a *sequential* flow simple. If one request needs several independent calls at the same time,
+plain blocking code needs a way to start them in parallel, wait for all of them (or the first one), cancel the rest on
+failure and enforce a deadline. Mutiny does that with `Uni.combine()` and `Multi`. The JDK's answer is **structured
+concurrency**: `java.util.concurrent.StructuredTaskScope` forks each call as a subtask on its own virtual thread, and
+the scope is a `try`-with-resources block. No subtask outlives the block.
+
+This demo has no fan-out (each handler does its calls one after another), so nothing in it would change. The snippets
+below are what a Mutiny-heavy code base would replace.
+
+### Status
+
+| Java | JEP | State |
+|---|---|---|
+| 25 (LTS) | [505](https://openjdk.org/jeps/505) | fifth preview |
+| 26 | [525](https://openjdk.org/jeps/525) | sixth preview, API renamed in places |
+| 27 | [533](https://openjdk.org/jeps/533) | seventh preview, exceptions reworked |
+| 28 (March 2027) | [543](https://openjdk.org/jeps/543) | proposed to become final, **unchanged from 27** |
+
+So the API shown below is the **Java 27 one, which should become final in Java 28**. Java 28 is not an LTS release. Teams
+that only use LTS versions get the final API with Java 29 (September 2027). The Java 25 differences are listed
+[further down](#what-is-different-in-java-25).
+
+### The snippets assume
+
+- On the Mutiny side, the `Uni`s come from reactive clients and so already run concurrently. (A `Uni` that wraps a
+  blocking call only runs in parallel with `.runSubscriptionOn(executor)`.)
+- On the structured concurrency side, the method runs on a virtual thread (`@RunOnVirtualThread`) and the clients are
+  blocking. Each `fork` starts a new virtual thread.
+
+### 1. Call a fixed set of services, combine the results
+
+A product page needs the product from the catalogue and its stock levels.
+
+```java
+// Mutiny
+public Uni<ProductView> product(String id) {
+    return Uni.combine().all()
+        .unis(catalog.find(id), inventory.levels(id))
+        .with((product, levels) -> new ProductView(product, levels));
+}
+```
+
+```java
+// structured concurrency (Java 27/28)
+@RunOnVirtualThread
+public ProductView product(String id) throws ExecutionException, InterruptedException {
+    try (var scope = StructuredTaskScope.open()) {
+        Subtask<Product> product = scope.fork(() -> catalog.find(id));
+        Subtask<StockLevels> levels = scope.fork(() -> inventory.levels(id));
+        scope.join();                            // waits for both; throws if one failed
+        return new ProductView(product.get(), levels.get());
+    }
+}
+```
+
+`open()` without arguments uses the default policy: wait until all subtasks succeed. If one fails, the scope
+**interrupts the others** and `join()` throws an `ExecutionException` with the subtask's exception as its cause.
+Mutiny's default is also fail-fast: the first failure fails the combined `Uni` and cancels the other subscriptions.
+(Mutiny's `.collectFailures()`, which waits for all and reports all failures, corresponds to a custom `Joiner` or
+`Joiner.allUntil(...)`.)
+
+### 2. Same call to many services, all results
+
+Ask every supplier for a quote and take the cheapest, within two seconds.
+
+```java
+// Mutiny
+public Uni<Quote> cheapestQuote(Order order) {
+    List<Uni<Quote>> quotes = suppliers.stream().map(s -> s.quote(order)).toList();
+    return Uni.combine().all().unis(quotes)
+        .with(Quote.class, all -> all.stream().min(comparing(Quote::price)).orElseThrow())
+        .ifNoItem().after(Duration.ofSeconds(2)).fail();
+}
+```
+
+```java
+// structured concurrency (Java 27/28)
+public Quote cheapestQuote(Order order) throws ExecutionException, InterruptedException {
+    try (var scope = StructuredTaskScope.open(Joiner.<Quote>allSuccessfulOrThrow(),
+                                              cf -> cf.withTimeout(Duration.ofSeconds(2)))) {
+        suppliers.forEach(s -> scope.fork(() -> s.quote(order)));
+        return scope.join().stream().min(comparing(Quote::price)).orElseThrow();
+    }
+}
+```
+
+`allSuccessfulOrThrow()` makes `join()` return the results as a `List`. The timeout covers the whole scope. When it
+expires, the open subtasks are interrupted and `join()` throws an `ExecutionException` whose cause is a
+`CancelledByTimeoutException`. Mutiny's `ifNoItem().after(...).fail()` throws a `TimeoutException` and cancels the
+subscription. Whether the HTTP call underneath really stops depends on the client in both cases. A blocking client
+stops when its thread is interrupted only if its I/O reacts to interrupts.
+
+### 3. First successful answer wins
+
+Several carriers can take a shipment; use the first one that confirms.
+
+```java
+// Mutiny
+public Uni<Confirmation> book(Shipment shipment) {
+    return Uni.combine().any().of(carriers.stream().map(c -> c.book(shipment)).toList());
+}
+```
+
+```java
+// structured concurrency (Java 27/28)
+public Confirmation book(Shipment shipment) throws ExecutionException, InterruptedException {
+    try (var scope = StructuredTaskScope.open(Joiner.<Confirmation>anySuccessfulOrThrow())) {
+        carriers.forEach(c -> scope.fork(() -> c.book(shipment)));
+        return scope.join();                    // first success; the others are interrupted
+    }
+}
+```
+
+**The semantics differ:** `Uni.combine().any()` forwards the **first event**, so a fast failure wins over a slow
+success. `anySuccessfulOrThrow()` waits for the **first success** and only fails when all subtasks have failed. For
+Mutiny's behaviour, add a `.onFailure().recoverWithUni(...)` per `Uni`. Usually the structured version is what was
+meant.
+
+### 4. Many calls with limited concurrency
+
+Fetch the prices of 500 products, at most 4 requests at a time.
+
+```java
+// Mutiny
+public Uni<List<Price>> prices(List<String> ids) {
+    return Multi.createFrom().iterable(ids)
+        .onItem().transformToUni(id -> pricing.price(id)).merge(4)
+        .collect().asList();
+}
+```
+
+```java
+// structured concurrency (Java 27/28)
+public List<Price> prices(List<String> ids) throws ExecutionException, InterruptedException {
+    var permits = new Semaphore(4);
+    try (var scope = StructuredTaskScope.open(Joiner.<Price>allSuccessfulOrThrow())) {
+        for (var id : ids) {
+            scope.fork(() -> {
+                permits.acquire();
+                try { return pricing.price(id); } finally { permits.release(); }
+            });
+        }
+        return scope.join();
+    }
+}
+```
+
+The scope has no concurrency limit of its own. It starts 500 virtual threads, which is cheap, and the semaphore
+limits how many of them call the service at once. This is the one case where Mutiny stays shorter: `merge(4)` is the
+limit. Mutiny's `merge` also emits in completion order (`concatenate()` keeps the input order, but runs one call at a
+time). If the order matters in the structured version, keep the `Subtask`s in a list and read them in that order.
+
+### What gets better
+
+- **Plain control flow inside each subtask:** a subtask is ordinary blocking code with `if`, loops and `try/catch`.
+  In a `Uni` chain, every step inside a combined call is again an operator chain.
+- **Cancellation is part of the structure:** when the scope fails or times out, the remaining subtasks are interrupted
+  and `close()` waits until they have ended. Nothing keeps running in the background after the method returned. With
+  Mutiny a forgotten or detached subscription can.
+- **Observability:** the JSON thread dump (`jcmd <pid> Thread.dump_to_file -format=json <file>`) shows the subtasks
+  grouped under their scope and its owner thread.
+- **Scoped values** (`ScopedValue`, final since Java 25) bound in the owner thread are visible in all subtasks.
+
+### What doesn't come for free (in Quarkus)
+
+These apply to every subtask, because each one is a new thread:
+
+- **No request context, no transaction:** the CDI request context and a `@Transactional` transaction belong to the
+  request's thread. A subtask can't use `@RequestScoped` beans and doesn't join the caller's transaction. Each subtask
+  that touches the database takes its **own connection**, so a fan-out of three needs three connections per request
+  out of the pool.
+- **MDC, security identity and OpenTelemetry spans** are thread-bound. Mutiny with SmallRye Context Propagation
+  carries them across callbacks. For subtasks, check what arrives and pass values explicitly (or as scoped values)
+  where it matters.
+- **Exceptions arrive wrapped** in an `ExecutionException`. Unwrap the cause before the exception mappers see it, or
+  map `ExecutionException` itself.
+
+### What is different in Java 25
+
+The idea and the structure are the same, but several names and the exception handling changed afterwards:
+
+| | Java 25 | Java 27 (expected final in 28) |
+|---|---|---|
+| all results | `allSuccessfulOrThrow()` → `Stream<Subtask<T>>` | `allSuccessfulOrThrow()` → `List<T>` (since 26) |
+| first success | `anySuccessfulResultOrThrow()` | `anySuccessfulOrThrow()` (since 26) |
+| subtask failed | `join()` throws `StructuredTaskScope.FailedException` (unchecked) | `join()` throws `ExecutionException` (checked) |
+| timeout | `join()` throws `StructuredTaskScope.TimeoutException` (unchecked) | `ExecutionException` with cause `CancelledByTimeoutException` |
+| configuration | `open(joiner, Function<Configuration, Configuration>)` | `open(joiner, UnaryOperator<Configuration>)`, also `open(UnaryOperator<Configuration>)` |
+
+Example 2 in Java 25:
+
+```java
+// structured concurrency (Java 25, preview)
+public Quote cheapestQuote(Order order) throws InterruptedException {
+    try (var scope = StructuredTaskScope.open(Joiner.<Quote>allSuccessfulOrThrow(),
+                                              cf -> cf.withTimeout(Duration.ofSeconds(2)))) {
+        suppliers.forEach(s -> scope.fork(() -> s.quote(order)));
+        return scope.join().map(Subtask::get).min(comparing(Quote::price)).orElseThrow();
+    }
+}
+```
+
+Using a preview API also means:
+
+- `--enable-preview` for the compiler, for test runs (Surefire/Failsafe `argLine`), for `quarkus:dev` and for the
+  production JVM. Whether every Quarkus build step accepts preview class files has to be tried.
+- Class files compiled with preview features only run on **exactly that Java version**. Code built with Java 25
+  preview features doesn't start on a Java 26 or 27 runtime. (This project currently builds for Java 25 and runs fine
+  on a Java 27 JDK. With preview features it wouldn't.)
+- Every upgrade until the API is final means adapting the code, as the table shows.
+
+### Until it's final: two options on Java 25 without preview
+
+**a) Keep `Uni.combine()` for the fan-out and wait for it on the virtual thread.** During a migration the reactive
+clients are still there, so this is the obvious choice. The rest of the method is already sequential:
+
+```java
+@RunOnVirtualThread
+public ProductView product(String id) {
+    var view = Uni.combine().all()
+        .unis(catalog.find(id), inventory.levels(id))
+        .with(ProductView::new)
+        .await().atMost(Duration.ofSeconds(2));
+    return view;   // plain code from here on
+}
+```
+
+**b) A virtual-thread executor with `Future`s**, for blocking clients:
+
+```java
+@RunOnVirtualThread
+public ProductView product(String id) throws ExecutionException, InterruptedException {
+    try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+        Future<Product> product = executor.submit(() -> catalog.find(id));
+        Future<StockLevels> levels = executor.submit(() -> inventory.levels(id));
+        return new ProductView(product.get(), levels.get());
+    }
+}
+```
+
+It looks like the structured version, but it isn't one. If `levels` fails early, `product.get()` still waits for the
+catalogue, the failed result is noticed only afterwards, and nothing cancels the other task: `close()` waits for both
+to finish. Timeouts need `get(timeout, unit)` per future and explicit `cancel(true)`. That's fine for two calls that
+rarely fail and is error-prone beyond that. Once structured concurrency is final, replace both a) and b) with
+`StructuredTaskScope`.
 
 ---
 
@@ -151,7 +401,7 @@ What doesn't change: the domain logic, the APIs of the endpoints and topics, and
 | Kafka consumer, order or fail-stop matters | blocking + `@RunOnVirtualThread` with max concurrency 1, or `@Blocking` |
 | scheduled job | blocking + `@RunOnVirtualThread` |
 | SSE, WebSocket streams, merging event sources | `Multi` |
-| parallel calls inside one request | `Uni.combine()` or a virtual-thread executor |
+| parallel calls inside one request | Java 25: `Uni.combine()` (awaited on the virtual thread) or a virtual-thread executor; once final: `StructuredTaskScope` |
 | CPU-heavy work | bounded platform pool |
 
 ---
@@ -163,3 +413,6 @@ What doesn't change: the domain logic, the APIs of the endpoints and topics, and
 - [Quarkus blog - Processing Kafka records on virtual threads](https://quarkus.io/blog/virtual-threads-4/)
 - [JEP 444 - Virtual Threads](https://openjdk.org/jeps/444)
 - [JEP 491 - Synchronize Virtual Threads without Pinning](https://openjdk.org/jeps/491)
+- Structured concurrency: [JEP 505 (Java 25)](https://openjdk.org/jeps/505), [JEP 525 (Java 26)](https://openjdk.org/jeps/525),
+  [JEP 533 (Java 27)](https://openjdk.org/jeps/533), [JEP 543 (final, proposed for Java 28)](https://openjdk.org/jeps/543)
+- [Mutiny - Combining items](https://smallrye.io/smallrye-mutiny/latest/guides/combining-items/)
