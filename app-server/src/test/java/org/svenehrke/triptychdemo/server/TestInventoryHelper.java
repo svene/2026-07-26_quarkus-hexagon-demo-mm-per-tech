@@ -10,12 +10,13 @@ public class TestInventoryHelper {
 
     @Inject Db db;
 
-    /** The stock of every location, every replenishment request, shipment and supplier order. */
+    /** The stock of every location, every replenishment request, shipment, supplier order and purchase. */
     @Transactional
     public void resetInventory() {
         db.update("DELETE FROM stock");
         db.update("DELETE FROM replenishment_request");
         db.update("DELETE FROM shipment");
         db.update("DELETE FROM supplier_order");
+        db.update("DELETE FROM purchase");
     }
 }

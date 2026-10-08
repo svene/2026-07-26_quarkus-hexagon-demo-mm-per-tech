@@ -1,5 +1,5 @@
 import {html} from "hono/html";
-import type {LocationInventoryVM, LocationProductRowVM, LocationsPageVM, PointVM, RequestVM, StoreMetricsVM, StoreOccupancyVM} from "./generated/vm-types";
+import type {LocationInventoryVM, LocationProductRowVM, LocationsPageVM, PointVM, PurchaseVM, RequestVM, StoreMetricsVM, StoreOccupancyVM} from "./generated/vm-types";
 import type {HtmlResult} from "./route-types";
 
 // One section per store / the online FC, each refreshed on its own; the section id makes /locations#bern a link to Bern.
@@ -21,8 +21,8 @@ const LocationSection = (vm: LocationInventoryVM, occupancy: StoreOccupancyVM | 
 	</section>
 `;
 
-// Stock and requests in one fragment: a request changes both (or only the request list, if it has to wait), and
-// every request publishes an inventoryChanged event. Re-fetched on that event and morphed, so rows that stay keep
+// Stock, purchases and requests in one fragment: a purchase or a request changes the stock (a request may only wait),
+// and each publishes an inventoryChanged event. Re-fetched on that event and morphed, so rows that stay keep
 // focus. All ids carry the location id: the page shows every location.
 export const LocationInventory = (vm: LocationInventoryVM): HtmlResult => html`
 	<div class="columns">
@@ -41,6 +41,18 @@ export const LocationInventory = (vm: LocationInventoryVM): HtmlResult => html`
 					</table>`}
 		</div>
 		<div class="column">
+			<h3 class="title is-5">Purchases</h3>
+			${vm.purchases.length === 0
+				? html`<p class="has-text-grey mb-5"><em>No purchases yet.</em></p>`
+				: html`
+					<table class="table is-fullwidth is-striped is-narrow" id="purchases-${vm.locationId}">
+						<thead>
+						<tr><th>Time</th><th class="has-text-right" title="Distinct products">Products</th><th class="has-text-right" title="Total quantity">Units</th></tr>
+						</thead>
+						<tbody>
+						${vm.purchases.map(PurchaseRow)}
+						</tbody>
+					</table>`}
 			<h3 class="title is-5">Requests</h3>
 			${vm.requests.length === 0
 				? html`<p class="has-text-grey"><em>No requests yet.</em></p>`
@@ -202,6 +214,14 @@ export const OriginTag = (r: {origin: string}): HtmlResult =>
 	r.origin === 'AUTOMATIC' ? html`<span class="tag is-info is-light">auto</span>`
 		: r.origin === 'SEED' ? html`<span class="tag is-success is-light">seed</span>`
 		: html`<span class="has-text-grey">manual</span>`;
+
+const PurchaseRow = (p: PurchaseVM): HtmlResult => html`
+	<tr id="purchase-${p.id}">
+		<td>${p.purchasedAt}</td>
+		<td class="has-text-right">${p.products}</td>
+		<td class="has-text-right">${p.units}</td>
+	</tr>
+`;
 
 const RequestRow = (r: RequestVM): HtmlResult => html`
 	<tr id="request-${r.id}">

@@ -1118,7 +1118,7 @@ Implemented as planned (staged): `StoreSimulationTest` +1, `StoreMetricsVMTest` 
 stub that stopped reporting isn't shown as full until now); the charts leave a 4 % margin above the maximum and below 0.
 Not yet watched in the dev app (the charts need a few minutes of stub reports).
 
-## store-purchases: Purchases table on the store pages (TO ELABORATE)
+## store-purchases: Purchases table on the store pages (DONE 2026-10-08)
 
 Added 2026-10-07 at the user's request. On the store pages (`location.ts`), above the Requests table, a Purchases table
 with one row per purchase: number of products and timestamp - enough to see the sales flow next to the restocking it
@@ -1126,6 +1126,33 @@ triggers. To elaborate: purchases are not persisted today (no Postgres table; `P
 a source is needed (new table via Flyway, or the MongoDB audit log); how many rows (latest N?); whether "number of
 products" means items or total quantity; whether the online dark store page gets it too; live update via the existing
 inventoryChanged re-fetch.
+
+### Plan (APPROVED 2026-10-08, all recommendations taken)
+
+1. **Source: a Postgres table**, not the audit log (free text in MongoDB, shared with every other event, so a limit
+   would cut the purchases arbitrarily). `V7__purchase.sql`: `purchase (id identity, locationId, products, units,
+   purchasedAt)`. SPI `PurchaseRepositorySPI` (`append(location, purchase, at, keepSince)`, `findRecent(location,
+   limit)`), `PurchaseService` + `PurchaseTable` in outbound-postgres. `PurchaseHandler` appends it after the deduction
+   and the demand, in a write of its own (like `recordDemand`), before it fires `StockDeducted`, so the re-fetch sees it.
+2. **Only completed purchases:** every store sale (also one with a stock discrepancy); a rejected online checkout is not
+   recorded (it stays in the audit log).
+3. **Columns:** *Time*, *Products* (distinct products), *Units* (total quantity). No item list.
+4. **Rows:** the latest 10 (changed from 20 after the review, 2026-10-08; the Requests, too); on each append the location's rows older than 30 min
+   (`PurchaseHandler.RETENTION`) are deleted. The admin reset deletes them, too (app data, like the requests).
+5. **Online dark store too** - the same code path, so the shop's checkouts show up there.
+6. **Live update:** in the inventory fragment, right column above the Requests, re-fetched on `inventoryChanged`. A
+   purchase of products only the location has no row for fires no event; it shows with the next re-fetch.
+7. **Two pods:** one line in `two-pods_wip.md` - a redelivered cashpoint message adds a second row (like
+   `recordStoreSale` is not idempotent).
+8. **Tests:** `CashpointFlowTest` (a sale leaves a row with products and units), `ShopReceiverTest` (a checkout leaves
+   a row, a rejected one none), retention, reset deletes them, the inventory fragment carries the purchases; e2e: a
+   shop purchase shows up on `/locations` for the online FC.
+9. **Docs:** update-architecture-docs (V7, SPI, table), `concepts.md`, `two-pods_wip.md`, `README.md`,
+   `docs/ai/session-notes.md`.
+
+Implemented as planned (staged): `PurchaseTest` +1, `CashpointViaKafkaFlowTest` +1 (store sale incl. discrepancy and a
+repeated product), `CashpointFlowTest` +1 (retention), `ShopReceiverTest` and `AdminReceiverTest` extended, e2e +1
+(`location.spec.ts`); app-server 175, e2e 28/28. Time column shows `HH:mm:ss` only. Not yet watched in the dev app.
 
 ## Open questions
 

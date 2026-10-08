@@ -31,4 +31,13 @@ public record Purchase(List<PurchaseItem> items) implements ParsedPurchase {
 		return new Purchase(parsedItems.stream().map(PurchaseItem.class::cast).toList());
 	}
 
+	/** The number of distinct products: a product listed twice counts once. */
+	public int products() {
+		return (int) items.stream().map(PurchaseItem::productName).distinct().count();
+	}
+
+	public int units() {
+		return items.stream().mapToInt(PurchaseItem::quantity).sum();
+	}
+
 }

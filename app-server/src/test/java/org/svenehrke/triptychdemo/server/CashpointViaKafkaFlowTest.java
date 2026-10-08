@@ -59,6 +59,24 @@ class CashpointViaKafkaFlowTest {
     }
 
     @Test
+    void store_sale_is_recorded_for_the_purchases_table_also_with_a_stock_discrepancy() {
+        inventory.addAmount(Locations.BERN, "Orange", ProductType.FRUIT, 3);
+        inventory.addAmount(Locations.BERN, "Apple", ProductType.FRUIT, 10);
+
+        // Orange twice: one product, 5 units - more than the 3 on record
+        cashpointPublisher.publish(new PurchaseMessage("bern", List.of(new PurchaseMessageItem("Orange", 4),
+            new PurchaseMessageItem("Apple", 2), new PurchaseMessageItem("Orange", 1))));
+
+        await().atMost(10, SECONDS).untilAsserted(() -> {
+            var json = given().get("/locations/bern/inventory-fragment").jsonPath();
+            assertThat(json.getList("vm.purchases.products")).containsExactly(2);
+            assertThat(json.getList("vm.purchases.units")).containsExactly(7);
+        });
+        assertThat(auditHelper.findEventDetails("PurchaseHandler: STOCK_DISCREPANCY")).hasSize(1);
+        assertThat(given().get("/locations/zurich/inventory-fragment").jsonPath().getList("vm.purchases")).isEmpty();
+    }
+
+    @Test
     void invalid_kafka_purchase_event_is_logged_and_deducts_nothing() {
         inventory.addAmount(Locations.BERN, "Orange", ProductType.FRUIT, 10);
 

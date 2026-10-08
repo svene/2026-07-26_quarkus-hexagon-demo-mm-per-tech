@@ -8,6 +8,7 @@ import org.svenehrke.triptychdemo.cross.occupancy.OccupancyHandler;
 import org.svenehrke.triptychdemo.cross.occupancy.StoreOccupancy;
 import org.svenehrke.triptychdemo.cross.products.ProductStock;
 import org.svenehrke.triptychdemo.cross.products.ProductsHandler;
+import org.svenehrke.triptychdemo.cross.purchase.PurchaseHandler;
 import org.svenehrke.triptychdemo.cross.reorder.DemandEstimate;
 import org.svenehrke.triptychdemo.cross.replenishment.ParsedStockRequest;
 import org.svenehrke.triptychdemo.cross.replenishment.ReplenishmentHandler;
@@ -35,20 +36,23 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 /**
- * One page with every store and the online FC (the DC is managed on {@code /admin}): per location its stock, and
- * requesting more from the DC; per store its occupancy, now and over the last minutes (its tills open and close
+ * One page with every store and the online FC (the DC is managed on {@code /admin}): per location its stock, its latest
+ * purchases, and requesting more from the DC; per store its occupancy, now and over the last minutes (its tills open and close
  * automatically, see {@code AutoTillsReceiver}).
  */
 @RunOnVirtualThread
 @Path("/locations")
 public class LocationReceiver {
 
-    private static final int REQUEST_LIMIT = 20;
+    private static final int REQUEST_LIMIT = 10;
+    private static final int PURCHASE_LIMIT = 10;
 
     @Inject
     ProductsHandler productsHandler;
     @Inject
     ReplenishmentHandler replenishmentHandler;
+    @Inject
+    PurchaseHandler purchaseHandler;
     @Inject
     OccupancyHandler occupancyHandler;
     @Inject
@@ -132,7 +136,8 @@ public class LocationReceiver {
                 p.estimateAt(location).map(DemandEstimate::avg).orElse(null), p.levelsAt(location).map(LevelsVM::of).orElse(null)))
             .sorted(Comparator.comparing(LocationProductRowVM::name, String.CASE_INSENSITIVE_ORDER).thenComparing(LocationProductRowVM::type))
             .toList();
+        var purchases = purchaseHandler.listRecent(location, PURCHASE_LIMIT).stream().map(PurchaseVM::of).toList();
         var requests = replenishmentHandler.listRecent(location, REQUEST_LIMIT).stream().map(RequestVM::of).toList();
-        return new LocationInventoryVM(location.id(), location.name(), products, requests);
+        return new LocationInventoryVM(location.id(), location.name(), products, purchases, requests);
     }
 }

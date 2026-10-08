@@ -4,6 +4,9 @@ import org.svenehrke.triptychdemo.cross.inventory.InventoryRepositorySPI;
 
 import org.svenehrke.triptychdemo.cross.location.Locations;
 import org.svenehrke.triptychdemo.cross.products.ProductType;
+import org.svenehrke.triptychdemo.cross.purchase.Purchase;
+import org.svenehrke.triptychdemo.cross.purchase.PurchaseItem;
+import org.svenehrke.triptychdemo.cross.purchase.PurchaseRepositorySPI;
 import org.svenehrke.triptychdemo.cross.purchasing.SupplierOrderOrigin;
 import org.svenehrke.triptychdemo.cross.purchasing.SupplierOrderRepositorySPI;
 import org.svenehrke.triptychdemo.cross.replenishment.ReplenishmentRepositorySPI;
@@ -12,6 +15,9 @@ import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+
+import java.time.Instant;
+import java.util.List;
 
 import static io.restassured.RestAssured.given;
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -23,6 +29,7 @@ class AdminReceiverTest {
 
     @Inject TestInventoryHelper inventoryHelper;
     @Inject TestAuditLogHelper auditLogHelper;
+    @Inject PurchaseRepositorySPI purchases;
     @Inject
     InventoryRepositorySPI inventory;
     @Inject
@@ -174,13 +181,14 @@ class AdminReceiverTest {
     }
 
     @Test
-    void reset_deletes_the_inventory_the_requests_the_supplier_orders_and_the_audit_log() {
+    void reset_deletes_the_inventory_the_requests_the_supplier_orders_the_purchases_and_the_audit_log() {
         inventory.addAmount(Locations.DC, "Apple", ProductType.FRUIT, 0);
         inventory.addAmount(Locations.BERN, "Cola", ProductType.BEVERAGE, 5);
         // the DC has no Apples, so the request stays pending
         replenishment.request(new StockRequest(Locations.ZURICH, "Apple", 4));
         supplierOrders.open("Apple", ProductType.FRUIT, 20, SupplierOrderOrigin.MANUAL);
         given().post("/admin/requests/0/reject"); // audit-logs REJECT_RECEIVED (409, there is no request 0)
+        purchases.append(Locations.BERN, new Purchase(List.of(new PurchaseItem("Cola", 1))), Instant.now(), Instant.EPOCH);
         var before = given().get("/admin/page").jsonPath();
         assertThat(before.getList("vm.products")).hasSize(2);
         assertThat(before.getList("vm.pendingRequests")).hasSize(1);
@@ -195,6 +203,7 @@ class AdminReceiverTest {
         assertThat(json.getList("vm.products")).isEmpty();
         assertThat(json.getList("vm.pendingRequests")).isEmpty();
         assertThat(json.getList("vm.supplierOrders")).isEmpty();
+        assertThat(purchases.findRecent(Locations.BERN, 10)).isEmpty();
         assertThat(given().get("/audit-log/page").jsonPath().getList("vm.auditEntries.event"))
             .containsExactly("ResetHandler: INVENTORY_RESET");
     }

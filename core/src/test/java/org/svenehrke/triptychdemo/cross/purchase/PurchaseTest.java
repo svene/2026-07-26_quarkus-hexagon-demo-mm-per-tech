@@ -76,4 +76,11 @@ class PurchaseTest {
 	void parse_returnsEmptyPurchase_forNoItems() {
 		assertThat(Purchase.parse(List.of())).isEqualTo(new Purchase(List.of()));
 	}
+
+	@Test
+	void products_countsARepeatedProductOnce_unitsSumsAllQuantities() {
+		var purchase = new Purchase(List.of(new PurchaseItem("Apple", 3), new PurchaseItem("Milk", 2), new PurchaseItem("Apple", 1)));
+		assertThat(purchase.products()).isEqualTo(2);
+		assertThat(purchase.units()).isEqualTo(6);
+	}
 }

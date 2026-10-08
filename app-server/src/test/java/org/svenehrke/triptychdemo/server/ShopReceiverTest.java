@@ -93,6 +93,10 @@ class ShopReceiverTest {
         assertThat(given().get("/api/products").asString())
             .contains("\"name\":\"Apple\",\"type\":\"FRUIT\",\"availableAmount\":7")
             .contains("\"name\":\"Milk\",\"type\":\"DAIRY\",\"availableAmount\":4");
+        // the online FC's Purchases table on /locations
+        var purchases = given().get("/locations/online/inventory-fragment").jsonPath();
+        assertThat(purchases.getList("vm.purchases.products")).containsExactly(2);
+        assertThat(purchases.getList("vm.purchases.units")).containsExactly(5);
     }
 
     @Test
@@ -189,5 +193,6 @@ class ShopReceiverTest {
         assertThat(given().get("/api/products").asString())
             .contains("\"name\":\"Apple\",\"type\":\"FRUIT\",\"availableAmount\":10")
             .contains("\"name\":\"Milk\",\"type\":\"DAIRY\",\"availableAmount\":2");
+        assertThat(given().get("/locations/online/inventory-fragment").jsonPath().getList("vm.purchases")).isEmpty();
     }
 }

@@ -100,3 +100,26 @@ test('a request the DC cannot fully serve stays pending until head office fulfil
   await expect(requested).toContainText('REJECTED');
   await expect(cell(page, 'basel', name, AVAILABLE)).toHaveText('3');
 });
+
+test('a shop purchase shows up in the online FC\'s Purchases table, without a reload', async ({ page }) => {
+  const names = [`Kiwi-${RUN_ID}`, `Lime-${RUN_ID}`];
+  for (const name of names) {
+    await stockDc(page.request, name, 50);
+    // The online FC requests it from the DC - 409 until the delivery has arrived via Kafka.
+    await expect.poll(
+      async () => (await page.request.post('/locations/online/requests', { form: { productName: name, quantity: '50' } })).status(),
+      { message: `"${name}" did not reach the DC`, timeout: 15_000, intervals: [500, 1_000] },
+    ).toBe(200);
+  }
+  await page.goto('/locations');
+
+  // 2 products, 13 + 24 = 37 units: a combination no other test buys.
+  const res = await page.request.post('/api/products/purchase',
+    { data: { items: [{ productName: names[0], quantity: 13 }, { productName: names[1], quantity: 24 }] } });
+  expect(res.ok()).toBeTruthy();
+
+  const row = page.locator('#purchases-online tbody tr')
+    .filter({ has: page.getByRole('cell', { name: '37', exact: true }) });
+  await expect(row).toBeVisible({ timeout: 15_000 });
+  await expect(row.getByRole('cell').nth(1)).toHaveText('2');
+});

@@ -3,13 +3,19 @@ package org.svenehrke.triptychdemo.server;
 import org.svenehrke.triptychdemo.cross.inventory.InventoryRepositorySPI;
 import org.svenehrke.triptychdemo.cross.location.Locations;
 import org.svenehrke.triptychdemo.cross.products.ProductType;
+import org.svenehrke.triptychdemo.cross.purchase.Purchase;
+import org.svenehrke.triptychdemo.cross.purchase.PurchaseItem;
+import org.svenehrke.triptychdemo.cross.purchase.PurchaseRepositorySPI;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
 import jakarta.inject.Inject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -25,6 +31,7 @@ class CashpointFlowTest {
     @Inject TestInventoryHelper inventoryHelper;
     @Inject TestAuditLogHelper auditHelper;
     @Inject InventoryRepositorySPI inventory;
+    @Inject PurchaseRepositorySPI purchases;
 
     @BeforeEach
     void setUp() {
@@ -61,6 +68,25 @@ class CashpointFlowTest {
         assertThat(given().get("/api/products").asString())
             .isEqualTo("""
                 [{"name":"Apple","type":"FRUIT","availableAmount":7}]""");
+    }
+
+    @Test
+    void a_purchase_drops_the_locations_purchases_older_than_30_minutes() {
+        inventory.addAmount(Locations.ONLINE, "Apple", ProductType.FRUIT, 10);
+        var old = new Purchase(List.of(new PurchaseItem("Apple", 1)));
+        purchases.append(Locations.ONLINE, old, Instant.now().minus(Duration.ofMinutes(31)), Instant.EPOCH);
+        purchases.append(Locations.ONLINE, old, Instant.now().minus(Duration.ofMinutes(29)), Instant.EPOCH);
+        purchases.append(Locations.BERN, old, Instant.now().minus(Duration.ofMinutes(31)), Instant.EPOCH);
+
+        given().contentType(ContentType.JSON)
+            .body("""
+                {"items":[{"productName":"Apple","quantity":3}]}
+                """)
+            .post("/api/products/purchase");
+
+        // newest first; the other location's purchases are kept
+        assertThat(purchases.findRecent(Locations.ONLINE, 10)).extracting("units").containsExactly(3, 1);
+        assertThat(purchases.findRecent(Locations.BERN, 10)).hasSize(1);
     }
 
     @Test

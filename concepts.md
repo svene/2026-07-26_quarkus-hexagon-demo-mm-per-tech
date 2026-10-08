@@ -258,6 +258,12 @@ redelivered report adds no row. The throughput comes from the checkout system's 
 last demo day), not from counting purchases in the app: a current value can be repeated or lost without
 harm, and with two pods each pod only sees its own partitions.
 
+The sales themselves - the input to that flow - show next to the restocking they trigger: every completed
+purchase (each cashpoint sale, and each online checkout that was not rejected) is stored with its number of
+products and units (table `purchase`, the last 30 min per location), and each location's section on
+`/locations` lists its latest 10 above its requests to the DC. Unlike the occupancy history these are
+events, not snapshots: a redelivered cashpoint message adds a second row, just as it deducts twice.
+
 `PurchaseHandler` is also reachable directly via the REST endpoint (`/api/products/purchase`), which
 bypasses Kafka entirely and is what tests and tooling use to drive a purchase synchronously.
 

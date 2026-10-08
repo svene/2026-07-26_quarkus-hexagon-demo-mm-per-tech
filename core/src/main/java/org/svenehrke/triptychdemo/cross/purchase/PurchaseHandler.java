@@ -14,6 +14,9 @@ import org.svenehrke.triptychdemo.cross.products.Product;
 import org.svenehrke.triptychdemo.cross.events.AsyncEvents;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.List;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
@@ -21,12 +24,18 @@ import java.util.stream.Collectors;
 /**
  * Online checkout and physical-store sale differ only in what a shortage means - see {@link OnShortage}. Both record
  * what the customer asked for as demand, which the reorder levels are learned from ({@code ReorderPolicyHandler}).
+ * A completed purchase is also kept for {@link #RETENTION}, for the Purchases table on {@code /locations}.
  */
 @ApplicationScoped
 public class PurchaseHandler {
 
+    /** How long a completed purchase is kept: far more than the latest purchases a page shows. */
+    static final Duration RETENTION = Duration.ofMinutes(30);
+
     @Inject
     InventoryRepositorySPI inventoryRepository;
+    @Inject
+    PurchaseRepositorySPI purchaseRepository;
     @Inject
     AuditLogSPI auditLog;
     @Inject
@@ -56,13 +65,26 @@ public class PurchaseHandler {
             auditLog.log("PurchaseHandler: STOCK_DISCREPANCY", store.id() + ": " + shortage.discrepancyMessage()));
     }
 
-    /** Records the demand after the deduction, so a product the location had no row for is reported as a shortage only. */
+    /** The most recent completed purchases of {@code location}, newest first. */
+    public List<RecordedPurchase> listRecent(Replenished location, int limit) {
+        return purchaseRepository.findRecent(location, limit);
+    }
+
+    /**
+     * Records the demand after the deduction, so a product the location had no row for is reported as a shortage only.
+     * A completed purchase is stored before {@link StockDeducted} is fired, so the pages re-fetching on it show it.
+     */
     private StockDeduction deduct(Replenished location, Purchase purchase, OnShortage onShortage) {
         auditLog.log("PurchaseHandler: PURCHASE_PROCESSING", location.id() + ": " +
             purchase.items().stream().map(i -> i.productName() + " qty=" + i.quantity()).collect(Collectors.joining(", ")));
         var quantitiesByName = quantitiesByName(purchase);
         var deduction = inventoryRepository.deductAll(location, quantitiesByName, onShortage);
         inventoryRepository.recordDemand(location, quantitiesByName);
+        boolean completed = onShortage == OnShortage.CAP_AT_ZERO || deduction.shortages().isEmpty();
+        if (completed) {
+            var now = Instant.now();
+            purchaseRepository.append(location, purchase, now, now.minus(RETENTION));
+        }
         if (!deduction.updated().isEmpty()) {
             inventoryEvents.fire(new StockDeducted(location,
                 deduction.updated().stream().map(Product::name).collect(Collectors.toSet())));

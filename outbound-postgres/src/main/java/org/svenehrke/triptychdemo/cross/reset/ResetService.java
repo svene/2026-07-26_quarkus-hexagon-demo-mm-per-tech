@@ -1,6 +1,7 @@
 package org.svenehrke.triptychdemo.cross.reset;
 
 import org.svenehrke.triptychdemo.cross.inventory.StockTable;
+import org.svenehrke.triptychdemo.cross.purchase.PurchaseTable;
 import org.svenehrke.triptychdemo.cross.purchasing.SupplierOrderTable;
 import org.svenehrke.triptychdemo.cross.replenishment.ReplenishmentRequestTable;
 import org.svenehrke.triptychdemo.cross.replenishment.ShipmentTable;
@@ -24,12 +25,16 @@ public class ResetService implements ResetRepositorySPI {
     @Inject
     SupplierOrderTable orders;
 
+    @Inject
+    PurchaseTable purchases;
+
     @Override
     @Transactional
     public void deleteAll() {
         shipments.deleteAll();
         requests.deleteAll();
         orders.deleteAll();
+        purchases.deleteAll();
         stockTable.deleteAll();
     }
 }

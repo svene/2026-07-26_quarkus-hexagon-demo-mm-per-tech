@@ -112,6 +112,9 @@ UI-only events (`ReplenishmentChanged`, `SupplierOrdersChanged`) only feed secti
   (`store_occupancy_history`, the charts on `/locations`) is written by the pod that consumed the report and read by
   both from PostgreSQL, so each pod's page shows every store; a redelivered report adds no row (key `(storeId,
   measuredAt)`). Kept in memory instead, each pod would only have its own partitions' stores.
+  The purchases (`purchase`, the Purchases tables on `/locations`) are in PostgreSQL, too, so both pods show every
+  location's; but a row is appended per processed sale, so a redelivered cashpoint sale adds a second row - fixed
+  with the same inbox as the deduction.
 - **Partitions (should do).** With Dev Services every topic has one partition, so only one pod consumes a topic and the
   other one idles (fine for failover, no parallelism). For parallel processing: several partitions per topic, with the
   product name as the message key, so all messages for one product stay in order.

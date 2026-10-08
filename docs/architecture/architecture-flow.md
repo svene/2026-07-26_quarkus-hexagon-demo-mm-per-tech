@@ -99,7 +99,7 @@ AdminReceiver.reset()
 └─ ResetHandler.reset()
    ├─ ResetRepositorySPI.deleteAll()   (one transaction)
    │  └─ ResetService (outbound-postgres)
-   │     └─ PostgreSQL: DELETE shipment, replenishment_request, supplier_order, stock (sequences untouched)
+   │     └─ PostgreSQL: DELETE shipment, replenishment_request, supplier_order, purchase, stock (sequences untouched)
    ├─ AuditLogSPI.clear()
    │  └─ AuditLogService (outbound-mongodb) → MongoDB: delete every audit entry
    ├─ AuditLogSPI.log("INVENTORY_RESET")
@@ -308,6 +308,8 @@ ShopReceiver.checkout(productNames[], quantities[])
    │  └─ InventoryService (outbound-postgres)
    │     └─ PostgreSQL (SELECT ... FOR UPDATE per product, sorted by name)
    ├─ InventoryRepositorySPI.recordDemand(ONLINE, quantities)   (own transaction: a rejected checkout is demand, too)
+   ├─ PurchaseRepositorySPI.append(ONLINE, purchase, now, keepSince)   (if completed: products, units; rows older than 30 min dropped)
+   │  └─ PurchaseService (outbound-postgres) → PostgreSQL (purchase)
    ├─ AsyncEvents.fire(StockDeducted)   (if something was deducted; see Automatic Replenishment below)
    └─ Completed: AuditLogSPI.log("INVENTORY_DEDUCTED") → 200 UiResponse(ShopPage), fresh page
       Rejected:  AuditLogSPI.log("PURCHASE_REJECTED") → 409 UiResponse(ShopPage) with shortage messages, nothing deducted
@@ -328,14 +330,17 @@ LocationReceiver.page()   → UiResponse(LocationsPage, {locations: [inventory p
                             fragments below)
 ```
 
-#### GET /locations/{id}/inventory-fragment - Stock and Requests
+#### GET /locations/{id}/inventory-fragment - Stock, Purchases and Requests
 Fetched per section on every `inventoryChanged` event and morphed into it; the ids inside carry the location id.
 ```
-LocationReceiver.inventoryFragment(id)   → UiResponse(LocationInventory, {locationId, locationName, products, requests})
+LocationReceiver.inventoryFragment(id)   → UiResponse(LocationInventory, {locationId, locationName, products, purchases, requests})
 ├─ ProductsHandler.listAllLocations()   (every product the DC carries: stock here + at the DC)
 │  └─ InventoryRepositorySPI.findAllLocations()
 │     └─ InventoryService (outbound-postgres) → PostgreSQL
-└─ ReplenishmentHandler.listRecent(location, 20)   (newest first)
+├─ PurchaseHandler.listRecent(location, 10)   (completed purchases, newest first)
+│  └─ PurchaseRepositorySPI.findRecent()
+│     └─ PurchaseService (outbound-postgres) → PostgreSQL (purchase)
+└─ ReplenishmentHandler.listRecent(location, 10)   (newest first)
    └─ ReplenishmentRepositorySPI.findRecent()
       └─ ReplenishmentService (outbound-postgres) → PostgreSQL
 ```
@@ -436,6 +441,8 @@ ProductApiReceiver.purchase(request)
    │  └─ InventoryService (outbound-postgres)
    │     └─ PostgreSQL (SELECT ... FOR UPDATE per product, sorted by name)
    ├─ InventoryRepositorySPI.recordDemand(ONLINE, quantities)   (own transaction: a rejected checkout is demand, too)
+   ├─ PurchaseRepositorySPI.append(ONLINE, purchase, now, keepSince)   (if completed: products, units; rows older than 30 min dropped)
+   │  └─ PurchaseService (outbound-postgres) → PostgreSQL (purchase)
    ├─ AsyncEvents.fire(StockDeducted)   (if something was deducted; see Automatic Replenishment below)
    └─ Completed: AuditLogSPI.log("INVENTORY_DEDUCTED") → 204
       Rejected:  AuditLogSPI.log("PURCHASE_REJECTED") → 409 with shortage messages, nothing deducted

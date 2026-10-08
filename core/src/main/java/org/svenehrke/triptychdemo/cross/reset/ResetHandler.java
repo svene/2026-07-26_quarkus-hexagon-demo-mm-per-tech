@@ -27,7 +27,7 @@ public class ResetHandler {
     public void reset() {
         repository.deleteAll();
         auditLog.clear();
-        auditLog.log("ResetHandler: INVENTORY_RESET", "stock, requests, shipments, supplier orders and audit log deleted");
+        auditLog.log("ResetHandler: INVENTORY_RESET", "stock, requests, shipments, supplier orders, purchases and audit log deleted");
         inventoryEvents.fire(new InventoryReset());
     }
 }

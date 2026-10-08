@@ -68,7 +68,10 @@ grouped by the underlying technology of the outbound adapter:
    Basel 2, Bern 1; 15 s per customer), each paying
    customer checking out 2–4 random in-stock products, deducted from inventory
    exactly as a real point-of-sale terminal would. Watch the numbers on
-   `/admin` or `/locations` shrink on their own, no refresh needed.
+   `/admin` or `/locations` shrink on their own, no refresh needed. On
+   `/locations` each store's *Purchases* table lists its latest sales (time,
+   products, units) next to the *Requests* to the DC they trigger; the online
+   FC's lists the shop's checkouts.
 
 4. **Store occupancy and tills** (on `/locations`) — each store's line shows
    how many customers are inside (of its capacity), how many queue for a till,

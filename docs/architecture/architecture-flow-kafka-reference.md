@@ -38,6 +38,11 @@ Technical reference for understanding the Kafka-based integration patterns and t
   - `history(store, since)`: Called by the occupancy fragments (the charts, last 10 min)
   - Storage: `store_occupancy` table (StoreOccupancyTable, migration V4) - one row per store; `store_occupancy_history` (StoreOccupancyHistoryTable, migration V6) - every report of the last 30 min; neither is touched by the admin reset (the external system's state)
 
+- **PurchaseService**: The completed purchases per location, for the Purchases tables on `/locations`
+  - `append(location, purchase, purchasedAt, keepSince)`: Called by PurchaseHandler after every completed purchase (every cashpoint sale, an online checkout unless rejected) - one row (distinct products, units), then the location's rows older than 30 min deleted; a redelivered cashpoint message adds a second row
+  - `findRecent(location, limit)`: Called by the `/locations` inventory fragments (latest 10)
+  - Storage: `purchase` table (PurchaseTable, migration V7); deleted by the admin reset
+
 ### MongoDB (outbound-mongodb)
 - **AuditLogService**: Logs all system events
   - `log()`: Called by handlers to record operations
@@ -169,7 +174,7 @@ Every stub publishes its delivery after the supplier lead time (`supplier-stub.l
 - **Producer**: External checkout systems (simulated by CashpointStub: one purchase per customer who pays at a store's till - per store a `StoreSimulation` with its capacity and tills - a full store turns new customers away; the basket comes from the store's stock, read from `GET /api/locations/{id}/products`)
 - **Consumer**: CashpointReceiver (in inbound-kafka)
 - **Message**: `{storeId, items: [{productName, quantity}]}`; a missing `storeId` goes to the DLQ, an id that is no store is audit-logged `INVALID` and skipped
-- **Flow**: Cashpoint event → PurchaseHandler.recordStoreSale(store, …) → that store's stock deducted (capped at 0; overselling is logged as `STOCK_DISCREPANCY`, never rejected), the sold quantities recorded as demand
+- **Flow**: Cashpoint event → PurchaseHandler.recordStoreSale(store, …) → that store's stock deducted (capped at 0; overselling is logged as `STOCK_DISCREPANCY`, never rejected), the sold quantities recorded as demand, the sale stored for the store's Purchases table
 - **Config**: 
   - Incoming: `mp.messaging.incoming.cashpoint-purchases.topic=cashpoint-purchases`
   - Outgoing (for testing): `mp.messaging.outgoing.cashpoint-purchases-out.topic=cashpoint-purchases`
