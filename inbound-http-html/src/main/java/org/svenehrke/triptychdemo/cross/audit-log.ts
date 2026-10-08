@@ -2,7 +2,7 @@ import {html} from "hono/html";
 import type {AuditEntryVM, AuditLogPageVM} from "./generated/vm-types";
 import type {HtmlResult} from "./route-types";
 
-// Loaded once and re-rendered as a whole by the shell's Refresh button; there are no live updates.
+// Re-rendered as a whole every 2 s: the shell's #app polls GET /audit-log/page (no SSE).
 export const AuditLogPage = (vm: AuditLogPageVM): HtmlResult => html`
 	${vm.auditEntries.length === 0
 		? html`<p class="has-text-grey"><em>No audit log entries yet.</em></p>`

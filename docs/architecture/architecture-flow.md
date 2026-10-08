@@ -103,7 +103,7 @@ AdminReceiver.reset()
    ├─ AuditLogSPI.clear()
    │  └─ AuditLogService (outbound-mongodb) → MongoDB: delete every audit entry
    ├─ AuditLogSPI.log("INVENTORY_RESET")
-   └─ AsyncEvents.fire(InventoryReset)   (refreshes every page except /audit-log, which has no live updates)
+   └─ AsyncEvents.fire(InventoryReset)   (refreshes every page except /audit-log, which polls every 2 s instead)
       └─ DcSeedReceiver.onInventoryReset (@ObservesAsync) → seeds the now empty DC (see "Event: seeding the DC")
    → 200 empty body
 ```
@@ -385,7 +385,7 @@ LocationReceiver.occupancyFragment(id)   → UiResponse(StoreOccupancy, {storeId
 ### AuditLogReceiver (/audit-log) - Audit Log Page → MongoDB
 
 #### GET /audit-log - Audit Log
-No SSE and no polling: the shell's *Refresh* button loads `GET /audit-log/page` again into `#app`.
+No SSE: the shell's `#app` polls `GET /audit-log/page` every 2 s (`hx-trigger="load, every 2s"`).
 ```
 AuditLogReceiver.shell()  → static shell (shells/audit-log.html), whose #app loads GET /audit-log/page
 AuditLogReceiver.page()   → UiResponse(AuditLogPage, {auditEntries, limit})

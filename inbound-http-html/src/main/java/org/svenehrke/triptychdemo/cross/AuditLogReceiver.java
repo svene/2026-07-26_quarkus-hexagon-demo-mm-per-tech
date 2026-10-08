@@ -10,7 +10,7 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import java.util.Map;
 
-/** The latest audit log entries; no live updates - the page reloads them on its Refresh button. */
+/** The latest audit log entries; no SSE - the page polls them every 2 s. */
 @RunOnVirtualThread
 @Path("/audit-log")
 public class AuditLogReceiver {

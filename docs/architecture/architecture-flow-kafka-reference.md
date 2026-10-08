@@ -215,7 +215,7 @@ Every stub publishes its delivery after the supplier lead time (`supplier-stub.l
 | ShopReceiver | /shop/inventory-fragment | GET | Query | - | PostgreSQL (read) |
 | InventoryEventsReceiver | /inventory/events | GET | SSE stream (inventory changes, for /shop, /admin and /locations; `occupancyChanged-<storeId>` for /locations) | - | - |
 | ShopReceiver | /shop/checkout | POST | Command | - | PostgreSQL + MongoDB |
-| AuditLogReceiver | /audit-log | GET | Static page shell (Refresh button, no SSE) | - | - |
+| AuditLogReceiver | /audit-log | GET | Static page shell (polls every 2 s, no SSE) | - | - |
 | AuditLogReceiver | /audit-log/page | GET | Query (latest 300 entries) | - | MongoDB (read) |
 | LocationReceiver | /locations | GET | Static page shell | - | - |
 | LocationReceiver | /locations/page, /locations/{id}/inventory-fragment | GET | Query | - | PostgreSQL (read) |

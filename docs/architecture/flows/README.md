@@ -15,7 +15,7 @@ PlantUML sequence diagrams for all primary flows in the supermarket inventory sy
 
 ### Audit Log Page
 **File**: `audit-log-page.puml`
-- **Trigger**: GET /audit-log (static shell) → GET /audit-log/page, again on the *Refresh* button (no SSE, no polling)
+- **Trigger**: GET /audit-log (static shell) → GET /audit-log/page, again every 2 s (polling, no SSE)
 - **Flow**: Browser → AuditLogReceiver → AuditLogHandler → AuditLogService → MongoDB
 - **Returns**: `{route: AuditLogPage, vm}` JSON with the latest 300 entries, newest first
 - **Participants**: 1 (Admin)

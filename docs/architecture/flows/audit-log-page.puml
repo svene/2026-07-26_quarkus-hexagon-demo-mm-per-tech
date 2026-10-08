@@ -11,8 +11,8 @@ database "MongoDB\n(Audit Logs)" as db
 
 note over user, receiver
   GET /audit-log serves the static shell; its #app loads
-  GET /audit-log/page - and again on each Refresh click
-  (no SSE, no polling)
+  GET /audit-log/page - and again every 2 s
+  (polling, no SSE)
 end note
 user -> receiver: GET /audit-log/page
 receiver -> handler: recent(limit=300)

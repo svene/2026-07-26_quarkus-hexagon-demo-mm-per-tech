@@ -18,13 +18,11 @@
     <div class="level">
         <h1 class="title level-left">Supermarket – Audit Log</h1>
         <div class="level-right">
-            <!-- no SSE and no polling: the entries are only reloaded on request -->
-            <button type="button" class="button is-small is-link is-light level-item" id="refresh-audit-log"
-                    hx-get="/audit-log/page" hx-target="#app" hx-swap="innerHTML">Refresh</button>
             <button type="button" class="button is-small theme-toggle level-item" title="Toggle dark/light theme" aria-label="Toggle dark/light theme"></button>
         </div>
     </div>
-    <div id="app" hx-get="/audit-log/page" hx-trigger="load" hx-swap="innerHTML"></div>
+    <!-- no SSE: the audit log has no change event, so the page polls it every 2 s -->
+    <div id="app" hx-get="/audit-log/page" hx-trigger="load, every 2s" hx-swap="innerHTML"></div>
 </div>
 </section>
 

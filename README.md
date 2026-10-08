@@ -33,7 +33,7 @@ Open **http://localhost:8080/admin** in your browser.
 There are two HTML pages, aimed at two different kinds of user, plus a JSON API:
 
 - **`/admin`** — supermarket staff: inventory view, supplier ordering forms
-- **`/audit-log`** — the latest 300 audit log entries, reloaded with a *Refresh* button
+- **`/audit-log`** — the latest 300 audit log entries, reloaded every 2 s
 - **`/shop`** — customers: browse in-stock products and buy a basket of items
 - **`/api/products`** — JSON API for scripts, tests, and other frontends
 

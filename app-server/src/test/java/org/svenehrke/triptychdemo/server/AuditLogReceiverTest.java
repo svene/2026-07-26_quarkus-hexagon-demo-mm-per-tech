@@ -25,16 +25,16 @@ class AuditLogReceiverTest {
     }
 
     @Test
-    void get_audit_log_serves_a_page_shell_with_a_refresh_button_and_without_sse() {
+    void get_audit_log_serves_a_page_shell_that_polls_every_2s_without_sse() {
         var response = given().get("/audit-log");
 
         assertThat(response.statusCode()).isEqualTo(200);
         assertThat(response.contentType()).contains("text/html");
         assertThat(response.asString())
             .contains("hx-get=\"/audit-log/page\"")
-            .contains("id=\"refresh-audit-log\"")
-            .doesNotContain("hx-sse")
-            .doesNotContain("every ");
+            .contains("hx-trigger=\"load, every 2s\"")
+            .doesNotContain("refresh-audit-log")
+            .doesNotContain("hx-sse");
     }
 
     @Test

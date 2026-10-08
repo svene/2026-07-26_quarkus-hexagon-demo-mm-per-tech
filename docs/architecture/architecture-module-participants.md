@@ -37,7 +37,7 @@ Complete inventory of all classes participating in the system flows, organized b
 - `AdminReceiver` - Admin dashboard: product × location matrix, supplier orders (to the DC) and the open ones, pending requests (GET /admin shell, GET /admin/page and fragments incl. /admin/supplier-orders-fragment, POST /admin/order-*, POST /admin/requests/{id}/fulfil|reject, POST /admin/reset - the shell's *Reset demo data* button, `hx-confirm`)
 - `ShopReceiver` - Customer shopping interface, sells the online FC's stock (GET /shop shell, GET /shop/page and fragment, POST /shop/checkout)
 - `LocationReceiver` - One page for all stores and the online FC: stock, the latest purchases, requests to the DC, per store its occupancy, with an "auto" tag while `inventory.auto-tills.enabled` (GET /locations shell, GET /locations/page, GET /locations/{id}/inventory-fragment, POST /locations/{id}/requests, GET /locations/{id}/occupancy-fragment)
-- `AuditLogReceiver` - The latest 300 audit log entries, newest first, without live updates: the shell's *Refresh* button reloads them (GET /audit-log shell, GET /audit-log/page)
+- `AuditLogReceiver` - The latest 300 audit log entries, newest first, without SSE: the shell polls them every 2 s (GET /audit-log shell, GET /audit-log/page)
 - `InventoryEventsReceiver` - GET /inventory/events SSE stream (`inventoryChanged`), used by the shop, admin and locations shells
 - `InventoryEventBroadcaster` (package-private) - `@ObservesAsync InventoryEvent` (every kind), re-published as a JDK `Flow.Publisher` that the SSE streams subscribe to
 - `PageShell` (package-private) - fills the `{{key}}` placeholders of a page shell

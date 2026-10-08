@@ -14,8 +14,6 @@ import org.eclipse.microprofile.reactive.messaging.Message;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -104,7 +102,7 @@ public class CashpointStub {
             .addMetadata(OutgoingKafkaRecordMetadata.<String>builder().withKey(occupancy.storeId()).build()));
     }
 
-    /** One purchase per paying customer, from what the store has in stock; nothing in stock → no purchase. */
+    /** One purchase ({@link Basket}) per paying customer, from what the store has in stock; nothing in stock → no purchase. */
     private void checkout(String storeId, int customers) {
         List<ProductInfo> available;
         try {
@@ -116,15 +114,9 @@ public class CashpointStub {
         }
         if (available.isEmpty()) return;
 
-        var rnd = ThreadLocalRandom.current();
+        var random = ThreadLocalRandom.current();
         for (int c = 0; c < customers; c++) {
-            var shuffled = new ArrayList<>(available);
-            Collections.shuffle(shuffled);
-            int count = Math.min(rnd.nextInt(2, 5), shuffled.size());
-            var items = shuffled.subList(0, count).stream()
-                .map(p -> new PurchaseRequestItem(p.name(), rnd.nextInt(1, Math.min(4, p.availableAmount() + 1))))
-                .toList();
-            emitter.send(new PurchaseRequest(storeId, items));
+            emitter.send(new PurchaseRequest(storeId, Basket.pick(available, random)));
         }
     }
 }
