@@ -18,8 +18,8 @@ function requestRow(page: Page, locationId: string, productName: string) {
   return page.locator(`#requests-${locationId} tbody tr`).filter({ hasText: productName });
 }
 
-// Columns of the stock table: Name, Type, Available, In transit, Avg, Min, Max, DC, ...
-const AVAILABLE = 2, IN_TRANSIT = 3, AVG = 4, MIN = 5, MAX = 6, DC = 7;
+// Columns of the stock table: Name, Type, Available (its title shows the learned levels), In transit, ...
+const AVAILABLE = 2, IN_TRANSIT = 3;
 const cell = (page: Page, locationId: string, productName: string, column: number) =>
   stockRow(page, locationId, productName).getByRole('cell').nth(column);
 
@@ -50,31 +50,28 @@ test('every store has an occupancy line, the online FC none', async ({ page }) =
 test('a store lists what the DC carries and gets a request served live, without a reload', async ({ page }) => {
   const name = `Quince-${RUN_ID}`;
   await page.goto('/locations');
-  await stockDc(page.request, name, 20);
+  await stockDc(page.request, name, 100);
 
-  // The DC's delivery appears through the SSE-triggered refresh: 0 here, 20 at the DC.
+  // The DC's delivery appears through the SSE-triggered refresh: 0 here.
   await expect(stockRow(page, 'zurich', name)).toBeVisible({ timeout: 15_000 });
   await expect(cell(page, 'zurich', name, AVAILABLE)).toHaveText('0');
-  await expect(cell(page, 'zurich', name, DC)).toHaveText('20');
   // No stock row here yet, so nothing learned yet either.
-  await expect(cell(page, 'zurich', name, MIN)).toHaveText('–');
+  await expect(cell(page, 'zurich', name, AVAILABLE)).toHaveAttribute('title', '');
+  // A manual request only offers 100: the automatic requests cover the usual amounts.
+  await expect(stockRow(page, 'zurich', name).getByRole('button')).toHaveText(['100']);
 
-  await stockRow(page, 'zurich', name).getByRole('button', { name: '10', exact: true }).click();
+  await stockRow(page, 'zurich', name).getByRole('button', { name: '100', exact: true }).click();
 
   // Shipped by the DC; with the e2e server's 0 s transit time it arrives right after (via Kafka), so nothing stays in transit.
-  await expect(cell(page, 'zurich', name, AVAILABLE)).toHaveText('10');
+  await expect(cell(page, 'zurich', name, AVAILABLE)).toHaveText('100');
   await expect(cell(page, 'zurich', name, IN_TRANSIT)).toHaveText('0');
-  await expect(cell(page, 'zurich', name, DC)).toHaveText('10');
   const requested = requestRow(page, 'zurich', name);
-  await expect(requested).toContainText('10 / 10');
+  await expect(requested).toContainText('100 / 100');
   await expect(requested).toContainText('FULFILLED');
   await expect(requested).toContainText('manual');
 
-  // The first shipment created the stock row with a store's cold-start levels (read-only); 10 is below min, so red.
-  await expect(cell(page, 'zurich', name, AVG)).toHaveText('10.0');
-  await expect(cell(page, 'zurich', name, MIN)).toHaveText('17');
-  await expect(cell(page, 'zurich', name, MAX)).toHaveText('47');
-  await expect(cell(page, 'zurich', name, AVAILABLE)).toHaveClass(/has-text-danger/);
+  // The first shipment created the stock row with a store's cold-start levels (read-only), shown as the title.
+  await expect(cell(page, 'zurich', name, AVAILABLE)).toHaveAttribute('title', /^avg \d+\.\d, min \d+ \/ max \d+$/);
 });
 
 test('a request the DC cannot fully serve stays pending until head office fulfils or rejects it', async ({ page, context }) => {
@@ -83,10 +80,10 @@ test('a request the DC cannot fully serve stays pending until head office fulfil
   await page.goto('/locations');
   await expect(stockRow(page, 'basel', name)).toBeVisible({ timeout: 15_000 });
 
-  await stockRow(page, 'basel', name).getByRole('button', { name: '10', exact: true }).click();
+  await stockRow(page, 'basel', name).getByRole('button', { name: '100', exact: true }).click();
   await expect(cell(page, 'basel', name, AVAILABLE)).toHaveText('3');
   const requested = requestRow(page, 'basel', name);
-  await expect(requested).toContainText('3 / 10');
+  await expect(requested).toContainText('3 / 100');
   await expect(requested).toContainText('PENDING');
 
   const admin = await context.newPage();

@@ -44,8 +44,8 @@ AdminReceiver.page()   → UiResponse(AdminPage, {catalog, locations, products, 
 #### GET /admin/inventory-fragment - Inventory Update
 Fetched by `/admin` on every `inventoryChanged` event from `GET /inventory/events`; the browser morphs the rendered
 product × location matrix (`hx-swap="innerMorph"`) into `#admin-inventory`, so new products appear and quantities
-typed into a row's *Restock* form survive. Columns are the locations, DC first (`Locations.ALL`). Each row's
-*Restock* form posts to the `POST /admin/order-*` endpoint of its product type's supplier, so it restocks the DC.
+of rows that stay keep focus. Columns are the locations, DC first (`Locations.ALL`). Read-only: it is on the
+*Inventory* tab, and manual restocking is on the *Manual restock* tab (`GET /admin/dc-inventory-fragment`).
 ```
 AdminReceiver.inventoryFragment()   → UiResponse(AdminInventory, {locations, products})
 └─ ProductsHandler.listAllLocations()   (one ProductStock per product, with its stock per location)
@@ -53,6 +53,17 @@ AdminReceiver.inventoryFragment()   → UiResponse(AdminInventory, {locations, p
       └─ InventoryService (outbound-postgres)
          └─ PostgreSQL (StockTable.findAll(), table stock)
    └─ Sorted by name (case-insensitive), then type; sold-out products stay listed
+```
+
+#### GET /admin/dc-inventory-fragment - DC Inventory (Manual Restock)
+Fetched by `/admin` on every `inventoryChanged` event, morphed into `#admin-dc-inventory` on the *Manual restock* tab
+(next to the supplier order forms; refreshed while that tab is hidden, too). Same data as
+`GET /admin/inventory-fragment`; the template renders only the DC column. Each row's *Restock DC* buttons post to the
+`POST /admin/order-*` endpoint of its product type's supplier, so it restocks the DC - for what the automatic supplier
+orders don't foresee.
+```
+AdminReceiver.dcInventoryFragment()   → UiResponse(AdminDcInventory, {locations, products})
+└─ ProductsHandler.listAllLocations()   (as in GET /admin/inventory-fragment)
 ```
 
 #### GET /admin/requests-fragment - Pending Requests
@@ -277,8 +288,8 @@ ShopReceiver.inventoryFragment()   → UiResponse(ShopProducts, {products})
 #### GET /inventory/events - Inventory Change Stream (SSE)
 Served by `InventoryEventsReceiver` (`/inventory`) and opened once by the shop, admin and locations shells
 (`hx-sse:connect`, outside `#app`, so a re-render of the page keeps it). Replaces the former 3 s polling: each event
-makes `/shop` re-fetch `GET /shop/inventory-fragment`, `/admin` re-fetch `GET /admin/inventory-fragment` and
-`GET /admin/requests-fragment`, and each section of `/locations` re-fetches `GET /locations/{id}/inventory-fragment`. The event
+makes `/shop` re-fetch `GET /shop/inventory-fragment`, `/admin` re-fetch `GET /admin/inventory-fragment`,
+`GET /admin/dc-inventory-fragment` and `GET /admin/requests-fragment`, and each section of `/locations` re-fetches `GET /locations/{id}/inventory-fragment`. The event
 carries no location: every page refreshes on every change (the core events do carry one, for filtering later).
 ```
 InventoryEventsReceiver.events()   → text/event-stream, never ends
@@ -334,7 +345,7 @@ LocationReceiver.page()   → UiResponse(LocationsPage, {locations: [inventory p
 Fetched per section on every `inventoryChanged` event and morphed into it; the ids inside carry the location id.
 ```
 LocationReceiver.inventoryFragment(id)   → UiResponse(LocationInventory, {locationId, locationName, products, purchases, requests})
-├─ ProductsHandler.listAllLocations()   (every product the DC carries: stock here + at the DC)
+├─ ProductsHandler.listAllLocations()   (every product the DC carries, with its stock and learned levels here)
 │  └─ InventoryRepositorySPI.findAllLocations()
 │     └─ InventoryService (outbound-postgres) → PostgreSQL
 ├─ PurchaseHandler.listRecent(location, 10)   (completed purchases, newest first)

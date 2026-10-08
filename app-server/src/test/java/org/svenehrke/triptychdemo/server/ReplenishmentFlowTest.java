@@ -262,7 +262,7 @@ class ReplenishmentFlowTest {
     }
 
     @Test
-    void locations_page_lists_every_dc_product_with_both_stocks_per_location() {
+    void locations_page_lists_every_dc_product_per_location() {
         inventory.addAmount(Locations.DC, "Apple", ProductType.FRUIT, 10);
         inventory.addAmount(Locations.DC, "Milk", ProductType.DAIRY, 6);
         request(Locations.BERN, "Apple", "4").then().statusCode(200);
@@ -277,7 +277,6 @@ class ReplenishmentFlowTest {
         assertThat(json.getList("products.name")).containsExactly("Apple", "Milk");
         assertThat(json.getList("products.availableAmount")).containsExactly(4, 0);
         assertThat(json.getList("products.inTransit")).containsExactly(0, 0);
-        assertThat(json.getList("products.dcAvailableAmount")).containsExactly(6, 6);
     }
 
     @Test

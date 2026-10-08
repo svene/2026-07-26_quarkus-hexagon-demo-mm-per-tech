@@ -1,6 +1,6 @@
 import type {UiRoute} from "./generated/vm-types";
 import type {HtmlResult} from "./route-types";
-import {AdminInventory, AdminPage, AdminRequests, AdminSupplierOrders, OrderErrors} from "./admin";
+import {AdminDcInventory, AdminInventory, AdminPage, AdminRequests, AdminSupplierOrders, OrderErrors} from "./admin";
 import {AuditLogPage} from "./audit-log";
 import {LocationInventory, LocationsPage, StoreOccupancy} from "./location";
 import {ShopProducts, ShopPage} from "./shop";
@@ -12,6 +12,7 @@ import {ShopProducts, ShopPage} from "./shop";
 export const uiRoutes = {
 	AdminPage: (vm: any) => AdminPage(vm),
 	AdminInventory: (vm: any) => AdminInventory(vm),
+	AdminDcInventory: (vm: any) => AdminDcInventory(vm),
 	AdminRequests: (vm: any) => AdminRequests(vm),
 	AdminSupplierOrders: (vm: any) => AdminSupplierOrders(vm),
 	OrderErrors: (vm: any) => OrderErrors(vm),

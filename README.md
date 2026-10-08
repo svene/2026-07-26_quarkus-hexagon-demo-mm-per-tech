@@ -103,14 +103,17 @@ Purchase POST body: `{"items":[{"productName":"Mango","quantity":5}]}`.
 
 ### Admin UI
 
-The admin page at **http://localhost:8080/admin** covers everything above:
-the supplier order forms on the left and the inventory table on the right. The
+The admin page at **http://localhost:8080/admin** covers everything above in
+two tabs. *Inventory* shows the read-only product × location table, the
+pending requests and the open supplier orders. *Manual restock* is for what
+the automatic replenishment doesn't foresee (Christmas, say): the supplier
+order forms on the left and the DC's inventory on the right. The
 audit log (event, details, timestamp, read from MongoDB) has its own page at
 **http://localhost:8080/audit-log**: the latest 300 entries, no live updates,
 reloaded with its *Refresh* button. The inventory table updates as soon as the
-inventory changes (same server-sent event as `/shop`), and each row has a
-*Restock* quantity and button that orders more of that product from its
-supplier. So
+inventory changes (same server-sent event as `/shop`), and each row of the DC
+inventory has *Restock* quantity buttons that order more of that product from
+its supplier. So
 multiple browser tabs (or `/shop` running alongside) stay in sync without a
 manual reload.
 The 7 order forms are grouped into REST / SOAP / Kafka supplier tabs. Each

@@ -159,6 +159,19 @@ class AdminReceiverTest {
     }
 
     @Test
+    void dc_inventory_fragment_carries_the_same_matrix_for_the_manual_restock_tab() {
+        inventory.addAmount(Locations.DC, "Apple", ProductType.FRUIT, 10);
+        inventory.addAmount(Locations.BERN, "Apple", ProductType.FRUIT, 3);
+
+        var response = given().get("/admin/dc-inventory-fragment");
+
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(response.jsonPath().getString("route")).isEqualTo("AdminDcInventory");
+        assertThat(response.jsonPath().getString("vm.locations[0].id")).isEqualTo("dc");
+        assertThat(response.jsonPath().getList("vm.products[0].amounts")).containsExactly(10, 0, 3, 0, 0);
+    }
+
+    @Test
     void inventory_fragment_lists_products_sorted_by_name_ignoring_case() {
         inventory.addAmount(Locations.DC, "milk", ProductType.DAIRY, 3);
         inventory.addAmount(Locations.DC, "Banana", ProductType.FRUIT, 5);

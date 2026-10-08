@@ -35,11 +35,19 @@ async function stockFruit(request: APIRequestContext, productName: string, quant
   expect(res.ok()).toBeTruthy();
 }
 
-// The order forms are grouped into supplier tabs and only the active tab's panel is visible, so open the tab whose
-// panel (aria-controls) contains the form first.
+// The page has two top-level tabs, "Inventory" (selected initially) and "Manual restock"; only the active one is visible.
+async function openTab(page: Page, name: string) {
+  const tab = page.getByRole('tab', { name, exact: true });
+  await tab.click();
+  await expect(tab).toHaveAttribute('aria-selected', 'true');
+}
+
+// The order forms are on the "Manual restock" tab, grouped into supplier tabs, and only the active tab's panel is
+// visible, so open the supplier tab whose panel (aria-controls) - the form's nearest tabpanel - contains the form, too.
 async function orderForm(page: Page, action: string) {
+  await openTab(page, 'Manual restock');
   const form = page.locator(`form[action="${action}"]`);
-  const panelId = await form.locator('xpath=ancestor::*[@role="tabpanel"]').getAttribute('id');
+  const panelId = await form.locator('xpath=ancestor::*[@role="tabpanel"][1]').getAttribute('id');
   await page.locator(`[role="tab"][aria-controls="${panelId}"]`).click();
   await expect(form).toBeVisible();
   return form;
@@ -48,7 +56,14 @@ async function orderForm(page: Page, action: string) {
 test('admin page shows heading and supplier tabs, but no audit log', async ({ page }) => {
   await page.goto('/admin');
   await expect(page.getByRole('heading', { name: 'Supermarket – Admin' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Inventory', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('heading', { name: 'Current Inventory' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Restock Inventory' })).toBeHidden();
+
+  await openTab(page, 'Manual restock');
+  await expect(page.getByRole('heading', { name: 'Current Inventory' })).toBeHidden();
   await expect(page.getByRole('heading', { name: 'Restock Inventory' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'DC Inventory' })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'REST suppliers' })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'SOAP suppliers' })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Kafka supplier' })).toBeVisible();
@@ -57,6 +72,7 @@ test('admin page shows heading and supplier tabs, but no audit log', async ({ pa
 
 test('only the selected supplier tab shows its order forms, REST is selected initially', async ({ page }) => {
   await page.goto('/admin');
+  await openTab(page, 'Manual restock');
   const fruits = page.locator('form[action="/admin/order-fruits"]');
   const beverages = page.locator('form[action="/admin/order-beverages"]');
   const rest = page.getByRole('tab', { name: 'REST suppliers' });
@@ -161,6 +177,7 @@ for (const { action, type, products } of ORDER_FORMS) {
     }
     await form.getByRole('button', { name: 'Order' }).click();
 
+    await openTab(page, 'Inventory');
     await waitForProductRow(page, product);
     await expect(inventoryRow(page, product).getByRole('cell').nth(1)).toHaveText(type);
     await expect.poll(() => availableAmount(page, product), { timeout: 15_000 }).toBeGreaterThanOrEqual(before + qty);
@@ -168,13 +185,25 @@ for (const { action, type, products } of ORDER_FORMS) {
   });
 }
 
-test('clicking a quantity button of an inventory row restocks that amount at the DC, live', async ({ page }) => {
-  const name = `Fig-${RUN_ID}`;
+test('the inventory tab is read-only: its rows have no restock buttons', async ({ page }) => {
+  const name = `Date-${RUN_ID}`;
   await page.goto('/admin');
   await stockFruit(page.request, name, 5);
   await waitForProductRow(page, name);
 
-  const row = inventoryRow(page, name);
+  await expect(inventoryRow(page, name).getByRole('button')).toHaveCount(0);
+});
+
+test('clicking a quantity button of a DC inventory row restocks that amount at the DC, live', async ({ page }) => {
+  const name = `Fig-${RUN_ID}`;
+  await page.goto('/admin');
+  await openTab(page, 'Manual restock');
+  await stockFruit(page.request, name, 5);
+
+  // Name, Type, DC, Restock DC
+  const row = page.locator('#admin-dc-inventory tbody tr').filter({ has: page.getByRole('cell', { name, exact: true }) });
+  await expect(row).toBeVisible({ timeout: 15_000 });
+  await expect(row.getByRole('cell')).toHaveCount(5);
   const available = async () => Number(await row.getByRole('cell').nth(2).textContent());
   await expect.poll(available, { timeout: 15_000 }).toBe(5);
   await row.getByRole('button', { name: '20', exact: true }).click();

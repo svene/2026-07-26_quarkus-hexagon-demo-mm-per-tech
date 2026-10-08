@@ -13,7 +13,7 @@ import type {
 	SupplierOrderVM
 } from "./generated/vm-types";
 import type {HtmlResult} from "./route-types";
-import {OriginTag, QuantityButtons} from "./location";
+import {OriginTag} from "./location";
 
 // The products of a form come from the server's catalog (AdminPageVM.catalog), picked by `type`.
 type OrderForm = { label: string, action: string, type: string };
@@ -54,54 +54,92 @@ const RESTOCK_ACTIONS: Record<string, string> = {
 	NON_FOOD: "/admin/order-nonfood",
 };
 
+// Two top-level tabs, built like the supplier tabs: the automatic replenishment covers the daily work, so the manual
+// restock (an exceptional situation the system does not foresee, e.g. Christmas) lives on its own tab.
+type PageTab = { id: string, title: string };
+
+const PAGE_TABS: PageTab[] = [
+	{id: "inventory", title: "Inventory"},
+	{id: "restock", title: "Manual restock"},
+];
+
 export const AdminPage = (vm: AdminPageVM): HtmlResult => html`
-	<!-- The supplier forms take only the width they need; the inventory side gets the rest. -->
-	<div class="columns">
-		<div class="column is-narrow">
-			<h2 class="title is-4">Restock Inventory</h2>
-			<!-- One tab per supplier group. The panels stay in the DOM and are only hidden, so switching tabs keeps
-			     what was chosen in a form; take() moves is-active to the clicked tab and hx-live follows it. -->
-			<div class="box">
-				<div class="tabs is-boxed is-small">
-					<ul role="tablist">
-						${SUPPLIER_BOXES.map((box, i) => SupplierTab(box, i === 0))}
-					</ul>
+	<div class="tabs is-boxed">
+		<ul role="tablist">
+			${PAGE_TABS.map((tab, i) => PageTabItem(tab, i === 0))}
+		</ul>
+	</div>
+
+	${PagePanel(PAGE_TABS[0], true, html`
+		<h2 class="title is-4">Current Inventory</h2>
+		<div id="admin-inventory" hx-get="/admin/inventory-fragment" hx-trigger="inventoryChanged from:body" hx-sync="this:replace" hx-swap="innerMorph">
+			${AdminInventory({locations: vm.locations, products: vm.products})}
+		</div>
+
+		<h2 class="title is-4 mt-5">Pending Requests</h2>
+		<div id="admin-requests" hx-get="/admin/requests-fragment" hx-trigger="inventoryChanged from:body" hx-sync="this:replace" hx-swap="innerMorph">
+			${AdminRequests({requests: vm.pendingRequests})}
+		</div>
+
+		<h2 class="title is-4 mt-5">Supplier Orders</h2>
+		<div id="admin-supplier-orders" hx-get="/admin/supplier-orders-fragment" hx-trigger="inventoryChanged from:body" hx-sync="this:replace" hx-swap="innerMorph">
+			${AdminSupplierOrders({supplierOrders: vm.supplierOrders})}
+		</div>
+	`)}
+
+	${PagePanel(PAGE_TABS[1], false, html`
+		<!-- The supplier forms take only the width they need; the DC inventory gets the rest. -->
+		<div class="columns">
+			<div class="column is-narrow">
+				<h2 class="title is-4">Restock Inventory</h2>
+				<!-- One tab per supplier group. The panels stay in the DOM and are only hidden, so switching tabs keeps
+				     what was chosen in a form; take() moves is-active to the clicked tab and hx-live follows it. -->
+				<div class="box">
+					<div class="tabs is-boxed is-small">
+						<ul role="tablist">
+							${SUPPLIER_BOXES.map((box, i) => SupplierTab(box, i === 0))}
+						</ul>
+					</div>
+					${SUPPLIER_BOXES.map((box, i) => SupplierPanel(box, i, vm.catalog))}
 				</div>
-				${SUPPLIER_BOXES.map((box, i) => SupplierPanel(box, i, vm.catalog))}
+			</div>
+
+			<div class="column">
+				<h2 class="title is-4">DC Inventory</h2>
+				<div id="admin-dc-inventory" hx-get="/admin/dc-inventory-fragment" hx-trigger="inventoryChanged from:body" hx-sync="this:replace" hx-swap="innerMorph">
+					${AdminDcInventory({locations: vm.locations, products: vm.products})}
+				</div>
 			</div>
 		</div>
+	`)}
+`;
 
-		<div class="column">
-			<h2 class="title is-4">Current Inventory</h2>
-			<div id="admin-inventory" hx-get="/admin/inventory-fragment" hx-trigger="inventoryChanged from:body" hx-sync="this:replace" hx-swap="innerMorph">
-				${AdminInventory({locations: vm.locations, products: vm.products})}
-			</div>
+const PageTabItem = (tab: PageTab, active: boolean): HtmlResult => html`
+	<li id="page-tab-${tab.id}" class="${active ? 'is-active' : ''}" hx-on:click="take('.is-active')">
+		<a role="tab" aria-controls="page-panel-${tab.id}" hx-live="this.ariaSelected = q('closest li').matches('.is-active')">${tab.title}</a>
+	</li>
+`;
 
-			<h2 class="title is-4 mt-5">Pending Requests</h2>
-			<div id="admin-requests" hx-get="/admin/requests-fragment" hx-trigger="inventoryChanged from:body" hx-sync="this:replace" hx-swap="innerMorph">
-				${AdminRequests({requests: vm.pendingRequests})}
-			</div>
-
-			<h2 class="title is-4 mt-5">Supplier Orders</h2>
-			<div id="admin-supplier-orders" hx-get="/admin/supplier-orders-fragment" hx-trigger="inventoryChanged from:body" hx-sync="this:replace" hx-swap="innerMorph">
-				${AdminSupplierOrders({supplierOrders: vm.supplierOrders})}
-			</div>
-		</div>
+// Hidden, not removed, like the supplier panels: a half-filled order form survives a tab switch, and the fragments in
+// the hidden panel keep refreshing.
+const PagePanel = (tab: PageTab, active: boolean, content: HtmlResult): HtmlResult => html`
+	<div id="page-panel-${tab.id}" role="tabpanel" ${active ? '' : 'hidden'}
+		hx-live="this.hidden = !q('#page-tab-${tab.id}').matches('.is-active')">
+		${content}
 	</div>
 `;
 
 // The product × location matrix, DC column first. Re-fetched on every inventoryChanged event pushed by the shell's
-// SSE stream (/inventory/events) and morphed into #admin-inventory: rows are matched by id, so new products appear
-// and rows that stay keep focus. (A restock error in the last column is cleared by the
-// next refresh.) Restocking orders from the supplier, so it always goes to the DC.
+// SSE stream (/inventory/events) and morphed into #admin-inventory: rows are matched by id, so new products appear.
+// Read-only: restocking is on the "Manual restock" tab.
 export const AdminInventory = (vm: AdminInventoryVM): HtmlResult => html`
 	${vm.products.length === 0
-		? html`<p class="has-text-grey"><em>No products in inventory yet.</em></p>`
+		? NoProducts
 		: html`
 			<div style="overflow-x:auto">
 				<table class="table is-fullwidth is-striped is-narrow" id="stock-matrix">
 					<thead>
-					<tr><th>Name</th><th>Type</th>${vm.locations.map(LocationHeader)}<th>Restock DC</th><th></th></tr>
+					<tr><th>Name</th><th>Type</th>${vm.locations.map(LocationHeader)}</tr>
 					</thead>
 					<tbody>
 					${vm.products.map(InventoryRow)}
@@ -109,6 +147,25 @@ export const AdminInventory = (vm: AdminInventoryVM): HtmlResult => html`
 				</table>
 			</div>`}
 `;
+
+// The matrix's DC column only (the stores' columns don't matter to a supplier order), with a restock button per
+// quantity. Refreshed like #admin-inventory, into #admin-dc-inventory; rows that stay keep focus, and a restock error in
+// the last column is cleared by the next refresh. Restocking orders from the supplier, so it always goes to the DC.
+export const AdminDcInventory = (vm: AdminInventoryVM): HtmlResult => html`
+	${vm.products.length === 0
+		? NoProducts
+		: html`
+			<table class="table is-fullwidth is-striped is-narrow" id="dc-stock">
+				<thead>
+				<tr><th>Name</th><th>Type</th>${LocationHeader(vm.locations[0])}<th>Restock DC</th><th></th></tr>
+				</thead>
+				<tbody>
+				${vm.products.map(DcInventoryRow)}
+				</tbody>
+			</table>`}
+`;
+
+const NoProducts = html`<p class="has-text-grey"><em>No products in inventory yet.</em></p>`;
 
 // Narrow enough that two-word names like "Store Basel" wrap.
 const LocationHeader = (l: LocationVM): HtmlResult => html`<th class="has-text-right" data-location="${l.id}" style="max-width:5em">${l.name}</th>`;
@@ -124,12 +181,21 @@ const AmountCell = (amount: number, inTransit: number, levels: LevelsVM | null, 
 	return html`<td class="has-text-right ${low ? lowClass : ''}" title="${title}">${amount}</td>`;
 };
 
-// Name+type is the product key. Each quantity button orders that amount right away.
+// Name+type is the product key.
 const InventoryRow = (p: StockRowVM): HtmlResult => html`
 	<tr id="row-${p.name}-${p.type}">
 		<td>${p.name}</td>
 		<td>${p.type}</td>
 		${p.amounts.map((amount, i) => AmountCell(amount, p.inTransit[i], p.levels[i], i))}
+	</tr>
+`;
+
+// Each quantity button orders that amount right away.
+const DcInventoryRow = (p: StockRowVM): HtmlResult => html`
+	<tr id="dc-row-${p.name}-${p.type}">
+		<td>${p.name}</td>
+		<td>${p.type}</td>
+		${AmountCell(p.amounts[0], p.inTransit[0], p.levels[0], 0)}
 		<td>
 			<form hx-post="${RESTOCK_ACTIONS[p.type]}" hx-target="next .restock-error" hx-swap="innerHTML" class="restock-form">
 				<input type="hidden" name="productName" value="${p.name}">
@@ -138,6 +204,16 @@ const InventoryRow = (p: StockRowVM): HtmlResult => html`
 		</td>
 		<td class="has-text-danger is-size-7 restock-error"></td>
 	</tr>
+`;
+
+const QUANTITIES = [10, 20, 50, 100];
+
+// One submit button per quantity, for a form that carries the productName: htmx adds the clicked button's
+// name/value, so a click submits that quantity right away.
+const QuantityButtons = (): HtmlResult => html`
+	<div class="buttons has-addons are-small is-flex-wrap-nowrap mb-0">
+		${QUANTITIES.map(n => html`<button class="button is-link mb-0" type="submit" name="quantity" value="${n}">${n}</button>`)}
+	</div>
 `;
 
 // Pending requests of all locations, oldest first; a delivery is shared among them in proportion to what each still

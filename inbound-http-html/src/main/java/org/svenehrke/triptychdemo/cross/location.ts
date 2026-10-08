@@ -33,7 +33,7 @@ export const LocationInventory = (vm: LocationInventoryVM): HtmlResult => html`
 				: html`
 					<table class="table is-fullwidth is-striped is-narrow" id="stock-${vm.locationId}">
 						<thead>
-						<tr><th>Name</th><th>Type</th><th class="has-text-right">Available</th><th class="has-text-right" title="Shipped by the DC, not arrived yet">In transit</th><th class="has-text-right" title="Learned demand per period">Avg</th><th class="has-text-right" title="Reorder point: below it, stock is requested from the DC automatically">Min</th><th class="has-text-right" title="Order-up-to level: how far an automatic request fills up">Max</th><th class="has-text-right">DC</th><th>Request from DC</th><th></th></tr>
+						<tr><th>Name</th><th>Type</th><th class="has-text-right">Available</th><th class="has-text-right" title="Shipped by the DC, not arrived yet">In transit</th><th>Request from DC</th><th></th></tr>
 						</thead>
 						<tbody>
 						${vm.products.map(p => StockRow(vm.locationId, p))}
@@ -174,37 +174,31 @@ const availableClass = (p: LocationProductRowVM): string => {
 	return p.levels && p.availableAmount > p.levels.max ? 'has-text-grey' : '';
 };
 
-// Name+type is the product key. Each quantity button requests that amount from the DC right away; what the DC ships
-// is in transit until the carrier reports its arrival. Avg/Min/Max are learned (ReorderPolicyHandler) and read-only.
+// The learned levels (ReorderPolicyHandler, read-only) as the Available cell's title: the demand per period, the
+// reorder point (below it, stock is requested from the DC automatically) and the order-up-to level.
+const levelsTitle = (p: LocationProductRowVM): string =>
+	[p.avgDemand == null ? '' : `avg ${p.avgDemand.toFixed(1)}`, p.levels ? `min ${p.levels.min} / max ${p.levels.max}` : '']
+		.filter(t => t).join(', ');
+
+// Name+type is the product key. The button requests 100 from the DC right away - for what the automatic requests
+// don't foresee; what the DC ships is in transit until the carrier reports its arrival.
 const StockRow = (locationId: string, p: LocationProductRowVM): HtmlResult => html`
 	<tr id="row-${locationId}-${p.name}-${p.type}">
 		<td>${p.name}</td>
 		<td>${p.type}</td>
-		<td class="has-text-right ${availableClass(p)}">${p.availableAmount}</td>
+		<td class="has-text-right ${availableClass(p)}" title="${levelsTitle(p)}">${p.availableAmount}</td>
 		<td class="has-text-right has-text-grey">${p.inTransit}</td>
-		<td class="has-text-right has-text-grey">${p.avgDemand == null ? '–' : p.avgDemand.toFixed(1)}</td>
-		<td class="has-text-right has-text-grey">${p.levels ? p.levels.min : '–'}</td>
-		<td class="has-text-right has-text-grey">${p.levels ? p.levels.max : '–'}</td>
-		<td class="has-text-right has-text-grey">${p.dcAvailableAmount}</td>
 		<td>
 			<form hx-post="/locations/${locationId}/requests" hx-target="next .request-error" hx-swap="innerHTML" class="request-form">
 				<input type="hidden" name="productName" value="${p.name}">
-				${QuantityButtons()}
+				<button class="button is-link is-small" type="submit" name="quantity" value="${REQUEST_QUANTITY}">${REQUEST_QUANTITY}</button>
 			</form>
 		</td>
 		<td class="has-text-danger is-size-7 request-error"></td>
 	</tr>
 `;
 
-const QUANTITIES = [10, 20, 50, 100];
-
-// One submit button per quantity, for a form that carries the productName: htmx adds the clicked button's
-// name/value, so a click submits that quantity right away. Used by the restock column on /admin, too.
-export const QuantityButtons = (): HtmlResult => html`
-	<div class="buttons has-addons are-small is-flex-wrap-nowrap mb-0">
-		${QUANTITIES.map(n => html`<button class="button is-link mb-0" type="submit" name="quantity" value="${n}">${n}</button>`)}
-	</div>
-`;
+const REQUEST_QUANTITY = 100;
 
 const STATUS_TAGS: Record<string, string> = {PENDING: "is-warning", FULFILLED: "is-success", REJECTED: "is-danger"};
 

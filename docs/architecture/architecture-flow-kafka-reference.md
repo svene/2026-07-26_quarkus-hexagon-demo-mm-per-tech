@@ -200,6 +200,7 @@ Every stub publishes its delivery after the supplier lead time (`supplier-stub.l
 | AdminReceiver | /admin | GET | Static page shell | - | - |
 | AdminReceiver | /admin/page | GET | Query | - | PostgreSQL (read) |
 | AdminReceiver | /admin/inventory-fragment | GET | Query | - | PostgreSQL (read) |
+| AdminReceiver | /admin/dc-inventory-fragment | GET | Query | - | PostgreSQL (read) |
 | AdminReceiver | /admin/requests-fragment | GET | Query | - | PostgreSQL (read) |
 | AdminReceiver | /admin/requests/{id}/fulfil, /reject | POST | Command | - | PostgreSQL + MongoDB |
 | AdminReceiver | /admin/reset | POST | Command (dev: deletes all demo data and the audit log) | - | PostgreSQL + MongoDB |

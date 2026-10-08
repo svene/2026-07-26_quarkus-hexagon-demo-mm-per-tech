@@ -97,6 +97,14 @@ public class AdminReceiver {
         return UiResponse.of(UiRoute.AdminInventory, new AdminInventoryVM(locations(), products()));
     }
 
+    /** The same matrix as {@link #inventoryFragment()}; the "Manual restock" tab renders only its DC column. */
+    @GET
+    @Path("/dc-inventory-fragment")
+    @Produces(MediaType.APPLICATION_JSON)
+    public UiResponse dcInventoryFragment() {
+        return UiResponse.of(UiRoute.AdminDcInventory, new AdminInventoryVM(locations(), products()));
+    }
+
     @GET
     @Path("/requests-fragment")
     @Produces(MediaType.APPLICATION_JSON)
